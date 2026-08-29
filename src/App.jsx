@@ -1,23 +1,32 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Live2DCanvas } from './components/Live2DCanvas';
-import { FloatingHUD } from './components/FloatingHUD';
-import { SubtitleOverlay } from './components/SubtitleOverlay';
-import { ContextMenu } from './components/ContextMenu';
-import { SettingsModal } from './components/SettingsModal';
-import { CameraPreview } from './components/CameraPreview';
-import { ScreenRegionOverlay } from './components/ScreenRegionOverlay';
-import { ScreenRegionPicker } from './components/ScreenRegionPicker';
-import { GeminiLiveSocket } from './services/geminiLiveSocket';
-import { AudioInputService } from './services/audioInputService';
-import { AudioOutputService } from './services/audioOutputService';
-import { ToolExecutor } from './services/toolExecutor';
-import { CameraService } from './services/cameraService';
-import { SpeechRecognitionService } from './services/speechRecognition';
-import { VisionDetectionService } from './services/visionDetectionService';
-import { ScreenCaptureService } from './services/screenCaptureService';
-import { SystemTrayService } from './services/systemTrayService';
-import { DEFAULT_MODEL_ID, SYSTEM_PERSONA_PROMPT, GEMINI_MODELS, getScreenCaptureFPS } from './config/models';
 import { ShieldAlert, X } from 'lucide-react';
+import {
+  Live2DCanvas,
+  FloatingHUD,
+  SubtitleOverlay,
+  ContextMenu,
+  SettingsModal,
+  CameraPreview,
+  ScreenRegionOverlay,
+  ScreenRegionPicker
+} from './components';
+import {
+  GeminiLiveSocket,
+  AudioInputService,
+  AudioOutputService,
+  ToolExecutor,
+  CameraService,
+  SpeechRecognitionService,
+  VisionDetectionService,
+  ScreenCaptureService,
+  SystemTrayService
+} from './services';
+import {
+  DEFAULT_MODEL_ID,
+  SYSTEM_PERSONA_PROMPT,
+  GEMINI_MODELS,
+  getScreenCaptureFPS
+} from './config';
 
 const STORAGE_KEY_CONFIG = 'cristi_ai_settings_v1';
 const STORAGE_KEY_VIEWMODE = 'cristi_ai_viewmode_v1';
