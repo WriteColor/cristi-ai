@@ -203,6 +203,16 @@ export function App() {
     }
   }, []);
 
+  // --- Expose Test / Automation Hooks ---
+  useEffect(() => {
+    window.__triggerGesture = (g) => setCurrentGesture(g);
+    window.__setSubtitle = (text) => setSubtitleText(text);
+    return () => {
+      delete window.__triggerGesture;
+      delete window.__setSubtitle;
+    };
+  }, []);
+
   // --- Audio Output Service Setup ---
   useEffect(() => {
     audioOutRef.current = new AudioOutputService({

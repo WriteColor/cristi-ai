@@ -35,6 +35,7 @@ resources.neu
 
 # Temporary test captures and archives
 tests/screenshots/
+tests/videos/
 *.rar
 *.zip
 scratch_screenshot.png
