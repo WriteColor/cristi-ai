@@ -9,7 +9,8 @@ const suites = [
   { name: 'Terminal & Command Coverage (46 Tests)', script: 'tests/playwright/test_real_models_and_tools.mjs' },
   { name: 'Model Catalog & UI Design Audit', script: 'tests/playwright/audit_modal_design.mjs' },
   { name: 'Real Process & File Creation Verification', script: 'tests/playwright/live_real_process_launcher_test.mjs' },
-  { name: 'Dual Local Vision & Anti-Procrastination Engine', script: 'tests/playwright/test_local_vision_engine.mjs' }
+  { name: 'Dual Local Vision & Anti-Procrastination Engine', script: 'tests/playwright/test_local_vision_engine.mjs' },
+  { name: 'Context Menu Exclusivity & Smart Edge Responsiveness', script: 'tests/playwright/test_context_menu_responsiveness.mjs' }
 ];
 
 console.log('================================================================');

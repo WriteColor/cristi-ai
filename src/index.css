@@ -1488,17 +1488,40 @@ html, body, #root {
 .custom-context-menu {
   position: fixed;
   z-index: 999;
-  min-width: 220px;
-  background: #101014;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 1px rgba(255, 255, 255, 0.15);
+  min-width: 228px;
+  background: rgba(16, 16, 20, 0.94);
+  border: 1px solid rgba(192, 132, 252, 0.28);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85), 0 0 20px rgba(168, 85, 247, 0.18);
   padding: 6px;
-  backdrop-filter: blur(16px);
-  animation: fadeIn 0.12s ease-out;
+  backdrop-filter: blur(24px);
+  animation: contextMenuPop 0.16s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
   flex-direction: column;
   gap: 2px;
+  transform-origin: top left;
+  user-select: none;
+}
+
+.custom-context-menu.placement-left {
+  transform-origin: top right;
+  border-right: 2px solid #c084fc;
+}
+
+.custom-context-menu.placement-right {
+  transform-origin: top left;
+  border-left: 2px solid #c084fc;
+}
+
+@keyframes contextMenuPop {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .context-menu-header {
@@ -1507,9 +1530,12 @@ html, body, #root {
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #a1a1aa;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: #c084fc;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .context-menu-item {
@@ -1530,13 +1556,15 @@ html, body, #root {
 }
 
 .context-menu-item:hover {
-  background: rgba(168, 85, 247, 0.15);
-  color: #f4f4f5;
+  background: rgba(168, 85, 247, 0.2);
+  color: #ffffff;
+  transform: translateX(2px);
 }
 
 .context-menu-item svg {
   color: #a1a1aa;
   flex-shrink: 0;
+  transition: color 0.12s ease;
 }
 
 .context-menu-item:hover svg {
@@ -1554,8 +1582,9 @@ html, body, #root {
 }
 
 .context-menu-item.danger:hover {
-  background: rgba(244, 63, 94, 0.15);
+  background: rgba(244, 63, 94, 0.2);
   color: #fda4af;
+  transform: translateX(2px);
 }
 
 .context-menu-item.danger svg {

@@ -260,7 +260,13 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
     const isOver = isPointerOverModel(e.clientX, e.clientY);
     if (isOver && onModelContextMenu) {
       e.preventDefault();
-      onModelContextMenu(e);
+      const model = modelRef.current;
+      let bounds = null;
+      if (model && typeof model.getBounds === 'function') {
+        const b = model.getBounds();
+        bounds = { x: b.x, y: b.y, width: b.width, height: b.height };
+      }
+      onModelContextMenu(e, bounds);
     }
   }, [isPointerOverModel, onModelContextMenu]);
 

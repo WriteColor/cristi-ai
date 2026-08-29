@@ -638,13 +638,14 @@ export function App() {
     }
   };
 
-  // --- Right-Click Context Menu Handler ---
-  const handleContextMenu = (e) => {
-    e.preventDefault();
+  // --- Right-Click Context Menu Handler (Triggered ONLY on the Live2D Model) ---
+  const handleModelContextMenu = (e, bounds) => {
+    if (e && e.preventDefault) e.preventDefault();
     setContextMenu({
       isOpen: true,
       x: e.clientX,
-      y: e.clientY
+      y: e.clientY,
+      modelBounds: bounds || null
     });
   };
 
@@ -692,7 +693,6 @@ export function App() {
     screenCaptureRef.current?.clearRegion();
   };
 
-  // --- Minimize to System Tray Handler ---
   const handleMinimizeToTray = () => {
     if (systemTrayRef.current) {
       systemTrayRef.current.minimizeToTray();
@@ -704,7 +704,7 @@ export function App() {
   return (
     <div
       className={`app-container ${isSolidBackdrop ? 'solid-backdrop' : 'transparent-backdrop'}`}
-      onContextMenu={handleContextMenu}
+      onContextMenu={(e) => e.preventDefault()}
     >
       {/* Global Error Banner Toast */}
       {errorMessage && (
@@ -726,7 +726,7 @@ export function App() {
         isListening={isListening}
         viewMode={viewMode}
         onModelClick={handleTriggerRandomGesture}
-        onModelContextMenu={handleContextMenu}
+        onModelContextMenu={handleModelContextMenu}
       />
 
       {/* Screen Region Overlay — Shows Cristi's active vision area */}
@@ -796,11 +796,11 @@ export function App() {
         onClose={handleToggleCamera}
       />
 
-      {/* 5. Desktop Right-Click Context Menu */}
+      {/* 5. Desktop Right-Click Context Menu (Triggered ONLY on Model with Smart Edge-Flipping) */}
       <ContextMenu
-        position={{ x: contextMenu.x, y: contextMenu.y }}
+        position={contextMenu}
         isOpen={contextMenu.isOpen}
-        onClose={() => setContextMenu({ isOpen: false, x: 0, y: 0 })}
+        onClose={() => setContextMenu({ isOpen: false, x: 0, y: 0, modelBounds: null })}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onToggleCamera={handleToggleCamera}
         isCameraActive={isCameraActive}

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Settings,
   Camera,
@@ -16,6 +16,7 @@ import {
 /**
  * Cristi AI - Right-Click Desktop Context Menu
  * Provides native frameless window management and quick companion toggles.
+ * Features smart edge-awareness (flips to left side if avatar is near the right edge).
  */
 export function ContextMenu({
   position,
@@ -35,6 +36,59 @@ export function ContextMenu({
   onToggleZenMode,
   onMinimizeToTray
 }) {
+  const menuRef = useRef(null);
+  const [coords, setCoords] = useState({
+    left: position?.x || 100,
+    top: position?.y || 100,
+    placement: 'right'
+  });
+
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+
+    const el = menuRef.current;
+    const menuW = el?.offsetWidth || 230;
+    const menuH = el?.offsetHeight || 380;
+    const MARGIN = 14;
+
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    const posX = position?.x ?? (vw / 2);
+    const posY = position?.y ?? (vh / 2);
+    const bounds = position?.modelBounds;
+
+    // Edge Detection: Check if model or cursor is near right edge
+    const isNearRightEdge = bounds
+      ? (bounds.x + bounds.width + menuW + MARGIN > vw || posX + menuW + MARGIN > vw)
+      : (posX + menuW + MARGIN > vw);
+
+    let finalLeft;
+    let placement = 'right';
+
+    if (isNearRightEdge) {
+      placement = 'left';
+      finalLeft = bounds ? (bounds.x - menuW - 8) : (posX - menuW - 8);
+    } else {
+      placement = 'right';
+      finalLeft = bounds ? (bounds.x + bounds.width + 8) : (posX + 8);
+    }
+
+    // Safety clamp within viewport margins
+    finalLeft = Math.max(MARGIN, Math.min(finalLeft, vw - menuW - MARGIN));
+
+    // Vertical positioning with overflow protection
+    let finalTop = posY - 16;
+    if (finalTop + menuH + MARGIN > vh) {
+      finalTop = Math.max(MARGIN, vh - menuH - MARGIN);
+    }
+    if (finalTop < MARGIN) {
+      finalTop = MARGIN;
+    }
+
+    setCoords({ left: finalLeft, top: finalTop, placement });
+  }, [isOpen, position]);
+
   useEffect(() => {
     const handleGlobalClick = (e) => {
       if (isOpen && !e.target.closest('.custom-context-menu')) {
@@ -69,10 +123,11 @@ export function ContextMenu({
 
   return (
     <div
-      className="custom-context-menu"
+      ref={menuRef}
+      className={`custom-context-menu placement-${coords.placement}`}
       style={{
-        left: Math.min(position.x, window.innerWidth - 240),
-        top: Math.min(position.y, window.innerHeight - 380)
+        left: `${coords.left}px`,
+        top: `${coords.top}px`
       }}
     >
       <div className="context-menu-header">Cristi AI Companion</div>
