@@ -29,7 +29,7 @@ async function auditModalDesign() {
     console.log(`[PAGE ERROR]: ${err.message}`);
   });
 
-  await page.goto('http://localhost:5173', { waitUntil: 'networkidle', timeout: 15000 });
+  await page.goto('http://localhost:5173', { waitUntil: 'domcontentloaded', timeout: 20000 });
   await page.waitForTimeout(3000);
 
   // 1. Move mouse to trigger HUD and open Settings

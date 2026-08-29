@@ -580,6 +580,22 @@ export class VisionDetectionService {
       );
       ctx.restore();
     }
+
+    // Draw Cyber Activity Status Badge in top right corner
+    const activityKey = telemetry?.activity || (telemetry?.phoneInHand ? 'phone_usage' : 'productive_work');
+    const activityLabel = VISION_CONFIG.ACTIVITY_LABELS[activityKey] || '💻 Trabajo Productivo Enfocado';
+    
+    ctx.save();
+    ctx.font = 'bold 10px "JetBrains Mono", monospace';
+    const badgeW = ctx.measureText(activityLabel).width + 16;
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+    ctx.strokeStyle = telemetry?.phoneInHand ? '#ec4899' : '#38bdf8';
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(canvas.width - badgeW - 10, 10, badgeW, 22);
+    ctx.strokeRect(canvas.width - badgeW - 10, 10, badgeW, 22);
+    ctx.fillStyle = telemetry?.phoneInHand ? '#ff2d55' : '#38bdf8';
+    ctx.fillText(activityLabel, canvas.width - badgeW - 2, 25);
+    ctx.restore();
   }
 
   getCurrentSceneSummary() {

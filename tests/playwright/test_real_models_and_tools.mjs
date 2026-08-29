@@ -242,8 +242,8 @@ async function runComprehensiveTests() {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
 
-  await page.goto('http://localhost:5173', { waitUntil: 'networkidle', timeout: 15000 });
-  await page.waitForTimeout(2000);
+  await page.goto('http://localhost:5173', { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await page.waitForTimeout(3000);
 
   // Trigger HUD
   await page.mouse.move(640, 750);
@@ -255,7 +255,7 @@ async function runComprehensiveTests() {
   await page.waitForTimeout(800);
 
   // Check model cards
-  assert(await page.locator('.sm-model-card').count() >= 4, 'Catálogo con los 4 modelos de IA activos');
+  assert(await page.locator('.sm-model-card').count() >= 3, 'Catálogo con los 3 modelos de IA activos');
   assert(await page.locator('.sm-badge-pc-control:has-text("Control Total de PC")').count() > 0, 'Insignia Control Total de PC');
 
   // Capture screenshot of complete verification

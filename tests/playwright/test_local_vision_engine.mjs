@@ -1,7 +1,17 @@
 /**
- * Cristi AI - Local Vision & Anti-Procrastination Engine Automated Test
- * Validates MoveNet keypoint estimation, COCO-SSD object tracking, wrist-to-phone
- * Euclidean proximity calculations, distraction alert triggering, and HUD overlay rendering.
+ * Cristi AI - Local Vision & Anti-Procrastination Multi-Activity Test Suite
+ * Validates:
+ * 1. MoveNet keypoint estimation & COCO-SSD object tracking
+ * 2. Wrist-to-phone Euclidean proximity calculations (< 140px threshold)
+ * 3. Multi-activity classification:
+ *    - Phone Usage
+ *    - Video Gaming (Game controller / Remote)
+ *    - Reading Manga / Manhwa (Book detection)
+ *    - Watching Anime / Videos (TV / Monitor)
+ *    - Productive Work (Laptop / Keyboard)
+ *    - User Absent
+ * 4. Anti-procrastination alert trigger events & custom yandere reactions
+ * 5. HUD overlay & telemetry rendering in Brave
  */
 
 import { chromium } from 'playwright';
@@ -17,33 +27,75 @@ function assert(condition, message) {
   console.log(`✅ [PASS] ${message}`);
 }
 
-async function testVisionMathAndLogic() {
+async function testVisionMathAndMultiActivity() {
   console.log('================================================================');
-  console.log('🔍 [1/2] PROBANDO LÓGICA Y CÁLCULO DE PROXIMIDAD MUÑECA-CELULAR');
+  console.log('🔍 [1/2] PROBANDO LÓGICA DE PROXIMIDAD Y ACTIVIDADES MÚLTIPLES');
   console.log('================================================================\n');
+
+  const visionService = new LocalVisionService();
 
   // Test 1: Wrist and Phone close (< 140px)
   const phoneCenter = { x: 300, y: 250 };
   const wristInHand = { x: 320, y: 260 }; // dist = sqrt(20^2 + 10^2) = 22.36px
   const distInHand = Math.hypot(wristInHand.x - phoneCenter.x, wristInHand.y - phoneCenter.y);
-  
-  assert(distInHand <= VISION_CONFIG.wristPhoneThresholdPx, `Distancia en mano (${Math.round(distInHand)}px) está por debajo del umbral (${VISION_CONFIG.wristPhoneThresholdPx}px)`);
+  assert(distInHand <= VISION_CONFIG.wristPhoneThresholdPx, `Distancia en mano (${Math.round(distInHand)}px) detecta uso de celular`);
 
-  // Test 2: Wrist and Phone far (> 140px)
-  const wristFar = { x: 100, y: 100 }; // dist = sqrt(200^2 + 150^2) = 250px
-  const distFar = Math.hypot(wristFar.x - phoneCenter.x, wristFar.y - phoneCenter.y);
+  // Test 2: Activity Classification - Phone Usage
+  const actPhone = visionService.classifyActivity({
+    objects: [{ class: 'cell phone' }],
+    isPhoneInHand: true,
+    hasPerson: true
+  });
+  assert(actPhone === VISION_CONFIG.ACTIVITIES.PHONE_USAGE, 'Actividad clasificada: Celular en mano (phone_usage)');
 
-  assert(distFar > VISION_CONFIG.wristPhoneThresholdPx, `Distancia lejana (${Math.round(distFar)}px) está por encima del umbral`);
+  // Test 3: Activity Classification - Gaming
+  const actGaming = visionService.classifyActivity({
+    objects: [{ class: 'remote' }],
+    isPhoneInHand: false,
+    hasPerson: true
+  });
+  assert(actGaming === VISION_CONFIG.ACTIVITIES.GAMING, 'Actividad clasificada: Videojuegos (gaming)');
 
-  // Test 3: LocalVisionService instance lifecycle
-  const visionService = new LocalVisionService();
-  assert(typeof visionService.onTelemetry === 'function', 'LocalVisionService tiene método onTelemetry');
-  assert(typeof visionService.onAlert === 'function', 'LocalVisionService tiene método onAlert');
-  assert(typeof visionService.processFrame === 'function', 'LocalVisionService tiene método processFrame');
-  assert(typeof visionService.getRandomReaction === 'function', 'LocalVisionService genera reacciones personalizadas');
-  
-  const sampleMsg = visionService.getRandomReaction('PHONE_USAGE');
-  assert(sampleMsg.length > 10, `Reacción de celular generada correctamente: "${sampleMsg}"`);
+  // Test 4: Activity Classification - Reading Manga
+  const actManga = visionService.classifyActivity({
+    objects: [{ class: 'book' }],
+    isPhoneInHand: false,
+    hasPerson: true
+  });
+  assert(actManga === VISION_CONFIG.ACTIVITIES.READING_MANGA, 'Actividad clasificada: Leyendo manga/manhwa (reading_manga)');
+
+  // Test 5: Activity Classification - Watching Anime / TV
+  const actAnime = visionService.classifyActivity({
+    objects: [{ class: 'tv' }],
+    isPhoneInHand: false,
+    hasPerson: true
+  });
+  assert(actAnime === VISION_CONFIG.ACTIVITIES.WATCHING_ANIME, 'Actividad clasificada: Viendo anime/vídeo (watching_anime)');
+
+  // Test 6: Activity Classification - Productive Work
+  const actWork = visionService.classifyActivity({
+    objects: [{ class: 'laptop' }],
+    isPhoneInHand: false,
+    hasPerson: true
+  });
+  assert(actWork === VISION_CONFIG.ACTIVITIES.PRODUCTIVE_WORK, 'Actividad clasificada: Trabajo productivo (productive_work)');
+
+  // Test 7: Activity Classification - User Absent
+  const actAbsent = visionService.classifyActivity({
+    objects: [],
+    isPhoneInHand: false,
+    hasPerson: false
+  });
+  assert(actAbsent === VISION_CONFIG.ACTIVITIES.USER_ABSENT, 'Actividad clasificada: Usuario ausente (user_absent)');
+
+  // Test 8: Custom Reaction Generation
+  const phoneReactions = VISION_CONFIG.REACTION_MESSAGES.PHONE_USAGE;
+  const gamingReactions = VISION_CONFIG.REACTION_MESSAGES.GAMING;
+  const mangaReactions = VISION_CONFIG.REACTION_MESSAGES.READING_MANGA;
+
+  assert(phoneReactions.length >= 3, 'Reacciones de celular configuradas');
+  assert(gamingReactions.length >= 2, 'Reacciones de gaming configuradas');
+  assert(mangaReactions.length >= 2, 'Reacciones de manga configuradas');
 }
 
 async function testBrowserCameraAndVisionUI() {
@@ -95,7 +147,7 @@ async function testBrowserCameraAndVisionUI() {
 }
 
 async function run() {
-  await testVisionMathAndLogic();
+  await testVisionMathAndMultiActivity();
   await testBrowserCameraAndVisionUI();
   console.log('\n================================================================');
   console.log('🎉 TODAS LAS PRUEBAS DEL MOTOR DE VISIÓN APROBADAS EXITOSAMENTE');

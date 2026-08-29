@@ -1,3 +1,14 @@
+/**
+ * Cristi AI - Dual Local Vision & Anti-Procrastination Multi-Activity Engine
+ * Integrates Object Detection (COCO-SSD) + Native MoveNet Pose Estimation in WebGL
+ * to detect:
+ * 1. Smartphone Usage via Wrist-to-Phone Euclidean Proximity
+ * 2. Gaming (Controller / Remote detection)
+ * 3. Reading Manga / Manhwa / Books (Book detection)
+ * 4. Video / Anime Streaming (TV / Screen detection)
+ * 5. Productive Work (Laptop / Keyboard / Focused Presence)
+ */
+
 import * as tf from '@tensorflow/tfjs-core';
 import { loadGraphModel } from '@tensorflow/tfjs-converter';
 import '@tensorflow/tfjs-backend-webgl';
@@ -23,7 +34,7 @@ export class LocalVisionService {
     // Tracking state
     this.phoneDetected = false;
     this.phoneInHand = false;
-    this.phoneUsageDurationSeconds = 0;
+    this.activityDurationSeconds = 0;
     this.lastDetectionTime = 0;
     this.currentActivity = VISION_CONFIG.ACTIVITIES.PRODUCTIVE_WORK;
     this.lastAlertTime = 0;
@@ -83,6 +94,39 @@ export class LocalVisionService {
   }
 
   /**
+   * Classify Multi-Activity from detected objects and pose keypoints
+   */
+  classifyActivity({ objects, isPhoneInHand, hasPerson }) {
+    if (!hasPerson) {
+      return VISION_CONFIG.ACTIVITIES.USER_ABSENT;
+    }
+
+    if (isPhoneInHand) {
+      return VISION_CONFIG.ACTIVITIES.PHONE_USAGE;
+    }
+
+    const classes = objects.map((o) => o.class.toLowerCase());
+
+    if (classes.includes('remote') || classes.includes('joystick') || classes.includes('game controller')) {
+      return VISION_CONFIG.ACTIVITIES.GAMING;
+    }
+
+    if (classes.includes('book')) {
+      return VISION_CONFIG.ACTIVITIES.READING_MANGA;
+    }
+
+    if (classes.includes('tv') || classes.includes('television')) {
+      return VISION_CONFIG.ACTIVITIES.WATCHING_ANIME;
+    }
+
+    if (classes.includes('laptop') || classes.includes('keyboard') || classes.includes('mouse')) {
+      return VISION_CONFIG.ACTIVITIES.PRODUCTIVE_WORK;
+    }
+
+    return VISION_CONFIG.ACTIVITIES.PRODUCTIVE_WORK;
+  }
+
+  /**
    * Process a single video frame from camera
    */
   async processFrame(videoElement) {
@@ -123,9 +167,7 @@ export class LocalVisionService {
               score: kp[2]
             }));
           }
-        } catch (poseErr) {
-          // Fallback if pose fails on frame
-        }
+        } catch (_) {}
       }
 
       const objects = await objectsPromise;
@@ -134,7 +176,7 @@ export class LocalVisionService {
       this.lastDetectionTime = now;
 
       // Extract target objects
-      const phoneDetections = objects.filter((o) => o.class === 'cell phone' || o.class === 'remote');
+      const phoneDetections = objects.filter((o) => o.class === 'cell phone');
 
       // Extract wrists
       let leftWrist = null;
@@ -148,7 +190,7 @@ export class LocalVisionService {
         rightWrist = poseKeypoints.find((k) => k.name === 'right_wrist' && k.score > VISION_CONFIG.poseMinScore);
       }
 
-      // Calculate distance between each detected phone and wrists
+      // Calculate Euclidean distance between phone and wrists
       for (const phone of phoneDetections) {
         const [px, py, pw, ph] = phone.bbox;
         const phoneCenterX = px + pw / 2;
@@ -178,38 +220,49 @@ export class LocalVisionService {
       this.phoneInHand = isPhoneInHand;
       this.phoneDetected = phoneDetections.length > 0;
 
-      // Track usage duration
-      if (isPhoneInHand) {
-        this.phoneUsageDurationSeconds += elapsedSec;
+      // Classify current activity
+      const hasPerson = poseKeypoints !== null || objects.some((o) => o.class === 'person');
+      const detectedActivity = this.classifyActivity({ objects, isPhoneInHand, hasPerson });
+      const prevActivity = this.currentActivity;
+
+      if (detectedActivity === prevActivity) {
+        this.activityDurationSeconds += elapsedSec;
       } else {
-        if (this.phoneUsageDurationSeconds > 0) {
-          this.phoneUsageDurationSeconds = Math.max(0, this.phoneUsageDurationSeconds - elapsedSec * 1.5);
-        }
+        this.activityDurationSeconds = elapsedSec;
+        this.currentActivity = detectedActivity;
+        this.emitActivityChange(detectedActivity, prevActivity);
       }
 
-      // Determine activity state
-      let detectedActivity = VISION_CONFIG.ACTIVITIES.PRODUCTIVE_WORK;
-      if (isPhoneInHand && this.phoneUsageDurationSeconds >= VISION_CONFIG.phoneUsageAlertSeconds) {
-        detectedActivity = VISION_CONFIG.ACTIVITIES.PHONE_USAGE;
+      // Check alert conditions for different activities
+      let shouldAlert = false;
+      let alertCategory = null;
+
+      if (detectedActivity === VISION_CONFIG.ACTIVITIES.PHONE_USAGE && this.activityDurationSeconds >= VISION_CONFIG.phoneUsageAlertSeconds) {
+        shouldAlert = true;
+        alertCategory = 'PHONE_USAGE';
+      } else if (detectedActivity === VISION_CONFIG.ACTIVITIES.GAMING && this.activityDurationSeconds >= VISION_CONFIG.gamingAlertSeconds) {
+        shouldAlert = true;
+        alertCategory = 'GAMING';
+      } else if (detectedActivity === VISION_CONFIG.ACTIVITIES.READING_MANGA && this.activityDurationSeconds >= VISION_CONFIG.readingMangaAlertSeconds) {
+        shouldAlert = true;
+        alertCategory = 'READING_MANGA';
+      } else if (detectedActivity === VISION_CONFIG.ACTIVITIES.WATCHING_ANIME && this.activityDurationSeconds >= VISION_CONFIG.videoStreamingAlertSeconds) {
+        shouldAlert = true;
+        alertCategory = 'WATCHING_ANIME';
       }
 
-      // Trigger distraction alert if phone usage threshold exceeded
-      if (
-        isPhoneInHand &&
-        this.phoneUsageDurationSeconds >= VISION_CONFIG.phoneUsageAlertSeconds &&
-        now - this.lastAlertTime > VISION_CONFIG.distractionReminderIntervalSeconds * 1000
-      ) {
+      if (shouldAlert && now - this.lastAlertTime > VISION_CONFIG.distractionReminderIntervalSeconds * 1000) {
         this.lastAlertTime = now;
         this.emitAlert({
-          type: VISION_CONFIG.ACTIVITIES.PHONE_USAGE,
-          duration: Math.round(this.phoneUsageDurationSeconds),
-          distancePx: Math.round(closestDistance),
-          message: this.getRandomReaction('PHONE_USAGE')
+          type: detectedActivity,
+          duration: Math.round(this.activityDurationSeconds),
+          distancePx: closestDistance === Infinity ? null : Math.round(closestDistance),
+          message: this.getRandomReaction(alertCategory)
         });
       }
 
       // Trigger back-to-work acknowledgment
-      if (previousInHand && !isPhoneInHand && this.phoneUsageDurationSeconds > 5) {
+      if (previousInHand && !isPhoneInHand && this.activityDurationSeconds > 4) {
         this.emitAlert({
           type: 'back_to_work',
           message: this.getRandomReaction('BACK_TO_WORK')
@@ -226,13 +279,14 @@ export class LocalVisionService {
         distanceThreshold: VISION_CONFIG.wristPhoneThresholdPx,
         activePhone,
         closestWrist,
-        usageSeconds: Math.round(this.phoneUsageDurationSeconds),
-        activity: detectedActivity
+        usageSeconds: Math.round(this.activityDurationSeconds),
+        activity: detectedActivity,
+        activityLabel: VISION_CONFIG.ACTIVITY_LABELS[detectedActivity] || detectedActivity
       };
 
       this.emitTelemetry(telemetry);
       return telemetry;
-    } catch (err) {
+    } catch (_) {
       return null;
     }
   }
