@@ -1,0 +1,40 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Production Builds
+dist
+dist-ssr
+*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+neutralinojs.log
+
+# Environment Variables
+.env
+.env*.local
+
+# Neutralino
+bin/
+resources.neu
+
+# Editor directories
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Temporary test captures and archives
+tests/screenshots/
+*.rar
+*.zip
+scratch_screenshot.png
