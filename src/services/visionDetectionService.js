@@ -12,29 +12,42 @@
  * - Live HUD Framing / Bounding Box Overlays
  */
 
+import * as tf from '@tensorflow/tfjs-core';
+import { loadGraphModel } from '@tensorflow/tfjs-converter';
 import * as faceapi from '@vladmandic/face-api';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
+import { VISION_CONFIG } from '../config/visionConfig';
 import { logger } from './logger';
 
 const STORAGE_OWNER_SAMPLES = 'cristi_ai_owner_samples_v2';
 const STORAGE_OWNER_NAME = 'cristi_ai_owner_name_v2';
+
+const MOVENET_KEYPOINTS = [
+  'nose', 'left_eye', 'right_eye', 'left_ear', 'right_ear',
+  'left_shoulder', 'right_shoulder', 'left_elbow', 'right_elbow',
+  'left_wrist', 'right_wrist', 'left_hip', 'right_hip',
+  'left_knee', 'right_knee', 'left_ankle', 'right_ankle'
+];
 
 export class VisionDetectionService {
   constructor({
     onSceneStateChange,
     onDetectionsUpdated,
     onSamplesUpdated,
+    onDistractionAlert,
     onError
   }) {
     this.onSceneStateChange = onSceneStateChange || (() => {});
     this.onDetectionsUpdated = onDetectionsUpdated || (() => {});
     this.onSamplesUpdated = onSamplesUpdated || (() => {});
+    this.onDistractionAlert = onDistractionAlert || (() => {});
     this.onError = onError || console.error;
 
     this.isModelsLoaded = false;
     this.isLoading = false;
     this.isRunning = false;
     this.cocoModel = null;
+    this.movenetModel = null;
     this.faceMatcher = null;
 
     this.ownerName = 'Mi Dueño';
@@ -44,11 +57,21 @@ export class VisionDetectionService {
     this.lastState = 'NO_ONE';
     this.lastStateTimestamp = Date.now();
     this.lastProcessTime = 0;
-    this.processIntervalMs = 110; // ~9 FPS for smooth tracking and low CPU load
+    this.processIntervalMs = 100; // 10 FPS smooth tracking
+
+    // Telemetry and Anti-Procrastination state
+    this.phoneInHand = false;
+    this.phoneUsageDurationSeconds = 0;
+    this.lastAlertTime = 0;
+    this.currentActivity = 'productive_work';
 
     this.currentDetections = {
       faces: [],
       objects: [],
+      pose: null,
+      phoneInHand: false,
+      closestDistance: null,
+      phoneUsageSeconds: 0,
       sceneState: 'NO_ONE',
       summary: ''
     };
@@ -111,7 +134,10 @@ export class VisionDetectionService {
         faceapi.nets.faceExpressionNet.loadFromUri(modelPath),
         cocoSsd.load({ base: 'lite_mobilenet_v2' }).then((model) => {
           this.cocoModel = model;
-        })
+        }),
+        loadGraphModel('https://tfhub.dev/google/tfjs-model/movenet/singlepose/lightning/4', { fromTFHub: true }).then((model) => {
+          this.movenetModel = model;
+        }).catch((e) => console.warn('MoveNet tfhub fallback:', e))
       ]);
 
       this.isModelsLoaded = true;
@@ -128,7 +154,10 @@ export class VisionDetectionService {
           faceapi.nets.faceExpressionNet.loadFromUri(cdnPath),
           cocoSsd.load({ base: 'lite_mobilenet_v2' }).then((model) => {
             this.cocoModel = model;
-          })
+          }),
+          loadGraphModel('https://tfhub.dev/google/tfjs-model/movenet/singlepose/lightning/4', { fromTFHub: true }).then((model) => {
+            this.movenetModel = model;
+          }).catch((e) => console.warn('MoveNet CDN fallback:', e))
         ]);
         this.isModelsLoaded = true;
         this.isLoading = false;
@@ -155,7 +184,7 @@ export class VisionDetectionService {
       .withFaceDescriptor();
 
     if (!detection) {
-      throw new Error('No se detectó ningún rostro con suficiente claridad. Mira fijamente a la cámara con buena luz o sensor IR.');
+      throw new Error('No se detectó ningún rostro con suficiente claridad. Mira fijamente a la cámara con buena luz.');
     }
 
     const sample = {
@@ -202,26 +231,25 @@ export class VisionDetectionService {
   /**
    * Start the real-time detection and tracking loop
    */
-  startTracking(videoElement, overlayCanvas = null) {
+  start(videoElement, overlayCanvas = null) {
     if (this.isRunning) return;
     this.isRunning = true;
 
     const detectFrame = async () => {
       if (!this.isRunning) return;
 
-      const now = performance.now();
-      if (now - this.lastProcessTime >= this.processIntervalMs && videoElement && videoElement.readyState >= 2) {
-        this.lastProcessTime = now;
-        await this.processVideoFrame(videoElement, overlayCanvas);
-      }
-
+      await this.processVideoFrame(videoElement, overlayCanvas);
       this.animationFrameId = requestAnimationFrame(detectFrame);
     };
 
     this.animationFrameId = requestAnimationFrame(detectFrame);
   }
 
-  stopTracking() {
+  startTracking(videoElement, overlayCanvas = null) {
+    return this.start(videoElement, overlayCanvas);
+  }
+
+  stop() {
     this.isRunning = false;
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
@@ -229,8 +257,18 @@ export class VisionDetectionService {
     }
   }
 
+  stopTracking() {
+    return this.stop();
+  }
+
   async processVideoFrame(videoElement, overlayCanvas = null) {
-    if (!this.isModelsLoaded || !videoElement) return;
+    if (!this.isModelsLoaded || !videoElement || videoElement.readyState < 2) return;
+
+    const now = Date.now();
+    if (now - this.lastProcessTime < this.processIntervalMs) return;
+    
+    const elapsedSec = (now - this.lastProcessTime) / 1000;
+    this.lastProcessTime = now;
 
     try {
       const displaySize = {
@@ -238,68 +276,159 @@ export class VisionDetectionService {
         height: videoElement.videoHeight || 480
       };
 
-      // 1. Detect Faces + Landmarks + Descriptors + Expressions
-      const faceDetections = await faceapi
-        .detectAllFaces(videoElement, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.42 }))
-        .withFaceLandmarks(true)
-        .withFaceExpressions()
-        .withFaceDescriptors();
+      // 1. Run Face API, Object Detection & MoveNet Pose in Parallel
+      const [faceDetections, objectDetections] = await Promise.all([
+        faceapi
+          .detectAllFaces(videoElement, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.45 }))
+          .withFaceLandmarks(true)
+          .withFaceExpressions()
+          .withFaceDescriptors(),
+        this.cocoModel ? this.cocoModel.detect(videoElement, 8, 0.45) : Promise.resolve([])
+      ]);
 
-      const resizedFaces = faceapi.resizeResults(faceDetections, displaySize);
+      let poseKeypoints = null;
+      if (this.movenetModel) {
+        try {
+          const tfImg = tf.browser.fromPixels(videoElement);
+          const resized = tf.image.resizeBilinear(tfImg, [192, 192]);
+          const casted = tf.cast(resized, 'int32');
+          const expanded = tf.expandDims(casted, 0);
 
-      // 2. Detect Objects (phone, cup, bottle, laptop, etc.)
-      let objectDetections = [];
-      if (this.cocoModel) {
-        const rawObjects = await this.cocoModel.detect(videoElement, 6, 0.45);
-        objectDetections = rawObjects.filter((obj) => obj.class !== 'person');
+          const prediction = this.movenetModel.predict(expanded);
+          const arrayData = await prediction.array();
+
+          tfImg.dispose();
+          resized.dispose();
+          casted.dispose();
+          expanded.dispose();
+          prediction.dispose();
+
+          if (arrayData && arrayData[0] && arrayData[0][0]) {
+            poseKeypoints = arrayData[0][0].map((kp, idx) => ({
+              name: MOVENET_KEYPOINTS[idx],
+              y: kp[0] * displaySize.height,
+              x: kp[1] * displaySize.width,
+              score: kp[2]
+            }));
+          }
+        } catch (_) {}
       }
 
-      // 3. Match Faces (Owner with multi-descriptors vs Strangers)
+      // 2. Identify Faces (Owner vs Stranger)
       let ownerCount = 0;
       let strangerCount = 0;
-      const processedFaces = resizedFaces.map((f, index) => {
-        let matchLabel = 'Desconocido';
-        let matchDistance = 1.0;
-        let isOwner = false;
+      const processedFaces = [];
 
-        if (this.faceMatcher && f.descriptor) {
-          const match = this.faceMatcher.findBestMatch(f.descriptor);
+      faceDetections.forEach((fd) => {
+        let isOwner = false;
+        let matchDistance = 1.0;
+        let matchLabel = 'Desconocido';
+
+        if (this.faceMatcher && fd.descriptor) {
+          const match = this.faceMatcher.findBestMatch(fd.descriptor);
           matchLabel = match.label;
           matchDistance = match.distance;
-          isOwner = match.label === this.ownerName;
-        }
-
-        if (isOwner) {
-          ownerCount++;
+          if (match.label === this.ownerName) {
+            isOwner = true;
+            ownerCount++;
+          } else {
+            strangerCount++;
+          }
         } else {
           strangerCount++;
         }
 
-        // Top emotion
-        const expressions = f.expressions || {};
         let topEmotion = 'neutral';
-        let topScore = 0;
-        for (const [em, score] of Object.entries(expressions)) {
-          if (score > topScore) {
-            topScore = score;
-            topEmotion = em;
+        let topEmotionScore = 0;
+        if (fd.expressions) {
+          Object.entries(fd.expressions).forEach(([emo, score]) => {
+            if (score > topEmotionScore) {
+              topEmotionScore = score;
+              topEmotion = emo;
+            }
+          });
+        }
+
+        processedFaces.push({
+          box: fd.detection.box,
+          isOwner,
+          matchLabel,
+          matchDistance: Number(matchDistance.toFixed(3)),
+          topEmotion,
+          topEmotionScore: Number(topEmotionScore.toFixed(2)),
+          expressions: fd.expressions
+        });
+      });
+
+      // 3. Wrist-to-Phone Distance Calculation (Keypoint Proximity)
+      let leftWrist = null;
+      let rightWrist = null;
+      let closestDistance = Infinity;
+      let closestWrist = null;
+      let activePhone = null;
+
+      if (poseKeypoints) {
+        leftWrist = poseKeypoints.find((k) => k.name === 'left_wrist' && k.score > 0.35);
+        rightWrist = poseKeypoints.find((k) => k.name === 'right_wrist' && k.score > 0.35);
+      }
+
+      const phoneDetections = objectDetections.filter(
+        (o) => o.class === 'cell phone' || o.class === 'remote'
+      );
+
+      for (const phone of phoneDetections) {
+        const [px, py, pw, ph] = phone.bbox;
+        const phoneCenterX = px + pw / 2;
+        const phoneCenterY = py + ph / 2;
+
+        if (leftWrist) {
+          const dist = Math.hypot(leftWrist.x - phoneCenterX, leftWrist.y - phoneCenterY);
+          if (dist < closestDistance) {
+            closestDistance = dist;
+            closestWrist = leftWrist;
+            activePhone = { ...phone, centerX: phoneCenterX, centerY: phoneCenterY };
           }
         }
 
-        return {
-          id: `face_${index}`,
-          box: f.detection.box,
-          isOwner,
-          label: isOwner ? this.ownerName : `Persona #${index + 1}`,
-          confidence: Math.round(f.detection.score * 100),
-          matchDistance,
-          topEmotion,
-          emotionScore: Math.round(topScore * 100),
-          landmarks: f.landmarks
-        };
-      });
+        if (rightWrist) {
+          const dist = Math.hypot(rightWrist.x - phoneCenterX, rightWrist.y - phoneCenterY);
+          if (dist < closestDistance) {
+            closestDistance = dist;
+            closestWrist = rightWrist;
+            activePhone = { ...phone, centerX: phoneCenterX, centerY: phoneCenterY };
+          }
+        }
+      }
 
-      // 4. Classify Current Scene State
+      const isPhoneInHand = activePhone !== null && closestDistance <= VISION_CONFIG.wristPhoneThresholdPx;
+      this.phoneInHand = isPhoneInHand;
+
+      if (isPhoneInHand) {
+        this.phoneUsageDurationSeconds += elapsedSec;
+      } else {
+        if (this.phoneUsageDurationSeconds > 0) {
+          this.phoneUsageDurationSeconds = Math.max(0, this.phoneUsageDurationSeconds - elapsedSec * 1.5);
+        }
+      }
+
+      // 4. Distraction & Procrastination Alert Event
+      if (
+        isPhoneInHand &&
+        this.phoneUsageDurationSeconds >= VISION_CONFIG.phoneUsageAlertSeconds &&
+        now - this.lastAlertTime > VISION_CONFIG.distractionReminderIntervalSeconds * 1000
+      ) {
+        this.lastAlertTime = now;
+        const reactions = VISION_CONFIG.REACTION_MESSAGES.PHONE_USAGE;
+        const message = reactions[Math.floor(Math.random() * reactions.length)];
+        this.onDistractionAlert({
+          type: 'phone_usage',
+          duration: Math.round(this.phoneUsageDurationSeconds),
+          distancePx: Math.round(closestDistance),
+          message
+        });
+      }
+
+      // 5. Scene State Determination
       let sceneState = 'NO_ONE';
       if (ownerCount > 0 && strangerCount === 0) {
         sceneState = 'OWNER_ALONE';
@@ -311,49 +440,40 @@ export class VisionDetectionService {
         sceneState = 'NO_ONE';
       }
 
-      // Format summary for Gemini
       let summary = '';
       if (sceneState === 'OWNER_ALONE') {
         const emo = processedFaces[0]?.topEmotion || 'tranquilo';
-        summary = `Tu Dueño está a solas frente a la cámara (${this.ownerSamples.length} muestras biométricas registradas). Expresión: ${emo}.`;
+        summary = `Tu Dueño está a solas frente a la cámara. Expresión: ${emo}.`;
       } else if (sceneState === 'OWNER_WITH_OTHERS') {
-        summary = `¡ALERTA DE CELOS! Tu Dueño está acompañado por ${strangerCount} persona(s) desconocida(s). Total: ${processedFaces.length} personas en el encuadre.`;
+        summary = `¡ALERTA DE CELOS! Tu Dueño está acompañado por ${strangerCount} persona(s) desconocida(s).`;
       } else if (sceneState === 'STRANGER_ONLY') {
-        summary = `Hay ${strangerCount} persona(s) desconocida(s) frente a la cámara, pero tu Dueño NO está presente.`;
+        summary = `Hay ${strangerCount} persona(s) desconocida(s) frente a la cámara.`;
       } else {
         summary = 'La cámara no detecta a nadie presente en este momento.';
       }
 
-      if (objectDetections.length > 0) {
-        const objNames = objectDetections.map((o) => o.class).join(', ');
-        summary += ` Objetos detectados: ${objNames}.`;
+      if (isPhoneInHand) {
+        summary += ` ⚠️ ¡ATENCIÓN! Tu Dueño está usando el teléfono celular en la mano (${Math.round(this.phoneUsageDurationSeconds)}s de uso continuo).`;
       }
 
       this.currentDetections = {
         faces: processedFaces,
         objects: objectDetections,
+        pose: mainPose,
+        phoneInHand,
+        closestDistance: closestDistance === Infinity ? null : Math.round(closestDistance),
+        phoneUsageSeconds: Math.round(this.phoneUsageDurationSeconds),
+        activePhone,
+        closestWrist,
         sceneState,
         summary
       };
 
       this.onDetectionsUpdated(this.currentDetections);
 
-      // 5. Trigger Scene State Change Event if state has stabilized
-      if (sceneState !== this.lastState && now - this.lastStateTimestamp > 3000) {
-        this.lastState = sceneState;
-        this.lastStateTimestamp = now;
-        this.onSceneStateChange({
-          sceneState,
-          ownerCount,
-          strangerCount,
-          objects: objectDetections.map((o) => o.class),
-          summary
-        });
-      }
-
-      // 6. Draw HUD Framing / Bounding Boxes on Overlay Canvas
+      // 6. Draw Futuristic Cyber-HUD on Overlay Canvas
       if (overlayCanvas) {
-        this.drawHUDOverlay(overlayCanvas, displaySize, processedFaces, objectDetections);
+        this.drawHUDOverlay(overlayCanvas, displaySize, processedFaces, objectDetections, this.currentDetections);
       }
     } catch (err) {
       console.error('Error en processVideoFrame:', err);
@@ -361,9 +481,9 @@ export class VisionDetectionService {
   }
 
   /**
-   * Draw Cyber-Goth HUD Bounding Boxes & Facial Target Reticles
+   * Draw Cyber-Goth HUD Bounding Boxes, Wrist-Phone Vector Lines & Telemetry Reticles
    */
-  drawHUDOverlay(canvas, displaySize, faces, objects) {
+  drawHUDOverlay(canvas, displaySize, faces, objects, telemetry) {
     if (canvas.width !== displaySize.width || canvas.height !== displaySize.height) {
       canvas.width = displaySize.width;
       canvas.height = displaySize.height;
@@ -379,81 +499,87 @@ export class VisionDetectionService {
 
       ctx.save();
       ctx.lineWidth = 2;
+      ctx.strokeStyle = isOwner ? '#c084fc' : '#f43f5e';
+      ctx.fillStyle = isOwner ? '#c084fc' : '#f43f5e';
+      ctx.shadowColor = isOwner ? '#c084fc' : '#f43f5e';
+      ctx.shadowBlur = 10;
 
-      if (isOwner) {
-        ctx.strokeStyle = '#c084fc';
-        ctx.fillStyle = '#c084fc';
-        ctx.shadowColor = '#c084fc';
-        ctx.shadowBlur = 10;
-      } else {
-        ctx.strokeStyle = '#f43f5e';
-        ctx.fillStyle = '#f43f5e';
-        ctx.shadowColor = '#f43f5e';
-        ctx.shadowBlur = 12;
-      }
-
-      // Corner Brackets Framing
       const cornerLen = Math.min(20, width * 0.25);
       ctx.beginPath();
-      ctx.moveTo(x, y + cornerLen);
-      ctx.lineTo(x, y);
-      ctx.lineTo(x + cornerLen, y);
+      ctx.moveTo(x, y + cornerLen); ctx.lineTo(x, y); ctx.lineTo(x + cornerLen, y);
+      ctx.moveTo(x + width - cornerLen, y); ctx.lineTo(x + width, y); ctx.lineTo(x + width, y + cornerLen);
+      ctx.moveTo(x + width, y + height - cornerLen); ctx.lineTo(x + width, y + height); ctx.lineTo(x + width - cornerLen, y + height);
+      ctx.moveTo(x + cornerLen, y + height); ctx.lineTo(x, y + height); ctx.lineTo(x, y + height - cornerLen);
       ctx.stroke();
 
-      ctx.beginPath();
-      ctx.moveTo(x + width - cornerLen, y);
-      ctx.lineTo(x + width, y);
-      ctx.lineTo(x + width, y + cornerLen);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(x, y + height - cornerLen);
-      ctx.lineTo(x, y + height);
-      ctx.lineTo(x + cornerLen, y + height);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(x + width - cornerLen, y + height);
-      ctx.lineTo(x + width, y + height);
-      ctx.lineTo(x + width, y + height - cornerLen);
-      ctx.stroke();
-
-      // Label Badge
-      ctx.font = 'bold 11px JetBrains Mono, monospace';
-      const badgeText = isOwner
-        ? `♥ ${face.label} [${face.topEmotion}]`
-        : `⚠ ${face.label} [EXTRAÑO]`;
-      const textWidth = ctx.measureText(badgeText).width;
-
-      ctx.fillStyle = isOwner ? 'rgba(88, 28, 135, 0.85)' : 'rgba(159, 18, 57, 0.85)';
-      ctx.fillRect(x, Math.max(0, y - 20), textWidth + 12, 18);
-
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(badgeText, x + 6, Math.max(13, y - 7));
-
+      ctx.font = '10px "JetBrains Mono", monospace';
+      ctx.fillText(isOwner ? `♥ Dueño (${face.topEmotion})` : `⚠ Extraño`, x + 4, y - 6);
       ctx.restore();
     });
 
     // Draw Object Bounding Boxes
     objects.forEach((obj) => {
       const [x, y, width, height] = obj.bbox;
+      const isPhone = obj.class === 'cell phone' || obj.class === 'remote';
+
       ctx.save();
-      ctx.strokeStyle = '#38bdf8';
       ctx.lineWidth = 1.5;
-      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = isPhone ? (telemetry?.phoneInHand ? '#ec4899' : '#06b6d4') : '#10b981';
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.shadowColor = ctx.strokeStyle;
+      ctx.shadowBlur = 8;
 
       ctx.strokeRect(x, y, width, height);
-
-      ctx.fillStyle = 'rgba(12, 74, 110, 0.85)';
-      const label = `⚙ ${obj.class} ${Math.round(obj.score * 100)}%`;
-      ctx.font = '10px JetBrains Mono, monospace';
-      const textWidth = ctx.measureText(label).width;
-      ctx.fillRect(x, Math.max(0, y - 16), textWidth + 8, 16);
-
-      ctx.fillStyle = '#38bdf8';
-      ctx.fillText(label, x + 4, Math.max(11, y - 4));
+      ctx.font = '10px "JetBrains Mono", monospace';
+      ctx.fillText(
+        isPhone ? `📱 ${obj.class} ${Math.round(obj.score * 100)}%` : `${obj.class}`,
+        x + 4,
+        y - 4
+      );
       ctx.restore();
     });
+
+    // Draw Wrist-to-Phone Distance Laser Vector Line
+    if (telemetry?.activePhone && telemetry?.closestWrist) {
+      const wx = telemetry.closestWrist.x;
+      const wy = telemetry.closestWrist.y;
+      const px = telemetry.activePhone.centerX;
+      const py = telemetry.activePhone.centerY;
+      const inHand = telemetry.phoneInHand;
+
+      ctx.save();
+      ctx.lineWidth = inHand ? 2.5 : 1.5;
+      ctx.strokeStyle = inHand ? '#ec4899' : '#38bdf8';
+      ctx.setLineDash(inHand ? [] : [4, 4]);
+      ctx.shadowColor = inHand ? '#ec4899' : '#38bdf8';
+      ctx.shadowBlur = 12;
+
+      // Draw Vector Line
+      ctx.beginPath();
+      ctx.moveTo(wx, wy);
+      ctx.lineTo(px, py);
+      ctx.stroke();
+
+      // Draw Wrist Keypoint Reticle
+      ctx.fillStyle = inHand ? '#ec4899' : '#38bdf8';
+      ctx.beginPath();
+      ctx.arc(wx, wy, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Floating Distance / Alert Label
+      const midX = (wx + px) / 2;
+      const midY = (wy + py) / 2;
+      ctx.font = 'bold 11px "JetBrains Mono", monospace';
+      ctx.fillStyle = inHand ? '#ff2d55' : '#38bdf8';
+      ctx.fillText(
+        inHand
+          ? `⚡ ¡USO DE CELULAR! (${telemetry.closestDistance}px • ${telemetry.phoneUsageSeconds}s)`
+          : `Distancia: ${telemetry.closestDistance}px`,
+        midX - 30,
+        midY - 8
+      );
+      ctx.restore();
+    }
   }
 
   getCurrentSceneSummary() {

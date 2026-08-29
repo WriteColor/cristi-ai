@@ -229,7 +229,7 @@ export function App() {
     };
   }, []);
 
-  // --- Vision & Multi-Sample Face Recognition Engine Setup ---
+  // --- Vision & Multi-Sample Face Recognition & Anti-Procrastination Engine ---
   useEffect(() => {
     visionServiceRef.current = new VisionDetectionService({
       onDetectionsUpdated: (detections) => {
@@ -237,6 +237,22 @@ export function App() {
       },
       onSamplesUpdated: (samples) => {
         setOwnerSamples(samples);
+      },
+      onDistractionAlert: ({ type, duration, distancePx, message }) => {
+        logger.warn('VISION', `¡Alerta de distracción! ${type} (${duration}s, distancia ${distancePx}px): ${message}`);
+
+        // Update Live2D expression to mad or crazy
+        setCurrentGesture(duration > 25 ? 'crazy' : 'mad');
+
+        // Show subtitle notification
+        setSubtitleText(`⚠️ Cristi: ${message}`);
+
+        // If Gemini Live is connected, send real-time sensory prompt so Cristi speaks out loud
+        if (socketRef.current && socketRef.current.isConnected) {
+          socketRef.current.sendTextMessage(
+            `[EVENTO SENSORIAL DE VISIÓN: Jeremy está distraído usando su teléfono celular en la mano frente a la cámara (${duration}s continuos, distancia muñeca-celular ${distancePx}px). Regáñalo cariñosa pero firmemente con tu personalidad yandere gótica para que deje el celular y vuelva a concentrarse en su trabajo.]`
+          );
+        }
       },
       onSceneStateChange: ({ sceneState, ownerCount, strangerCount }) => {
         if (socketRef.current && socketRef.current.isConnected) {
@@ -261,7 +277,7 @@ export function App() {
 
     return () => {
       if (visionServiceRef.current) {
-        visionServiceRef.current.stopTracking();
+        visionServiceRef.current.stop();
       }
     };
   }, []);

@@ -12,4 +12,5 @@ export { SystemTrayService } from './systemTrayService.js';
 export { ToolExecutor } from './toolExecutor.js';
 export { VirtualTerminalService } from './virtualTerminalService.js';
 export { VisionDetectionService } from './visionDetectionService.js';
+export { LocalVisionService, localVisionService } from './localVisionService.js';
 export { logger } from './logger.js';
