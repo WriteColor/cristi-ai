@@ -10,13 +10,21 @@ import {
   User,
   EyeOff,
   Eye,
-  Inbox
+  Inbox,
+  Smile,
+  Heart,
+  Zap,
+  Activity,
+  Volume2,
+  Tv,
+  Monitor
 } from 'lucide-react';
+import { live2dModelRegistry } from '../services/live2d';
 
 /**
- * Cristi AI - Right-Click Desktop Context Menu
- * Provides native frameless window management and quick companion toggles.
- * Features smart edge-awareness (flips to left side if avatar is near the right edge).
+ * Cristi AI - Modern Obsidian Right-Click Desktop Context Menu
+ * Intuitive, ultra-responsive, and packed with quick companion gestures,
+ * model shortcuts, camera vision toggles, and window management.
  */
 export function ContextMenu({
   position,
@@ -34,7 +42,8 @@ export function ContextMenu({
   onToggleViewMode,
   isZenMode = false,
   onToggleZenMode,
-  onMinimizeToTray
+  onMinimizeToTray,
+  activeModelId = 'yanderegirl'
 }) {
   const menuRef = useRef(null);
   const [coords, setCoords] = useState({
@@ -43,13 +52,15 @@ export function ContextMenu({
     placement: 'right'
   });
 
+  const activeModel = live2dModelRegistry.getModel(activeModelId);
+
   useLayoutEffect(() => {
     if (!isOpen) return;
 
     const el = menuRef.current;
-    const menuW = el?.offsetWidth || 230;
-    const menuH = el?.offsetHeight || 380;
-    const MARGIN = 14;
+    const menuW = el?.offsetWidth || 260;
+    const menuH = el?.offsetHeight || 440;
+    const MARGIN = 16;
 
     const vw = window.innerWidth;
     const vh = window.innerHeight;
@@ -68,17 +79,17 @@ export function ContextMenu({
 
     if (isNearRightEdge) {
       placement = 'left';
-      finalLeft = bounds ? (bounds.x - menuW - 8) : (posX - menuW - 8);
+      finalLeft = bounds ? (bounds.x - menuW - 10) : (posX - menuW - 10);
     } else {
       placement = 'right';
-      finalLeft = bounds ? (bounds.x + bounds.width + 8) : (posX + 8);
+      finalLeft = bounds ? (bounds.x + bounds.width + 10) : (posX + 10);
     }
 
     // Safety clamp within viewport margins
     finalLeft = Math.max(MARGIN, Math.min(finalLeft, vw - menuW - MARGIN));
 
     // Vertical positioning with overflow protection
-    let finalTop = posY - 16;
+    let finalTop = posY - 20;
     if (finalTop + menuH + MARGIN > vh) {
       finalTop = Math.max(MARGIN, vh - menuH - MARGIN);
     }
@@ -121,6 +132,15 @@ export function ContextMenu({
     }
   };
 
+  const handleTriggerExpression = (exprName) => {
+    if (window.__cristiAvatar?.setEmotion) {
+      window.__cristiAvatar.setEmotion(exprName);
+    } else if (onTriggerRandomGesture) {
+      onTriggerRandomGesture();
+    }
+    onClose();
+  };
+
   return (
     <div
       ref={menuRef}
@@ -130,9 +150,72 @@ export function ContextMenu({
         top: `${coords.top}px`
       }}
     >
-      <div className="context-menu-header">Cristi AI Companion</div>
+      {/* Header with Active Model Info */}
+      <div className="context-menu-header-box">
+        <div className="context-menu-header-title">Cristi AI Companion</div>
+        {activeModel && (
+          <div className="context-menu-header-badge">
+            <Sparkles size={10} /> {activeModel.name}
+          </div>
+        )}
+      </div>
 
-      {/* Settings */}
+      {/* Quick Emotions & Gesture Strip */}
+      <div className="context-menu-section-label">Expresiones Rápidas</div>
+      <div className="context-menu-emotions-strip">
+        <button
+          type="button"
+          className="context-emotion-btn"
+          title="Sonrojo"
+          onClick={() => handleTriggerExpression('blush')}
+        >
+          ❤️
+        </button>
+        <button
+          type="button"
+          className="context-emotion-btn"
+          title="Feliz"
+          onClick={() => handleTriggerExpression('happy')}
+        >
+          🌸
+        </button>
+        <button
+          type="button"
+          className="context-emotion-btn"
+          title="Sorpresa"
+          onClick={() => handleTriggerExpression('surprised')}
+        >
+          ⚡
+        </button>
+        <button
+          type="button"
+          className="context-emotion-btn"
+          title="Guiño"
+          onClick={() => handleTriggerExpression('wink')}
+        >
+          😉
+        </button>
+        <button
+          type="button"
+          className="context-emotion-btn"
+          title="Bailar"
+          onClick={() => handleTriggerExpression('dance')}
+        >
+          💃
+        </button>
+        <button
+          type="button"
+          className="context-emotion-btn"
+          title="Yandere / Intensa"
+          onClick={() => handleTriggerExpression('yandere')}
+        >
+          🖤
+        </button>
+      </div>
+
+      <div className="context-menu-divider" />
+
+      {/* Primary Actions */}
       <button
         className="context-menu-item"
         onClick={() => {
@@ -141,7 +224,10 @@ export function ContextMenu({
         }}
       >
         <Settings size={15} />
-        <span>Ajustes y Voces</span>
+        <div className="context-item-info">
+          <span>Ajustes & Avatares Live2D</span>
+          <span className="context-item-hint">8 modelos, 30 voces, API</span>
+        </div>
       </button>
 
       {/* Torso vs Full body framing */}
@@ -153,7 +239,25 @@ export function ContextMenu({
         }}
       >
         <User size={15} />
-        <span>{viewMode === 'torso' ? 'Ver Cuerpo Completo' : 'Modo Torso (Busto)'}</span>
+        <div className="context-item-info">
+          <span>{viewMode === 'torso' ? 'Ver Cuerpo Completo' : 'Modo Torso (Busto)'}</span>
+          <span className="context-item-hint">{viewMode === 'torso' ? 'Encuadre 100%' : 'Encuadre 40%'}</span>
+        </div>
+      </button>
+
+      {/* Camera Sensor & Vision AI */}
+      <button
+        className="context-menu-item"
+        onClick={() => {
+          onToggleCamera();
+          onClose();
+        }}
+      >
+        <Camera size={15} />
+        <div className="context-item-info">
+          <span>{isCameraActive ? 'Desactivar Cámara' : 'Activar Visión por Cámara'}</span>
+          <span className="context-item-hint">{isCameraActive ? 'Sensor encendido' : 'Face-API + YOLO'}</span>
+        </div>
       </button>
 
       {/* Zen UI auto-hide toggle */}
@@ -165,19 +269,10 @@ export function ContextMenu({
         }}
       >
         {isZenMode ? <Eye size={15} /> : <EyeOff size={15} />}
-        <span>{isZenMode ? 'Mostrar Interfaz Completa' : 'Ocultar UI (Modo Zen)'}</span>
-      </button>
-
-      {/* Camera Sensor */}
-      <button
-        className="context-menu-item"
-        onClick={() => {
-          onToggleCamera();
-          onClose();
-        }}
-      >
-        <Camera size={15} />
-        <span>{isCameraActive ? 'Ocultar Cámara' : 'Activar Visión por Cámara'}</span>
+        <div className="context-item-info">
+          <span>{isZenMode ? 'Mostrar Controles (HUD)' : 'Ocultar Controles (Modo Zen)'}</span>
+          <span className="context-item-hint">{isZenMode ? 'HUD visible' : 'Avatar puro'}</span>
+        </div>
       </button>
 
       {/* Transparent vs Solid backdrop */}
@@ -189,7 +284,10 @@ export function ContextMenu({
         }}
       >
         <Layers size={15} />
-        <span>{isSolidBackdrop ? 'Modo Transparente (VTuber)' : 'Modo Fondo Sólido'}</span>
+        <div className="context-item-info">
+          <span>{isSolidBackdrop ? 'Modo Transparente (VTuber)' : 'Modo Fondo Sólido'}</span>
+          <span className="context-item-hint">{isSolidBackdrop ? 'Fondo transparente' : 'Obsidian dark'}</span>
+        </div>
       </button>
 
       {/* Always on top pin */}
@@ -201,19 +299,10 @@ export function ContextMenu({
         }}
       >
         <Pin size={15} />
-        <span>{isAlwaysOnTop ? 'Desfijar de Pantalla' : 'Fijar Siempre Visible'}</span>
-      </button>
-
-      {/* Random gesture */}
-      <button
-        className="context-menu-item"
-        onClick={() => {
-          onTriggerRandomGesture();
-          onClose();
-        }}
-      >
-        <Sparkles size={15} />
-        <span>Probar Gesto de Avatar</span>
+        <div className="context-item-info">
+          <span>{isAlwaysOnTop ? 'Desfijar de Pantalla' : 'Fijar Siempre Visible (Top)'}</span>
+          <span className="context-item-hint">{isAlwaysOnTop ? 'Capa normal' : 'Always on Top'}</span>
+        </div>
       </button>
 
       <div className="context-menu-divider" />
@@ -227,14 +316,21 @@ export function ContextMenu({
         }}
       >
         <Inbox size={15} />
-        <span>Minimizar al System Tray</span>
+        <div className="context-item-info">
+          <span>Minimizar al System Tray</span>
+          <span className="context-item-hint">Segundo plano</span>
+        </div>
       </button>
 
       {/* Close app */}
       <button className="context-menu-item danger" onClick={handleCloseApp}>
         <X size={15} />
-        <span>Cerrar Cristi AI</span>
+        <div className="context-item-info">
+          <span>Cerrar Cristi AI</span>
+        </div>
       </button>
     </div>
   );
 }
+
+export default ContextMenu;

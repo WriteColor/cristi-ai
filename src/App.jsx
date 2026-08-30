@@ -622,6 +622,8 @@ export function App() {
       sendTextMessage: (text) => socketRef.current?.sendTextMessage(text),
       triggerGesture: (g) => setCurrentGesture(g),
       setSubtitle: (t) => setSubtitleText(t),
+      openSettings: () => setIsSettingsOpen(true),
+      closeSettings: () => setIsSettingsOpen(false),
       eventBus,
       externalDeviceManager,
       gameIntegrationManager,
@@ -871,6 +873,7 @@ export function App() {
         isZenMode={isZenMode}
         onToggleZenMode={handleToggleZenMode}
         onMinimizeToTray={handleMinimizeToTray}
+        activeModelId={config.live2dModelId || 'yanderegirl'}
       />
 
       {/* 6. Horizontal Settings Modal */}
