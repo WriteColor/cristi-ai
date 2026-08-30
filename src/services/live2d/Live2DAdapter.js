@@ -2,6 +2,8 @@
  * Cristi AI - Live2D Universal Adapter
  * Bridges semantic animation commands (head, body, eyes, brows, mouth, blush, breathing)
  * to model-specific parameter adjustments with smooth physical lerp interpolation.
+ *
+ * v2.1 — Added blockedExpressions support, setMotionByGroup(), and expression fallback.
  */
 
 export class Live2DAdapter {
@@ -32,7 +34,7 @@ export class Live2DAdapter {
 
   /**
    * Update the capability mapping for this adapter
-   * @param {Object} mapping 
+   * @param {Object} mapping
    * @param {Object} profile
    */
   setMapping(mapping, profile = null) {
@@ -78,8 +80,8 @@ export class Live2DAdapter {
 
   /**
    * Set target for a direct parameter ID (including custom parameters)
-   * @param {string} paramId 
-   * @param {number} value 
+   * @param {string} paramId
+   * @param {number} value
    */
   setDirectParamTarget(paramId, value) {
     if (!paramId) return;
@@ -134,21 +136,80 @@ export class Live2DAdapter {
     this.setCapabilityTarget('breath', value);
   }
 
+  /**
+   * Check if an expression is blocked by this model's profile
+   * (e.g., artist credit overlays like Ellen's 'shuiyin')
+   * @param {string} expressionName
+   * @returns {boolean}
+   */
+  isExpressionBlocked(expressionName) {
+    const blocked = this.profile?.blockedExpressions;
+    if (!blocked || !Array.isArray(blocked)) return false;
+    return blocked.includes(expressionName);
+  }
+
+  /**
+   * Set expression on the Live2D model.
+   * Checks blockedExpressions first, then falls back to parameter targets if no expressionManager.
+   * @param {string} expressionName
+   */
   setExpression(expressionName) {
+    // Guard: refuse to activate blocked expressions (e.g., artist credit overlays)
+    if (expressionName && expressionName !== 'none' && expressionName !== 'idle') {
+      if (this.isExpressionBlocked(expressionName)) {
+        console.info(`[Live2DAdapter] Expression "${expressionName}" is blocked (artist credit overlay). Skipping.`);
+        return;
+      }
+    }
+
     if (!this.model?.internalModel?.motionManager) return;
+
     try {
       const expManager = this.model.internalModel.motionManager.expressionManager;
-      if (expManager) {
-        if (!expressionName || expressionName.toLowerCase() === 'idle' || expressionName.toLowerCase() === 'none') {
+
+      if (!expressionName || expressionName.toLowerCase() === 'idle' || expressionName.toLowerCase() === 'none') {
+        // Reset: clear expression manager and reset parameter targets
+        if (expManager) {
           expManager.resetExpression();
-          this.currentExpression = 'none';
-        } else {
-          this.model.expression(expressionName);
+        }
+        this.currentExpression = 'none';
+        return;
+      }
+
+      if (expManager && expManager.definitions && expManager.definitions.length > 0) {
+        // Cubism expressionManager exists — use it directly
+        this.model.expression(expressionName);
+        this.currentExpression = expressionName;
+      } else {
+        // No expressionManager loaded — this model has no Expressions section in model3.json
+        // Fallback: check if profile semanticActions has a parameter target for this expression
+        const action = this.profile?.semanticActions?.[expressionName];
+        if (action?.type === 'parameters' && action.targets) {
+          for (const [paramId, val] of Object.entries(action.targets)) {
+            this.setDirectParamTarget(paramId, val);
+          }
           this.currentExpression = expressionName;
+        } else {
+          console.warn(`[Live2DAdapter] No expressionManager and no parameter fallback for "${expressionName}"`);
         }
       }
     } catch (e) {
       console.warn(`[Live2DAdapter] Failed to set expression "${expressionName}":`, e);
+    }
+  }
+
+  /**
+   * Trigger a motion by group name and index using the Live2D model's motion API.
+   * @param {string} groupName - Motion group as declared in model3.json (e.g. 'Idle', 'Tap', 'Flick')
+   * @param {number} index - Index within the group (0-based)
+   */
+  setMotionByGroup(groupName, index = 0) {
+    if (!this.model) return;
+    try {
+      // pixi-live2d-display: model.motion(group, index)
+      this.model.motion(groupName, index);
+    } catch (e) {
+      console.warn(`[Live2DAdapter] Failed to trigger motion "${groupName}[${index}]":`, e);
     }
   }
 
@@ -188,7 +249,7 @@ export class Live2DAdapter {
 
     for (const [paramId, targetVal] of this.targetValues.entries()) {
       const currentVal = this.currentValues.get(paramId) || 0;
-      
+
       // Dynamic speed selection based on parameter prefix/type
       let speed = this.speeds.custom;
       const lower = paramId.toLowerCase();

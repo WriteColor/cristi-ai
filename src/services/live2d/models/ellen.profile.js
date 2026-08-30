@@ -14,6 +14,10 @@ export const ellenProfile = {
   path: '/models/live2d/ellen/免费模型艾莲.model3.json',
   
   hiddenParts: ['Part17'],
+  // Prevent activation of artist credit overlay expression
+  // shuiyin.exp3.json contains attribution for 立绘/Illust: 神宫凉子, Rigger: 杨小咛
+  // The file is preserved — only blocked from being triggered as a user expression
+  blockedExpressions: ['shuiyin'],
   
   capabilities: {
     "facialExpressions": true,
@@ -31,6 +35,7 @@ export const ellenProfile = {
         "shock",
         "shou",
         "tang"
+        // Note: 'shuiyin' is intentionally excluded (artist credit expression — blocked)
     ],
     "motions": [
         "idle",

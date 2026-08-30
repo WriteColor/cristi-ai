@@ -62,12 +62,21 @@ export const yanderegirlProfile = {
         "targets": {}
     },
     "happy": {
-        "type": "expression",
-        "name": "Scared"
+        "type": "parameters",
+        "targets": {
+            "ParamEyeLSmile": 1.0,
+            "ParamEyeRSmile": 1.0,
+            "ParamMouthForm": 1.0,
+            "ParamCheek": 0.5
+        }
     },
     "blush": {
-        "type": "expression",
-        "name": "Scared"
+        "type": "parameters",
+        "targets": {
+            "ParamCheek": 1.0,
+            "ParamEyeLSmile": 0.6,
+            "ParamEyeRSmile": 0.6
+        }
     },
     "yandere": {
         "type": "expression",

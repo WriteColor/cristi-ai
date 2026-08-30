@@ -1,0 +1,330 @@
+{
+  "yanderegirl": {
+    "expressions": [
+      {
+        "expression": "Crazy",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "Mad",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "Scared",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "Yandere",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "0",
+        "hashAfter": "5802",
+        "error": null
+      }
+    ],
+    "summary": {
+      "total": 4,
+      "changed": 1,
+      "failed": 0
+    }
+  },
+  "icegirl": {
+    "expressions": [
+      {
+        "expression": "Crazy",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "1241068",
+        "hashAfter": "3379405",
+        "error": null
+      },
+      {
+        "expression": "Mad",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "1444377",
+        "hashAfter": "927949",
+        "error": null
+      },
+      {
+        "expression": "Scared",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "1273003",
+        "hashAfter": "1349133",
+        "error": null
+      },
+      {
+        "expression": "Yandere",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "1341409",
+        "hashAfter": "1585202",
+        "error": null
+      }
+    ],
+    "summary": {
+      "total": 4,
+      "changed": 4,
+      "failed": 0
+    }
+  },
+  "jane_doe": {
+    "expressions": [
+      {
+        "expression": "Crazy",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "0",
+        "hashAfter": "1154936",
+        "error": null
+      },
+      {
+        "expression": "Mad",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "381080",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "Scared",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "Yandere",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      }
+    ],
+    "summary": {
+      "total": 4,
+      "changed": 2,
+      "failed": 0
+    }
+  },
+  "ellen": {
+    "expressions": [
+      {
+        "expression": "Crazy",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "Mad",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "Scared",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "Yandere",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      }
+    ],
+    "summary": {
+      "total": 4,
+      "changed": 0,
+      "failed": 0
+    }
+  },
+  "hiyori": {
+    "expressions": [
+      {
+        "expression": "Crazy",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "Mad",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "Scared",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "Yandere",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      }
+    ],
+    "summary": {
+      "total": 4,
+      "changed": 0,
+      "failed": 0
+    }
+  },
+  "miara": {
+    "expressions": [
+      {
+        "expression": "Crazy",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "Mad",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "Scared",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "Yandere",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      }
+    ],
+    "summary": {
+      "total": 4,
+      "changed": 0,
+      "failed": 0
+    }
+  },
+  "toki": {
+    "expressions": [
+      {
+        "expression": "Crazy",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "Mad",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "Scared",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "Yandere",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      }
+    ],
+    "summary": {
+      "total": 4,
+      "changed": 0,
+      "failed": 0
+    }
+  },
+  "ruan_mei": {
+    "expressions": [
+      {
+        "expression": "Crazy",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "19358126",
+        "hashAfter": "19358126",
+        "error": null
+      },
+      {
+        "expression": "Mad",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "19358126",
+        "hashAfter": "19358126",
+        "error": null
+      },
+      {
+        "expression": "Scared",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "19358126",
+        "hashAfter": "19358126",
+        "error": null
+      },
+      {
+        "expression": "Yandere",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "19358126",
+        "hashAfter": "19358126",
+        "error": null
+      }
+    ],
+    "summary": {
+      "total": 4,
+      "changed": 0,
+      "failed": 0
+    }
+  }
+}

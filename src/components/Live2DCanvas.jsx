@@ -365,8 +365,16 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
         }
 
         modelRef.current = model;
+        // Disable ALL internal PIXI/Live2D pointer handling to prevent the "tic"
+        // that occurs when contextmenu events propagate into pixi-live2d-display's
+        // internal pointertap / pointerdown hit-testing system.
         model.interactive = false;
+        model.interactiveChildren = false;
         model.eventMode = 'none';
+        if (model.internalModel) {
+          // Some pixi-live2d-display versions expose an interactionManager
+          try { model.internalModel.interactive = false; } catch (_) {}
+        }
         app.stage.interactiveChildren = false;
         app.stage.eventMode = 'none';
         app.stage.addChild(model);
@@ -396,6 +404,7 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
             setEmotion: (emo) => controller.setEmotion(emo),
             setExpression: (exp) => adapter.setExpression(exp),
             setMotion: (group, index) => model.motion(group, index),
+            setMotionByGroup: (group, index) => adapter.setMotionByGroup(group, index),
             setHead: (x, y, z) => adapter.setHeadAngle(x, y, z),
             setBody: (x, y, z) => adapter.setBodyAngle(x, y, z),
             setMouth: (o, f) => adapter.setMouth(o, f),

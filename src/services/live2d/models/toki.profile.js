@@ -1,6 +1,7 @@
 /**
  * Live2D Model Profile: Toki (Blue Archive) (toki)
- * Generated with dynamic capability introspection
+ * No .exp3 files present — all expressions implemented as parameter target combinations.
+ * These produce real visual changes via direct Cubism parameter writes.
  */
 
 export const tokiProfile = {
@@ -12,7 +13,7 @@ export const tokiProfile = {
   recommendedVoice: 'Puck',
   description: 'Doncella táctica de Blue Archive con mirada serena, respiración suave y estética cibernética.',
   path: '/models/live2d/toki/20220227toki.model3.json',
-  
+
   capabilities: {
     "facialExpressions": true,
     "eyeBlink": true,
@@ -23,11 +24,12 @@ export const tokiProfile = {
     "armMovement": true,
     "breathing": true,
     "physics": true,
+    // No .exp3 files — all expressions via parameter targets
     "customExpressions": [],
     "motions": [],
     "totalParameters": 38
-},
-  
+  },
+
   standardMapping: {
     "head_angle_x": "ParamAngleX",
     "head_angle_y": "ParamAngleY",
@@ -49,8 +51,8 @@ export const tokiProfile = {
     "mouth_form": "ParamMouthForm",
     "cheek_blush": "ParamCheek",
     "breath": "ParamBreath"
-},
-  
+  },
+
   semanticActions: {
     "idle": {
         "type": "parameters",
@@ -62,38 +64,59 @@ export const tokiProfile = {
             "ParamEyeLSmile": 1.0,
             "ParamEyeRSmile": 1.0,
             "ParamMouthForm": 1.0,
-            "ParamCheek": 0.5
+            "ParamCheek": 0.5,
+            "ParamBrowLY": 0.3,
+            "ParamBrowRY": 0.3
         }
     },
     "blush": {
         "type": "parameters",
         "targets": {
             "ParamCheek": 1.0,
-            "ParamEyeLSmile": 0.8,
-            "ParamEyeRSmile": 0.8
+            "ParamEyeLSmile": 0.7,
+            "ParamEyeRSmile": 0.7,
+            "ParamMouthForm": 0.5,
+            "ParamEyeLOpen": 0.8,
+            "ParamEyeROpen": 0.8
         }
     },
     "yandere": {
-        "type": "fallback",
-        "fallback": "idle"
+        "type": "parameters",
+        "targets": {
+            "ParamMouthForm": -0.7,
+            "ParamBrowLAngle": -0.6,
+            "ParamBrowRAngle": -0.6,
+            "ParamEyeLSmile": 0.4,
+            "ParamEyeRSmile": 0.4
+        }
     },
     "wink": {
         "type": "parameters",
         "targets": {
             "ParamEyeROpen": 0.0,
-            "ParamEyeRSmile": 1.0
+            "ParamEyeRSmile": 1.0,
+            "ParamCheek": 0.4
         }
     },
     "surprised": {
-        "type": "fallback",
-        "fallback": "idle"
+        "type": "parameters",
+        "targets": {
+            "ParamEyeLOpen": 1.0,
+            "ParamEyeROpen": 1.0,
+            "ParamMouthOpenY": 0.5,
+            "ParamMouthForm": -0.2,
+            "ParamBrowLY": 0.7,
+            "ParamBrowRY": 0.7
+        }
     },
     "sad": {
         "type": "parameters",
         "targets": {
             "ParamBrowLY": -0.6,
             "ParamBrowRY": -0.6,
-            "ParamMouthForm": -1.0
+            "ParamMouthForm": -1.0,
+            "ParamEyeLOpen": 0.7,
+            "ParamEyeROpen": 0.7
         }
     },
     "angry": {
@@ -101,14 +124,23 @@ export const tokiProfile = {
         "targets": {
             "ParamBrowLAngle": -0.8,
             "ParamBrowRAngle": -0.8,
-            "ParamMouthForm": -0.5
+            "ParamMouthForm": -0.5,
+            "ParamBrowLY": -0.4,
+            "ParamBrowRY": -0.4
         }
     },
     "love": {
-        "type": "fallback",
-        "fallback": "idle"
+        "type": "parameters",
+        "targets": {
+            "ParamEyeLSmile": 1.0,
+            "ParamEyeRSmile": 1.0,
+            "ParamCheek": 1.0,
+            "ParamMouthForm": 1.0,
+            "ParamBrowLY": 0.3,
+            "ParamBrowRY": 0.3
+        }
     }
-}
+  }
 };
 
 export default tokiProfile;

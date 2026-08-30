@@ -73,6 +73,32 @@ const EXPRESSION_LABELS = {
 };
 
 /**
+ * Motion label overrides for named motion groups (string-based legacy format)
+ */
+const MOTION_GROUP_LABELS = {
+  // Hiyori
+  'hiyori_m01': { label: 'Idle 1',          icon: '🌸' },
+  'hiyori_m02': { label: 'Idle 2',          icon: '🌸' },
+  'hiyori_m03': { label: 'Giro (Flick)',    icon: '🌀' },
+  'hiyori_m04': { label: 'Bajar',           icon: '👇' },
+  'hiyori_m05': { label: 'Idle 3',          icon: '🌸' },
+  'hiyori_m06': { label: 'Tap Cabeza',      icon: '🫳' },
+  'hiyori_m07': { label: 'Tap Cuerpo',      icon: '👆' },
+  'hiyori_m08': { label: 'Flick Cuerpo',    icon: '💫' },
+  // Miara
+  'Scene1': { label: 'Idle',                icon: '🌙' },
+  'Scene2': { label: 'Reacción (Tap)',       icon: '🫳' },
+  'Scene3': { label: 'Barrido (Flick)',      icon: '💫' },
+  // IceGirl
+  'DaiJi':   { label: 'Postura Idle',       icon: '❄️' },
+  'HuiShou': { label: 'Giro de Cabeza',     icon: '🌀' },
+  'MeiYan':  { label: 'Ojo Bonito',         icon: '😍' },
+  // Generic
+  'idle':    { label: 'Idle',               icon: '🌟' },
+  'idle2':   { label: 'Idle 2',             icon: '🌟' },
+};
+
+/**
  * Format expression name into human readable label and emoji
  */
 function getExpressionMeta(exprName) {
@@ -222,9 +248,23 @@ export function ContextMenu({
     }
   };
 
-  const handleTriggerMotion = (motionName, index = 0) => {
-    if (window.__cristiAvatar?.setMotion) {
-      window.__cristiAvatar.setMotion(motionName, index);
+  const handleTriggerMotion = (motionEntry) => {
+    if (!window.__cristiAvatar) return;
+    // Support both structured format {group, index} and legacy string format
+    if (typeof motionEntry === 'object' && motionEntry.group !== undefined) {
+      // New structured format from profile.motions
+      if (window.__cristiAvatar.setMotionByGroup) {
+        window.__cristiAvatar.setMotionByGroup(motionEntry.group, motionEntry.index ?? 0);
+      } else {
+        window.__cristiAvatar.setMotion(motionEntry.group, motionEntry.index ?? 0);
+      }
+    } else {
+      // Legacy string format — use as group name with index 0
+      if (window.__cristiAvatar.setMotionByGroup) {
+        window.__cristiAvatar.setMotionByGroup(String(motionEntry), 0);
+      } else {
+        window.__cristiAvatar.setMotion(String(motionEntry), 0);
+      }
     }
   };
 
@@ -344,21 +384,31 @@ export function ContextMenu({
       {modelMotions.length > 0 && (
         <>
           <div className="context-menu-section-label" style={{ marginTop: '6px' }}>
-            Animaciones & Poses
+            Animaciones &amp; Poses
           </div>
           <div className="context-model-motions-row">
-            {modelMotions.map((motionName, idx) => (
-              <button
-                key={motionName}
-                type="button"
-                className="context-motion-btn"
-                onClick={() => handleTriggerMotion(motionName, idx)}
-                title={`Animación: ${motionName}`}
-              >
-                <Play size={10} />
-                <span>{motionName}</span>
-              </button>
-            ))}
+            {modelMotions.map((motionEntry, idx) => {
+              // Support both structured {group, index, label, icon} and legacy string
+              const isStructured = typeof motionEntry === 'object' && motionEntry.group;
+              const label = isStructured
+                ? motionEntry.label
+                : (MOTION_GROUP_LABELS[String(motionEntry)]?.label || String(motionEntry));
+              const icon = isStructured
+                ? motionEntry.icon
+                : (MOTION_GROUP_LABELS[String(motionEntry)]?.icon || '▶');
+              return (
+                <button
+                  key={isStructured ? `${motionEntry.group}-${motionEntry.index}` : `${motionEntry}-${idx}`}
+                  type="button"
+                  className="context-motion-btn"
+                  onClick={() => handleTriggerMotion(motionEntry)}
+                  title={isStructured ? `${motionEntry.group}[${motionEntry.index}]` : `Motion: ${motionEntry}`}
+                >
+                  <span className="context-motion-icon">{icon}</span>
+                  <span>{label}</span>
+                </button>
+              );
+            })}
           </div>
         </>
       )}

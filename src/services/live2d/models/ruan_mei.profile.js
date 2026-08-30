@@ -1,6 +1,7 @@
 /**
  * Live2D Model Profile: Ruan Mei (Star Rail) (ruan_mei)
- * Generated with dynamic capability introspection
+ * No .exp3 files present — all expressions via rich parameter target combinations.
+ * Model has 179 parameters including cheek, brow form, eye smile, and mouth shape controls.
  */
 
 export const ruan_meiProfile = {
@@ -9,10 +10,10 @@ export const ruan_meiProfile = {
   character: 'Ruan Mei',
   theme: 'Genius Society / Honkai Star Rail',
   badge: 'Star Rail',
-  recommendedVoice: 'Fenrir',
+  recommendedVoice: 'Callirrhoe',
   description: 'Miembro #81 de la Sociedad de Genios de Honkai: Star Rail con texturas ultra HD 8K y física de ropa tradicional.',
   path: '/models/live2d/ruan_mei/ruan_mei.model3.json',
-  
+
   capabilities: {
     "facialExpressions": true,
     "eyeBlink": true,
@@ -23,11 +24,12 @@ export const ruan_meiProfile = {
     "armMovement": false,
     "breathing": true,
     "physics": true,
+    // No .exp3 files — all expressions via parameter targets
     "customExpressions": [],
     "motions": [],
     "totalParameters": 179
-},
-  
+  },
+
   standardMapping: {
     "head_angle_x": "ParamAngleX",
     "head_angle_y": "ParamAngleY",
@@ -45,12 +47,14 @@ export const ruan_meiProfile = {
     "brow_r_y": "ParamBrowRY",
     "brow_l_angle": "ParamBrowLAngle",
     "brow_r_angle": "ParamBrowRAngle",
+    "brow_l_form": "ParamBrowLForm",
+    "brow_r_form": "ParamBrowRForm",
     "mouth_open_y": "ParamMouthOpenY",
     "mouth_form": "ParamMouthForm",
     "cheek_blush": "ParamCheek",
     "breath": "ParamBreath"
-},
-  
+  },
+
   semanticActions: {
     "idle": {
         "type": "parameters",
@@ -62,7 +66,11 @@ export const ruan_meiProfile = {
             "ParamEyeLSmile": 1.0,
             "ParamEyeRSmile": 1.0,
             "ParamMouthForm": 1.0,
-            "ParamCheek": 0.5
+            "ParamCheek": 0.5,
+            "ParamBrowLY": 0.3,
+            "ParamBrowRY": 0.3,
+            "ParamBrowLForm": 0.5,
+            "ParamBrowRForm": 0.5
         }
     },
     "blush": {
@@ -70,30 +78,56 @@ export const ruan_meiProfile = {
         "targets": {
             "ParamCheek": 1.0,
             "ParamEyeLSmile": 0.8,
-            "ParamEyeRSmile": 0.8
+            "ParamEyeRSmile": 0.8,
+            "ParamMouthForm": 0.6,
+            "ParamEyeLOpen": 0.75,
+            "ParamEyeROpen": 0.75,
+            "ParamBrowLY": 0.2,
+            "ParamBrowRY": 0.2
         }
     },
     "yandere": {
-        "type": "fallback",
-        "fallback": "idle"
+        "type": "parameters",
+        "targets": {
+            "ParamMouthForm": -0.6,
+            "ParamBrowLAngle": -0.5,
+            "ParamBrowRAngle": -0.5,
+            "ParamBrowLForm": -0.6,
+            "ParamBrowRForm": -0.6,
+            "ParamEyeLSmile": 0.2,
+            "ParamEyeRSmile": 0.2
+        }
     },
     "wink": {
         "type": "parameters",
         "targets": {
             "ParamEyeROpen": 0.0,
-            "ParamEyeRSmile": 1.0
+            "ParamEyeRSmile": 1.0,
+            "ParamCheek": 0.5,
+            "ParamMouthForm": 0.5
         }
     },
     "surprised": {
-        "type": "fallback",
-        "fallback": "idle"
+        "type": "parameters",
+        "targets": {
+            "ParamEyeLOpen": 1.0,
+            "ParamEyeROpen": 1.0,
+            "ParamMouthOpenY": 0.4,
+            "ParamMouthForm": -0.2,
+            "ParamBrowLY": 0.8,
+            "ParamBrowRY": 0.8
+        }
     },
     "sad": {
         "type": "parameters",
         "targets": {
             "ParamBrowLY": -0.6,
             "ParamBrowRY": -0.6,
-            "ParamMouthForm": -1.0
+            "ParamBrowLAngle": 0.3,
+            "ParamBrowRAngle": 0.3,
+            "ParamMouthForm": -1.0,
+            "ParamEyeLOpen": 0.6,
+            "ParamEyeROpen": 0.6
         }
     },
     "angry": {
@@ -101,14 +135,27 @@ export const ruan_meiProfile = {
         "targets": {
             "ParamBrowLAngle": -0.8,
             "ParamBrowRAngle": -0.8,
+            "ParamBrowLY": -0.4,
+            "ParamBrowRY": -0.4,
+            "ParamBrowLForm": -1.0,
+            "ParamBrowRForm": -1.0,
             "ParamMouthForm": -0.5
         }
     },
     "love": {
-        "type": "fallback",
-        "fallback": "idle"
+        "type": "parameters",
+        "targets": {
+            "ParamEyeLSmile": 1.0,
+            "ParamEyeRSmile": 1.0,
+            "ParamCheek": 1.0,
+            "ParamMouthForm": 1.0,
+            "ParamBrowLY": 0.4,
+            "ParamBrowRY": 0.4,
+            "ParamBrowLForm": 0.5,
+            "ParamBrowRForm": 0.5
+        }
     }
-}
+  }
 };
 
 export default ruan_meiProfile;
