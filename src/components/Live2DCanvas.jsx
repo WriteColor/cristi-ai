@@ -5,6 +5,9 @@ import React, {
 import * as PIXI from 'pixi.js';
 import { Live2DModel } from 'pixi-live2d-display/cubism4';
 import { logger } from '../services/logger';
+import { eventBus, EVENTS } from '../services/eventBus';
+import { live2dModelRegistry, Live2DAdapter, Live2DController } from '../services/live2d';
+import { desktopCursorTracker } from '../services/desktop/DesktopCursorTracker';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PIXI & LIVE2D ENGINE GLOBAL CONFIG
@@ -56,6 +59,7 @@ const randomPreset = () => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const Live2DCanvas = forwardRef(function Live2DCanvas(
   {
+    modelId = 'yanderegirl',
     gesture = 'idle',
     lipSyncValue = 0,
     isSpeaking = false,
@@ -69,6 +73,8 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
   const containerRef = useRef(null);
   const pixiAppRef = useRef(null);
   const modelRef = useRef(null);
+  const adapterRef = useRef(null);
+  const controllerRef = useRef(null);
   const animFrameRef = useRef(null);
 
   // Drag state with exact delta calculation (NEVER resets user position)
@@ -81,18 +87,11 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
     startModelY: 0
   });
 
-  // Gaze tracking state (smooth lerped normal coords -1 to 1)
+  // Mouse position reference
   const mousePosRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
-  const gazeRef = useRef({ x: 0, y: 0 });
 
   // References for live tick access
-  const gestureRef = useRef(gesture);
-  const lipSyncRef = useRef(lipSyncValue);
-  const isSpeakingRef = useRef(isSpeaking);
   const viewModeRef = useRef(viewMode);
-  gestureRef.current = gesture;
-  lipSyncRef.current = lipSyncValue;
-  isSpeakingRef.current = isSpeaking;
   viewModeRef.current = viewMode;
 
   const [isLoaded, setIsLoaded] = useState(false);
@@ -128,6 +127,31 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
       applyLayout(modelRef.current, pixiAppRef.current, viewMode);
     }
   }, [viewMode, applyLayout]);
+
+  // ── Forward Emotion changes to Controller ─────────────────────────────────
+  useEffect(() => {
+    if (controllerRef.current) {
+      controllerRef.current.setEmotion(gesture);
+    }
+    eventBus.emit(EVENTS.EMOTION_CHANGED, gesture);
+
+    // Trigger micro-animation impulse in-place
+    const animMap = {
+      happy:     'bounce',
+      blush:     'float',
+      wink:      'float',
+      dance:     'dance',
+      surprised: 'bounce',
+      yandere:   'shake',
+      crazy:     'bounce',
+    };
+
+    const anim = animMap[gesture.toLowerCase()];
+    if (anim) {
+      setActiveAnim(anim);
+      setTimeout(() => setActiveAnim('none'), 1200);
+    }
+  }, [gesture]);
 
   // ── Explicit AI Tool moveTo API (Only invoked when AI explicitly requests moving) ──
   const moveTo = useCallback((preset, animation = 'slide') => {
@@ -175,52 +199,12 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
   useImperativeHandle(ref, () => ({
     moveTo,
     getModel: () => modelRef.current,
+    getAdapter: () => adapterRef.current,
+    getController: () => controllerRef.current,
     reapplyLayout: () => applyLayout(modelRef.current, pixiAppRef.current, viewModeRef.current)
   }), [moveTo, applyLayout]);
 
-  // ── Native Expression & Emotion Handling (IN-PLACE, NEVER CHANGES X/Y) ───
-  useEffect(() => {
-    const model = modelRef.current;
-    if (!model || !model.internalModel?.motionManager) return;
-
-    const g = gesture.toLowerCase();
-
-    // 1. Trigger native Cubism expression
-    try {
-      if (g === 'yandere') {
-        model.expression('Yandere');
-      } else if (g === 'crazy') {
-        model.expression('Crazy');
-      } else if (g === 'pout' || g === 'mad') {
-        model.expression('Mad');
-      } else if (g === 'surprised') {
-        model.expression('Scared');
-      } else {
-        if (model.internalModel.motionManager.expressionManager) {
-          model.internalModel.motionManager.expressionManager.resetExpression();
-        }
-      }
-    } catch (_) {}
-
-    // 2. Trigger micro-animation impulse IN-PLACE without moving her position!
-    const animMap = {
-      happy:     'bounce',
-      blush:     'float',
-      wink:      'float',
-      dance:     'dance',
-      surprised: 'bounce',
-      yandere:   'shake',
-      crazy:     'bounce',
-    };
-
-    const anim = animMap[g];
-    if (anim) {
-      setActiveAnim(anim);
-      setTimeout(() => setActiveAnim('none'), 1200);
-    }
-  }, [gesture]);
-
-  // ── Hit-Testing Helper (Uses actual model bounding box) ───────────────────
+  // ── Hit-Testing Helper ────────────────────────────────────────────────────
   const isPointerOverModel = useCallback((clientX, clientY) => {
     const model = modelRef.current;
     if (!model) return false;
@@ -235,7 +219,7 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
     );
   }, []);
 
-  // ── Precise Drag Handlers (Starts only on model, preserves exact drop position) ─
+  // ── Precise Drag Handlers ─────────────────────────────────────────────────
   const handleMouseDown = useCallback((e) => {
     const model = modelRef.current;
     if (!model) return;
@@ -271,26 +255,27 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
   }, [isPointerOverModel, onModelContextMenu]);
 
   useEffect(() => {
-    const handleMouseMove = (e) => {
-      mousePosRef.current = { x: e.clientX, y: e.clientY };
+    desktopCursorTracker.start();
+
+    const unsub = desktopCursorTracker.onCursorUpdate((pos) => {
+      mousePosRef.current = { x: pos.x, y: pos.y };
 
       if (!dragRef.current.active) {
-        setIsHoveringModel(isPointerOverModel(e.clientX, e.clientY));
+        setIsHoveringModel(isPointerOverModel(pos.x, pos.y));
       }
 
       if (dragRef.current.active && modelRef.current) {
-        const dx = e.clientX - dragRef.current.startMouseX;
-        const dy = e.clientY - dragRef.current.startMouseY;
+        const dx = pos.x - dragRef.current.startMouseX;
+        const dy = pos.y - dragRef.current.startMouseY;
 
         if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
           dragRef.current.hasMoved = true;
         }
 
-        // Direct position update without snaps or bounds constraint
         modelRef.current.x = dragRef.current.startModelX + dx;
         modelRef.current.y = dragRef.current.startModelY + dy;
       }
-    };
+    });
 
     const handleMouseUp = () => {
       if (dragRef.current.active) {
@@ -298,25 +283,28 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
       }
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
+      unsub();
       window.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isPointerOverModel]);
 
-  // ── PIXI & Model Lifecycle ───────────────────────────────────────────────
+  // ── PIXI & Model Lifecycle with Adapter & Controller ─────────────────────
   useEffect(() => {
     let isMounted = true;
     let app = null;
     let model = null;
+    let adapter = null;
+    let controller = null;
     let resizeHandler = null;
 
     async function init() {
       if (!containerRef.current) return;
 
       try {
+        eventBus.emit(EVENTS.MODEL_LOADING, { modelId });
+
         if (typeof window !== 'undefined' && !window.Live2DCubismCore) {
           await new Promise((resolve) => {
             const script = document.createElement('script');
@@ -329,12 +317,12 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
 
         if (!isMounted || !containerRef.current) return;
 
-        // Clean any leftover canvas elements inside container
+        // Clean leftover canvas
         while (containerRef.current.firstChild) {
           containerRef.current.removeChild(containerRef.current.firstChild);
         }
 
-        // Create PIXI Application with fresh managed canvas
+        // Create PIXI Application
         app = new PIXI.Application({
           width: window.innerWidth,
           height: window.innerHeight,
@@ -361,15 +349,14 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
 
         pixiAppRef.current = app;
 
-        logger.info('SYSTEM', 'Cargando modelo Live2D Cubism (YandereGirl)...');
+        // Resolve model from Registry
+        const modelDescriptor = live2dModelRegistry.getModel(modelId);
+        logger.info('SYSTEM', `Cargando modelo Live2D Cubism (${modelDescriptor.name})...`);
 
-        model = await Live2DModel.from(
-          '/models/live2d/yanderegirl/yanderegirl.model3.json',
-          {
-            autoInteract: false,
-            autoUpdate: true
-          }
-        );
+        model = await Live2DModel.from(modelDescriptor.path, {
+          autoInteract: false,
+          autoUpdate: true
+        });
 
         if (!isMounted) {
           try { model.destroy(); } catch (_) {}
@@ -384,6 +371,36 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
         app.stage.eventMode = 'none';
         app.stage.addChild(model);
 
+        // Detect capabilities and setup adapter
+        const profile = live2dModelRegistry.getModel(modelId) || modelDescriptor;
+        const detected = live2dModelRegistry.detectModelCapabilities(model);
+        const mapping = {
+          ...detected.standardMapping,
+          ...(profile?.standardMapping || {})
+        };
+
+        adapter = new Live2DAdapter(model, mapping, profile);
+        adapterRef.current = adapter;
+
+        controller = new Live2DController(adapter, modelId);
+        controllerRef.current = controller;
+
+        // Expose to window for testing / automation
+        if (typeof window !== 'undefined') {
+          window.__cristiAvatar = {
+            model,
+            adapter,
+            controller,
+            registry: live2dModelRegistry,
+            setGaze: (x, y) => controller.setGazeTarget(x, y),
+            setEmotion: (emo) => controller.setEmotion(emo),
+            setHead: (x, y, z) => adapter.setHeadAngle(x, y, z),
+            setBody: (x, y, z) => adapter.setBodyAngle(x, y, z),
+            setMouth: (o, f) => adapter.setMouth(o, f),
+            setCheeks: (b) => adapter.setCheeks(b)
+          };
+        }
+
         applyLayout(model, app, viewModeRef.current);
 
         resizeHandler = () => {
@@ -395,77 +412,34 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
         };
         window.addEventListener('resize', resizeHandler);
 
-        // ── Real-Time Accurate Face-Centered Gaze Tracking & Lip Sync Loop ──
+        // ── Main Behavioral Ticker Loop ──────────────────────────────────
+        let lastTime = performance.now();
         app.ticker.add(() => {
-          if (!model?.internalModel?.coreModel) return;
+          const now = performance.now();
+          const deltaMs = Math.min(now - lastTime, 50); // clamp delta
+          lastTime = now;
 
-          const core = model.internalModel.coreModel;
+          if (!model?.internalModel?.coreModel || !controller) return;
+
           const bounds = model.getBounds();
-
-          // Compute Face Center coordinates dynamically relative to where she is on screen
           const faceCenterX = bounds.x + bounds.width * 0.5;
-          const faceCenterY = bounds.y + bounds.height * 0.28; // Face is at ~28% height of model
+          const faceCenterY = bounds.y + bounds.height * 0.28;
 
-          // Vector from face center to mouse pointer
+          // Normalized gaze vector (-1.0 to 1.0)
           const dx = mousePosRef.current.x - faceCenterX;
           const dy = mousePosRef.current.y - faceCenterY;
+          const normX = Math.max(-1, Math.min(1, dx / (window.innerWidth * 0.42)));
+          const normY = Math.max(-1, Math.min(1, dy / (window.innerHeight * 0.42)));
 
-          // Normalized coordinates (-1 to 1)
-          const targetNormX = Math.max(-1, Math.min(1, dx / (window.innerWidth * 0.42)));
-          const targetNormY = Math.max(-1, Math.min(1, dy / (window.innerHeight * 0.42)));
+          controller.setGazeTarget(normX, -normY);
 
-          // Smooth interpolation (lerp) for natural human-like eye/head movement
-          gazeRef.current.x += (targetNormX - gazeRef.current.x) * 0.12;
-          gazeRef.current.y += (targetNormY - gazeRef.current.y) * 0.12;
-
-          const gx = gazeRef.current.x;
-          const gy = gazeRef.current.y;
-
-          // Apply head angles:
-          // X: Positive is Turn Right, Negative is Turn Left
-          // Y: Positive is Look UP, Negative is Look DOWN (inverted screen Y)
-          try {
-            if (typeof core.setParameterValueById === 'function') {
-              core.setParameterValueById('ParamAngleX', gx * 28);
-              core.setParameterValueById('ParamAngleY', -gy * 22); // Correct direction!
-              core.setParameterValueById('ParamAngleZ', gx * -8);
-              core.setParameterValueById('ParamEyeBallX', gx * 0.85);
-              core.setParameterValueById('ParamEyeBallY', -gy * 0.85); // Correct direction!
-              core.setParameterValueById('ParamBodyAngleX', gx * 8);
-            }
-          } catch (_) {}
-
-          // Dynamic lip-sync when speaking
-          const isSpk = isSpeakingRef.current;
-          const lip = lipSyncRef.current;
-
-          if (isSpk && core) {
-            const mouthVal = Math.min(1, lip * 2.4);
-            try {
-              if (typeof core.setParameterValueById === 'function') {
-                core.setParameterValueById('ParamMouthOpenY', mouthVal);
-              }
-            } catch (_) {}
-          }
-
-          // Special gesture overrides
-          const g = gestureRef.current;
-          if (g === 'wink') {
-            try {
-              core.setParameterValueById('ParamEyeROpen', 0);
-              core.setParameterValueById('ParamEyeRSmile', 1);
-            } catch (_) {}
-          } else if (g === 'blush' || g === 'happy') {
-            try {
-              core.setParameterValueById('ParamCheek', 1.0);
-              core.setParameterValueById('ParamEyeLSmile', 1.0);
-              core.setParameterValueById('ParamEyeRSmile', 1.0);
-            } catch (_) {}
-          }
+          // Update all organic parameters via Controller & Adapter
+          controller.update(deltaMs);
         });
 
         setIsLoaded(true);
-        logger.info('SYSTEM', '¡Modelo Live2D de Cristi cargado e inicializado con éxito!');
+        eventBus.emit(EVENTS.MODEL_LOADED, { modelId, modelDescriptor });
+        logger.info('SYSTEM', `¡Modelo Live2D "${modelDescriptor.name}" inicializado con éxito!`);
       } catch (err) {
         console.error('Error al inicializar Live2D:', err);
         logger.error('SYSTEM', `Fallo al cargar modelo Live2D: ${err.message}`);
@@ -480,6 +454,13 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
       if (resizeHandler) window.removeEventListener('resize', resizeHandler);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
 
+      if (controller) {
+        controller.destroy();
+        controllerRef.current = null;
+      }
+      if (adapter) {
+        adapterRef.current = null;
+      }
       if (model) {
         try { model.destroy(); } catch (_) {}
         modelRef.current = null;
@@ -492,11 +473,10 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
         pixiAppRef.current = null;
       }
     };
-  }, [applyLayout]);
+  }, [modelId, applyLayout]);
 
   return (
     <div className="live2d-root">
-      {/* Container where PIXI appends its fresh canvas */}
       <div
         ref={containerRef}
         className={`live2d-canvas-container ${activeAnim !== 'none' ? `live2d-anim-${activeAnim}` : ''} ${isHoveringModel ? 'cursor-grab' : 'cursor-default'}`}

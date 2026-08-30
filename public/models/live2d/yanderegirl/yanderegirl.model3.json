@@ -6,41 +6,18 @@
 			"yanderegirl.8192/texture_00.png"
 		],
 		"Physics": "yanderegirl.physics3.json",
-		"DisplayInfo": "yanderegirl.cdi3.json",
-		"Expressions": [
-			{
-				"Name": "Yandere",
-				"File": "Yandere.exp3.json"
-			},
-			{
-				"Name": "Crazy",
-				"File": "Crazy.exp3.json"
-			},
-			{
-				"Name": "Mad",
-				"File": "Mad.exp3.json"
-			},
-			{
-				"Name": "Scared",
-				"File": "Scared.exp3.json"
-			}
-		]
+		"DisplayInfo": "yanderegirl.cdi3.json"
 	},
 	"Groups": [
 		{
 			"Target": "Parameter",
 			"Name": "EyeBlink",
-			"Ids": [
-				"ParamEyeLOpen",
-				"ParamEyeROpen"
-			]
+			"Ids": []
 		},
 		{
 			"Target": "Parameter",
 			"Name": "LipSync",
-			"Ids": [
-				"ParamMouthOpenY"
-			]
+			"Ids": []
 		}
 	]
 }

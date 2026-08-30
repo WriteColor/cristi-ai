@@ -12,10 +12,15 @@ import {
   RotateCcw,
   Eye,
   EyeOff,
-  Mic2
+  Mic2,
+  Smile,
+  ShieldCheck,
+  Activity,
+  Layers
 } from 'lucide-react';
 import { GEMINI_MODELS, DEFAULT_MODEL_ID } from '../config/models';
 import { GEMINI_STANDARD_VOICES } from '../config/voices';
+import { live2dModelRegistry } from '../services/live2d';
 
 /**
  * Cristi AI - Modern Obsidian Dark Settings Modal
@@ -27,20 +32,25 @@ export function SettingsModal({
   config,
   onSaveConfig
 }) {
-  const [activeTab, setActiveTab] = useState('model'); // 'model' | 'voice' | 'persona'
+  const [activeTab, setActiveTab] = useState('model'); // 'model' | 'avatar' | 'voice' | 'persona'
   const [apiKey, setApiKey] = useState(config.apiKey || '');
   const [showApiKey, setShowApiKey] = useState(false);
   const [modelId, setModelId] = useState(config.modelId || DEFAULT_MODEL_ID);
+  const [live2dModelId, setLive2dModelId] = useState(config.live2dModelId || 'yanderegirl');
   const [voiceName, setVoiceName] = useState(config.voiceName || 'Aoede');
   const [temperature, setTemperature] = useState(config.temperature ?? 0.75);
   const [systemPrompt, setSystemPrompt] = useState(config.systemPrompt || '');
 
   if (!isOpen) return null;
 
+  const allLive2dModels = live2dModelRegistry.getAllModels();
+  const activeLive2dModel = live2dModelRegistry.getModel(live2dModelId);
+
   const handleSave = () => {
     onSaveConfig({
       apiKey: apiKey.trim(),
       modelId,
+      live2dModelId,
       voiceName,
       temperature: parseFloat(temperature),
       systemPrompt
@@ -50,6 +60,7 @@ export function SettingsModal({
 
   const navItems = [
     { id: 'model', label: 'Modelo & API', icon: Zap, subtitle: 'Motor de IA y credenciales' },
+    { id: 'avatar', label: 'Avatar Live2D', icon: Smile, subtitle: 'Catálogo de modelos y capacidades' },
     { id: 'voice', label: 'Voz de Cristi', icon: Mic2, subtitle: 'Timbre vocal de Gemini' },
     { id: 'persona', label: 'Personalidad', icon: User, subtitle: 'Temperatura y prompt' },
   ];
@@ -71,7 +82,7 @@ export function SettingsModal({
                 Ajustes de Cristi AI
               </h2>
               <span className="sm-header-subtitle">
-                Panel de control de inteligencia, voz y presencia
+                Panel de control de inteligencia, avatar, voz y presencia
               </span>
             </div>
           </div>
@@ -215,7 +226,113 @@ export function SettingsModal({
               </div>
             )}
 
-            {/* TAB 2: VOICES */}
+            {/* TAB 2: AVATAR / LIVE2D MULTI-MODEL */}
+            {activeTab === 'avatar' && (
+              <div className="sm-tab-pane">
+                <div className="sm-section-header">
+                  <h3 className="sm-section-title">Catálogo de Modelos Live2D Cubism</h3>
+                  <p className="sm-section-desc">
+                    Elige el modelo que dará vida visual y física a Cristi. Cada modelo cuenta con su propio perfil adaptativo de capacidades.
+                  </p>
+                </div>
+
+                {/* Active Model Spotlight */}
+                {activeLive2dModel && (
+                  <div className="sm-avatar-spotlight">
+                    <div className="sm-avatar-spotlight-header">
+                      <div className="sm-avatar-spotlight-info">
+                        <div className="sm-avatar-spotlight-title-row">
+                          <h4 className="sm-avatar-spotlight-name">{activeLive2dModel.name}</h4>
+                          <span className="sm-badge sm-badge-recommended">
+                            <ShieldCheck size={11} /> {activeLive2dModel.badge || 'Activo'}
+                          </span>
+                        </div>
+                        <p className="sm-avatar-spotlight-desc">{activeLive2dModel.description}</p>
+                      </div>
+                    </div>
+
+                    {/* Capabilities Chips */}
+                    <div className="sm-avatar-caps-wrapper">
+                      <span className="sm-avatar-caps-title">Capacidades Soportadas:</span>
+                      <div className="sm-avatar-chips-grid">
+                        <span className={`sm-cap-chip ${activeLive2dModel.capabilities?.facialExpressions ? 'active' : 'disabled'}`}>
+                          {activeLive2dModel.capabilities?.facialExpressions ? '✓' : '✗'} Expresiones Faciales
+                        </span>
+                        <span className={`sm-cap-chip ${activeLive2dModel.capabilities?.eyeBlink ? 'active' : 'disabled'}`}>
+                          {activeLive2dModel.capabilities?.eyeBlink ? '✓' : '✗'} Parpadeo Natural
+                        </span>
+                        <span className={`sm-cap-chip ${activeLive2dModel.capabilities?.eyeTracking ? 'active' : 'disabled'}`}>
+                          {activeLive2dModel.capabilities?.eyeTracking ? '✓' : '✗'} Mirada & Saccades
+                        </span>
+                        <span className={`sm-cap-chip ${activeLive2dModel.capabilities?.mouthControl ? 'active' : 'disabled'}`}>
+                          {activeLive2dModel.capabilities?.mouthControl ? '✓' : '✗'} Lip-Sync Dinámico
+                        </span>
+                        <span className={`sm-cap-chip ${activeLive2dModel.capabilities?.headMovement ? 'active' : 'disabled'}`}>
+                          {activeLive2dModel.capabilities?.headMovement ? '✓' : '✗'} Movimiento de Cabeza
+                        </span>
+                        <span className={`sm-cap-chip ${activeLive2dModel.capabilities?.bodyMovement ? 'active' : 'disabled'}`}>
+                          {activeLive2dModel.capabilities?.bodyMovement ? '✓' : '✗'} Movimiento Corporal
+                        </span>
+                        <span className={`sm-cap-chip ${activeLive2dModel.capabilities?.breathing ? 'active' : 'disabled'}`}>
+                          {activeLive2dModel.capabilities?.breathing ? '✓' : '✗'} Respiración
+                        </span>
+                        <span className={`sm-cap-chip ${activeLive2dModel.capabilities?.physics ? 'active' : 'disabled'}`}>
+                          {activeLive2dModel.capabilities?.physics ? '✓' : '✗'} Motor de Física
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Available Models Grid */}
+                <div className="sm-field-group">
+                  <label className="sm-field-label">
+                    <Layers size={14} className="sm-label-icon" />
+                    <span>Seleccionar Modelo Live2D</span>
+                  </label>
+                  <div className="sm-avatar-grid">
+                    {allLive2dModels.map((m) => {
+                      const isSelected = live2dModelId === m.id;
+                      return (
+                        <div
+                          key={m.id}
+                          onClick={() => {
+                            setLive2dModelId(m.id);
+                            if (m.recommendedVoice) {
+                              setVoiceName(m.recommendedVoice);
+                            }
+                          }}
+                          className={`sm-avatar-card ${isSelected ? 'selected' : ''}`}
+                        >
+                          <div className="sm-avatar-card-header">
+                            <div className="sm-avatar-card-title-group">
+                              <span className="sm-avatar-card-name">{m.name}</span>
+                              <span className="sm-badge sm-badge-stable">{m.badge}</span>
+                            </div>
+                            <div className={`sm-radio ${isSelected ? 'checked' : ''}`}>
+                              {isSelected && <div className="sm-radio-dot" />}
+                            </div>
+                          </div>
+                          <p className="sm-avatar-card-desc">{m.description}</p>
+                          <div className="sm-avatar-card-footer">
+                            <span className="sm-avatar-param-count">
+                              <Activity size={12} /> {m.capabilities?.totalParameters || 30}+ Parámetros
+                            </span>
+                            {m.capabilities?.customExpressions?.length > 0 && (
+                              <span className="sm-avatar-exp-count">
+                                {m.capabilities.customExpressions.length} Expresiones
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: VOICES */}
             {activeTab === 'voice' && (
               <div className="sm-tab-pane">
                 <div className="sm-section-header">
@@ -266,7 +383,7 @@ export function SettingsModal({
               </div>
             )}
 
-            {/* TAB 3: PERSONALITY & PROMPT */}
+            {/* TAB 4: PERSONALITY & PROMPT */}
             {activeTab === 'persona' && (
               <div className="sm-tab-pane">
                 <div className="sm-section-header">
@@ -350,3 +467,5 @@ export function SettingsModal({
     </div>
   );
 }
+
+export default SettingsModal;

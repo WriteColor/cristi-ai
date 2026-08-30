@@ -61,7 +61,7 @@ export const GEMINI_MODELS = {
   }
 };
 
-export const DEFAULT_MODEL_ID = 'gemini-3-flash-preview';
+export const DEFAULT_MODEL_ID = 'gemini-3.1-flash-live-preview';
 
 /** Returns screenCaptureFPS for a given model ID */
 export function getScreenCaptureFPS(modelId) {

@@ -11,6 +11,8 @@ import {
   ScreenRegionPicker
 } from './components';
 import {
+  eventBus,
+  EVENTS,
   GeminiLiveSocket,
   AudioInputService,
   AudioOutputService,
@@ -19,7 +21,11 @@ import {
   SpeechRecognitionService,
   VisionDetectionService,
   ScreenCaptureService,
-  SystemTrayService
+  SystemTrayService,
+  externalDeviceManager,
+  gameIntegrationManager,
+  live2dModelRegistry,
+  logger
 } from './services';
 import {
   DEFAULT_MODEL_ID,
@@ -34,6 +40,7 @@ const STORAGE_KEY_VIEWMODE = 'cristi_ai_viewmode_v1';
 export function App() {
   // --- Persistent App Configuration ---
   const [config, setConfig] = useState(() => {
+    const envApiKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GEMINI_API_KEY) || '';
     try {
       const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
       if (saved) {
@@ -42,12 +49,16 @@ export function App() {
         if (!isKnownModel) {
           parsed.modelId = DEFAULT_MODEL_ID;
         }
+        if (!parsed.live2dModelId) {
+          parsed.live2dModelId = 'yanderegirl';
+        }
         return parsed;
       }
     } catch (e) {}
     return {
-      apiKey: '',
+      apiKey: envApiKey,
       modelId: DEFAULT_MODEL_ID,
+      live2dModelId: 'yanderegirl',
       voiceName: 'Aoede',
       temperature: 0.75,
       systemPrompt: ''
@@ -78,6 +89,17 @@ export function App() {
   // --- Subtitles / User Transcript ---
   const [userTranscript, setUserTranscript] = useState('');
   const [modelTranscript, setModelTranscript] = useState('');
+  const subtitleTimeoutRef = useRef(null);
+
+  const setSubtitleText = useCallback((text) => {
+    setModelTranscript(text);
+    setUserTranscript(text);
+    if (subtitleTimeoutRef.current) clearTimeout(subtitleTimeoutRef.current);
+    subtitleTimeoutRef.current = setTimeout(() => {
+      setUserTranscript('');
+      setModelTranscript('');
+    }, 4500);
+  }, []);
 
   // --- Visual Sensory Camera & Face Recognition States ---
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -145,7 +167,6 @@ export function App() {
     if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
 
     autoHideTimerRef.current = setTimeout(() => {
-      // Auto-hide UI after 4 seconds of mouse inactivity
       setIsUiVisible(false);
     }, 4000);
   }, [isZenMode]);
@@ -154,7 +175,6 @@ export function App() {
     const onActivity = () => resetInactivityTimer();
     const onKeyDown = (e) => {
       resetInactivityTimer();
-      // Press 'H' to toggle Zen mode
       if (e.key === 'h' || e.key === 'H') {
         if (!e.target.matches('input, textarea')) {
           handleToggleZenMode();
@@ -201,16 +221,9 @@ export function App() {
         console.log('Neutralino init notice:', e);
       }
     }
-  }, []);
 
-  // --- Expose Test / Automation Hooks ---
-  useEffect(() => {
-    window.__triggerGesture = (g) => setCurrentGesture(g);
-    window.__setSubtitle = (text) => setSubtitleText(text);
-    return () => {
-      delete window.__triggerGesture;
-      delete window.__setSubtitle;
-    };
+    // Enable virtual sensors & game integration hooks
+    externalDeviceManager.enableVirtualSensors();
   }, []);
 
   // --- Audio Output Service Setup ---
@@ -290,7 +303,7 @@ export function App() {
         visionServiceRef.current.stop();
       }
     };
-  }, []);
+  }, [setSubtitleText]);
 
   // --- Camera Hardware Service Setup ---
   useEffect(() => {
@@ -324,9 +337,11 @@ export function App() {
     speechRecRef.current = new SpeechRecognitionService({
       onSpeechStart: () => {
         setIsListening(true);
+        eventBus.emit(EVENTS.USER_SPEAKING);
       },
       onSpeechEnd: () => {
         setIsListening(false);
+        eventBus.emit(EVENTS.USER_STOPPED_SPEAKING);
       },
       onResult: (text, isFinal) => {
         setUserTranscript(text);
@@ -409,7 +424,7 @@ export function App() {
         }
       }
     });
-  }, []);
+  }, [config.modelId]);
 
   // --- Multi-Sample Face Enrollment Handlers ---
   const handleAddOwnerSample = async (sampleLabel = 'Con Lentes') => {
@@ -493,7 +508,6 @@ export function App() {
     setIsConnecting(true);
 
     try {
-      // Ensure any existing socket or playback is cleanly destroyed before creating a new one
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
@@ -511,7 +525,6 @@ export function App() {
           },
           onVolumeChange: (vol) => {
             setUserVolume(vol);
-            // Instant client-side Barge-In: Cut model playback when user speaks
             if (vol > 0.12 && audioOutRef.current && audioOutRef.current.isPlaying) {
               audioOutRef.current.stopImmediate();
               setIsSpeaking(false);
@@ -534,7 +547,7 @@ export function App() {
         modelId: config.modelId,
         voiceName: config.voiceName,
         temperature: config.temperature,
-        systemInstruction: config.systemPrompt && config.systemPrompt.trim()
+        systemPrompt: config.systemPrompt && config.systemPrompt.trim()
           ? config.systemPrompt
           : SYSTEM_PERSONA_PROMPT,
         onOpen: () => {
@@ -562,8 +575,11 @@ export function App() {
             audioOutRef.current.playAudioChunk(base64PCM);
           }
         },
-        onModelTurnText: (text) => {
-          setModelTranscript(text);
+        onOutputTranscription: (text) => {
+          setSubtitleText(text);
+        },
+        onInputTranscription: (text) => {
+          setUserTranscript(text);
         },
         onInterrupted: () => {
           if (audioOutRef.current) {
@@ -574,9 +590,9 @@ export function App() {
         },
         onToolCall: async (functionCalls) => {
           if (toolExecutorRef.current) {
-            return await toolExecutorRef.current.executeCalls(functionCalls);
+            const responses = await toolExecutorRef.current.executeCalls(functionCalls);
+            socket.sendToolResponse(responses);
           }
-          return [];
         }
       });
 
@@ -596,7 +612,47 @@ export function App() {
       setIsConnecting(false);
       setIsConnected(false);
     }
-  }, [isConnected, isConnecting, isMuted, isCameraActive, config]);
+  }, [isConnected, isConnecting, isMuted, isCameraActive, config, setSubtitleText]);
+
+  // --- Expose Automation Hooks & Test Bridge ---
+  useEffect(() => {
+    window.__cristiApp = {
+      connect: handleToggleConnection,
+      disconnect: handleToggleConnection,
+      sendTextMessage: (text) => socketRef.current?.sendTextMessage(text),
+      triggerGesture: (g) => setCurrentGesture(g),
+      setSubtitle: (t) => setSubtitleText(t),
+      eventBus,
+      externalDeviceManager,
+      gameIntegrationManager,
+      live2dModelRegistry,
+      socketRef,
+      audioOutRef,
+      audioInRef,
+      switchLive2DModel: (id) => handleSaveConfig({ ...config, live2dModelId: id }),
+      getStatus: () => ({
+        isConnected,
+        isConnecting,
+        isSpeaking,
+        isListening,
+        modelId: config.modelId,
+        live2dModelId: config.live2dModelId || 'yanderegirl',
+        voiceName: config.voiceName,
+        currentGesture,
+        userTranscript,
+        modelTranscript
+      })
+    };
+
+    window.__triggerGesture = (g) => setCurrentGesture(g);
+    window.__setSubtitle = (text) => setSubtitleText(text);
+
+    return () => {
+      delete window.__cristiApp;
+      delete window.__triggerGesture;
+      delete window.__setSubtitle;
+    };
+  }, [handleToggleConnection, isConnected, isConnecting, isSpeaking, isListening, config, currentGesture, userTranscript, modelTranscript, setSubtitleText]);
 
   // --- Mute Toggle Handler ---
   const handleToggleMute = () => {
@@ -648,7 +704,7 @@ export function App() {
     }
   };
 
-  // --- Right-Click Context Menu Handler (Triggered ONLY on the Live2D Model) ---
+  // --- Right-Click Context Menu Handler ---
   const handleModelContextMenu = (e, bounds) => {
     if (e && e.preventDefault) e.preventDefault();
     setContextMenu({
@@ -659,42 +715,32 @@ export function App() {
     });
   };
 
-  // --- Random Gesture Tester ---
   const handleTriggerRandomGesture = () => {
-    const gestures = ['happy', 'blush', 'surprised', 'waving', 'thinking', 'wink', 'pout', 'nod', 'dance'];
-    const randomG = gestures[Math.floor(Math.random() * gestures.length)];
-    setCurrentGesture(randomG);
-    setTimeout(() => setCurrentGesture('idle'), 4000);
+    const gestures = ['happy', 'blush', 'wink', 'dance', 'yandere', 'mad', 'surprised'];
+    const random = gestures[Math.floor(Math.random() * gestures.length)];
+    setCurrentGesture(random);
+    setTimeout(() => {
+      setCurrentGesture('idle');
+    }, 4500);
   };
 
-  // --- Screen Watch Toggle (from HUD button) ---
-  const handleToggleScreenWatch = async () => {
-    if (isScreenWatchActive) {
-      screenCaptureRef.current?.stopContinuous();
-      setIsScreenWatchActive(false);
-    } else {
-      if (!screenCaptureRef.current) {
-        screenCaptureRef.current = new ScreenCaptureService({
-          onFrame: (base64jpeg) => {
-            if (socketRef.current?.isConnected) {
-              socketRef.current.sendVideoFrame(base64jpeg);
-            }
-          },
-          onStreamEnd: () => setIsScreenWatchActive(false)
-        });
-      }
-      const fps = getScreenCaptureFPS(config.modelId);
-      await screenCaptureRef.current.startContinuous(fps);
-      setIsScreenWatchActive(true);
+  // --- Screen Capture Handlers ---
+  const handleToggleScreenWatch = () => {
+    const nextState = !isScreenWatchActive;
+    setIsScreenWatchActive(nextState);
+    if (toolExecutorRef.current) {
+      toolExecutorRef.current.executeSingleTool('set_screen_watch', { enabled: nextState });
     }
   };
 
-  // --- Region Picker Handlers ---
   const handleRegionSelected = (region) => {
-    setIsRegionPickerOpen(false);
     setScreenRegion(region);
+    setIsRegionPickerOpen(false);
     if (screenCaptureRef.current) {
       screenCaptureRef.current.setRegion(region);
+    }
+    if (toolExecutorRef.current) {
+      toolExecutorRef.current.executeSingleTool('set_screen_region', region);
     }
   };
 
@@ -727,9 +773,10 @@ export function App() {
         </div>
       )}
 
-      {/* 1. Live2D Character Canvas — Draggable on model, Torso/Full-body framing */}
+      {/* 1. Live2D Character Canvas */}
       <Live2DCanvas
         ref={live2dRef}
+        modelId={config.live2dModelId || 'yanderegirl'}
         gesture={currentGesture}
         lipSyncValue={lipSyncValue}
         isSpeaking={isSpeaking}
@@ -739,13 +786,13 @@ export function App() {
         onModelContextMenu={handleModelContextMenu}
       />
 
-      {/* Screen Region Overlay — Shows Cristi's active vision area */}
+      {/* Screen Region Overlay */}
       <ScreenRegionOverlay
         region={screenRegion}
         isWatchActive={isScreenWatchActive}
       />
 
-      {/* Screen Region Picker — Drag-to-select vision area */}
+      {/* Screen Region Picker */}
       {isRegionPickerOpen && (
         <ScreenRegionPicker
           onRegionSelected={handleRegionSelected}
@@ -753,9 +800,9 @@ export function App() {
         />
       )}
 
-      {/* 2. Subtitle / Transcription CC Overlay (User only) */}
+      {/* 2. Subtitle / Transcription CC Overlay */}
       <SubtitleOverlay
-        userTranscript={userTranscript}
+        userTranscript={userTranscript || modelTranscript}
       />
 
       {/* 3. Floating HUD & Controls with Zen Mode Auto-Hide */}
@@ -806,7 +853,7 @@ export function App() {
         onClose={handleToggleCamera}
       />
 
-      {/* 5. Desktop Right-Click Context Menu (Triggered ONLY on Model with Smart Edge-Flipping) */}
+      {/* 5. Desktop Right-Click Context Menu */}
       <ContextMenu
         position={contextMenu}
         isOpen={contextMenu.isOpen}
@@ -838,4 +885,3 @@ export function App() {
 }
 
 export default App;
-

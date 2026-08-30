@@ -6,8 +6,11 @@
  * and handles instantaneous cancellation on user interruption.
  */
 
+import { eventBus, EVENTS } from './eventBus';
+import { AudioAnalysisService } from './audioAnalysisService';
+
 export class AudioOutputService {
-  constructor({ onAudioStart, onAudioEnd, onLipSyncUpdate, onVolumeChange }) {
+  constructor({ onAudioStart, onAudioEnd, onLipSyncUpdate, onVolumeChange } = {}) {
     this.onAudioStart = onAudioStart || (() => {});
     this.onAudioEnd = onAudioEnd || (() => {});
     this.onLipSyncUpdate = onLipSyncUpdate || (() => {});
@@ -16,11 +19,17 @@ export class AudioOutputService {
     this.audioContext = null;
     this.analyserNode = null;
     this.gainNode = null;
+    this.analysisService = null;
     this.isPlaying = false;
     this.nextScheduleTime = 0;
     this.activeSources = [];
-    this.animationFrameId = null;
     this.sampleRate = 24000; // Gemini Live audio output is 24kHz
+
+    // Forward analysis events to constructor callbacks
+    this.unsubscribeAnalysis = eventBus.on(EVENTS.AUDIO_ANALYSIS, (metrics) => {
+      this.onVolumeChange(metrics.volume);
+      this.onLipSyncUpdate(metrics.mouthOpen);
+    });
   }
 
   initContext() {
@@ -28,15 +37,15 @@ export class AudioOutputService {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       this.audioContext = new AudioContextClass({ sampleRate: this.sampleRate });
 
-      this.analyserNode = this.audioContext.createAnalyser();
-      this.analyserNode.fftSize = 128;
-      this.analyserNode.smoothingTimeConstant = 0.4;
-
       this.gainNode = this.audioContext.createGain();
       this.gainNode.gain.value = 1.0;
 
-      this.gainNode.connect(this.analyserNode);
-      this.analyserNode.connect(this.audioContext.destination);
+      // Connect to destination (speakers)
+      this.gainNode.connect(this.audioContext.destination);
+
+      // Create and attach AudioAnalysisService
+      this.analysisService = new AudioAnalysisService(this.audioContext, this.gainNode);
+      this.analysisService.connectSource(this.gainNode);
     }
   }
 
@@ -58,6 +67,8 @@ export class AudioOutputService {
     await this.resumeContextIfNeeded();
 
     if (!base64Data) return;
+
+    eventBus.emit(EVENTS.AUDIO_CHUNK, { length: base64Data.length });
 
     // Convert base64 to binary ArrayBuffer
     const binaryString = window.atob(base64Data);
@@ -96,7 +107,10 @@ export class AudioOutputService {
     if (!this.isPlaying) {
       this.isPlaying = true;
       this.onAudioStart();
-      this.startAnalyserLoop();
+      eventBus.emit(EVENTS.AUDIO_START);
+      if (this.analysisService) {
+        this.analysisService.start();
+      }
     }
 
     source.onended = () => {
@@ -107,7 +121,10 @@ export class AudioOutputService {
       if (this.activeSources.length === 0) {
         this.isPlaying = false;
         this.onAudioEnd();
-        this.stopAnalyserLoop();
+        eventBus.emit(EVENTS.AUDIO_END);
+        if (this.analysisService) {
+          this.analysisService.stop();
+        }
       }
     };
   }
@@ -117,7 +134,7 @@ export class AudioOutputService {
   }
 
   /**
-   * Stop immediately (on user speech interruption)
+   * Stop immediately (on user speech interruption / Barge-in)
    */
   stopImmediate() {
     this.activeSources.forEach((source) => {
@@ -135,55 +152,23 @@ export class AudioOutputService {
       this.nextScheduleTime = this.audioContext.currentTime;
     }
 
-    this.stopAnalyserLoop();
+    if (this.analysisService) {
+      this.analysisService.stop();
+    }
+
     this.onLipSyncUpdate(0);
     this.onVolumeChange(0);
     this.onAudioEnd();
-  }
 
-  startAnalyserLoop() {
-    if (this.animationFrameId) return;
-
-    const dataArray = new Uint8Array(this.analyserNode.frequencyBinCount);
-
-    const checkAudioLevel = () => {
-      if (!this.isPlaying || !this.analyserNode) {
-        this.stopAnalyserLoop();
-        return;
-      }
-
-      this.analyserNode.getByteFrequencyData(dataArray);
-
-      // Calculate average volume
-      let sum = 0;
-      for (let i = 0; i < dataArray.length; i++) {
-        sum += dataArray[i];
-      }
-      const avg = sum / dataArray.length;
-      const normalizedVolume = Math.min(1, avg / 128);
-
-      // Calculate Lip-Sync opening factor (focus on vocal frequency bins 300Hz-3000Hz)
-      const vocalRangeAvg = (dataArray[2] + dataArray[3] + dataArray[4] + dataArray[5] + dataArray[6]) / 5;
-      const lipSyncValue = Math.min(1, Math.max(0, (vocalRangeAvg - 15) / 110));
-
-      this.onVolumeChange(normalizedVolume);
-      this.onLipSyncUpdate(lipSyncValue);
-
-      this.animationFrameId = requestAnimationFrame(checkAudioLevel);
-    };
-
-    this.animationFrameId = requestAnimationFrame(checkAudioLevel);
-  }
-
-  stopAnalyserLoop() {
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = null;
-    }
+    eventBus.emit(EVENTS.AUDIO_END);
+    eventBus.emit(EVENTS.BARGE_IN_TRIGGERED);
   }
 
   destroy() {
     this.stopImmediate();
+    if (this.unsubscribeAnalysis) {
+      this.unsubscribeAnalysis();
+    }
     if (this.audioContext && this.audioContext.state !== 'closed') {
       this.audioContext.close();
       this.audioContext = null;

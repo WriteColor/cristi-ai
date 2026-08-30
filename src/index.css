@@ -1462,6 +1462,182 @@ html, body, #root {
   transform: translateY(-1px);
 }
 
+/* ── Live2D Avatar Multi-Model Catalog Styles ───────────────────────────── */
+.sm-avatar-spotlight {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.08) 0%, rgba(20, 20, 28, 0.95) 100%);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.sm-avatar-spotlight-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.sm-avatar-spotlight-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.sm-avatar-spotlight-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #faf5ff;
+  letter-spacing: -0.01em;
+}
+
+.sm-avatar-spotlight-desc {
+  font-size: 0.76rem;
+  color: #d4d4d8;
+  line-height: 1.45;
+}
+
+.sm-avatar-caps-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 12px;
+}
+
+.sm-avatar-caps-title {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #a1a1aa;
+}
+
+.sm-avatar-chips-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sm-cap-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.sm-cap-chip.active {
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: #e9d5ff;
+}
+
+.sm-cap-chip.disabled {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: #71717a;
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+/* Avatar Grid Cards */
+.sm-avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.sm-avatar-card {
+  padding: 12px 14px;
+  background: #121217;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sm-avatar-card:hover {
+  background: #181822;
+  border-color: rgba(168, 85, 247, 0.3);
+  transform: translateY(-1px);
+}
+
+.sm-avatar-card.selected {
+  background: rgba(168, 85, 247, 0.10);
+  border-color: rgba(168, 85, 247, 0.6);
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.15);
+}
+
+.sm-avatar-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sm-avatar-card-title-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sm-avatar-card-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #f4f4f5;
+}
+
+.sm-avatar-card-desc {
+  font-size: 0.70rem;
+  color: #a1a1aa;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sm-avatar-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.65rem;
+  color: #71717a;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.sm-avatar-param-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #a855f7;
+  font-weight: 600;
+}
+
+.sm-avatar-exp-count {
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: #d4d4d8;
+}
+
+
 
 /* ==========================================================================
    ZEN AUTO-HIDE / GHOST UI MODE
