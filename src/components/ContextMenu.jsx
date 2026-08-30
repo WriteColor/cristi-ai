@@ -69,7 +69,17 @@ const EXPRESSION_LABELS = {
   '右手': { label: 'Mano Derecha', icon: '✋' },
   '左手': { label: 'Mano Izquierda', icon: '🤚' },
   '泪': { label: 'Lágrima', icon: '💧' },
-  '血': { label: 'Marca Batalla', icon: '🩸' }
+  '血': { label: 'Marca Batalla', icon: '🩸' },
+
+  // Semantic emotion actions (para modelos sin .exp3 — Hiyori, Miara, Toki, Ruan Mei)
+  'happy':     { label: 'Feliz',        icon: '😊' },
+  'blush':     { label: 'Sonrojada',    icon: '😳' },
+  'yandere':   { label: 'Yandere',      icon: '🖤' },
+  'wink':      { label: 'Guiño',        icon: '😉' },
+  'surprised': { label: 'Sorprendida',  icon: '😲' },
+  'sad':       { label: 'Triste',       icon: '😢' },
+  'angry':     { label: 'Enojada',      icon: '😠' },
+  'love':      { label: 'Amor',         icon: '💕' }
 };
 
 /**
@@ -146,6 +156,10 @@ export function ContextMenu({
   const activeModel = live2dModelRegistry.getModel(activeModelId);
   const customExpressions = activeModel?.capabilities?.customExpressions || [];
   const modelMotions = activeModel?.capabilities?.motions || [];
+  // Semantic emotion actions for models without .exp3 expressions
+  const semanticActions = activeModel?.semanticActions
+    ? Object.keys(activeModel.semanticActions).filter(k => k !== 'idle')
+    : [];
 
   const aiModelsList = Array.isArray(GEMINI_MODELS)
     ? GEMINI_MODELS
@@ -230,22 +244,37 @@ export function ContextMenu({
   };
 
   const handleTriggerCustomExpression = (exprName) => {
-    if (window.__cristiAvatar?.setExpression) {
-      if (currentActiveExpr === exprName) {
-        window.__cristiAvatar.setExpression('none');
-        setCurrentActiveExpr(null);
+    if (!window.__cristiAvatar) return;
+    const av = window.__cristiAvatar;
+    if (currentActiveExpr === exprName) {
+      // Toggle off — reset to idle through the controller so the expression lock clears
+      if (av.controller?.setEmotion) av.controller.setEmotion('idle');
+      else if (av.setExpression) av.setExpression('none');
+      setCurrentActiveExpr(null);
+    } else {
+      // For models with a real expressionManager (.exp3 files loaded): use setExpression directly.
+      // For models with only parameter-based expressions: route through controller.setEmotion
+      // so the expression lock mechanism properly prevents the organic animation loop from
+      // overwriting the expression parameters each frame.
+      const hasExpManager = av.model?.internalModel?.motionManager?.expressionManager?.definitions?.length > 0;
+      if (hasExpManager) {
+        if (av.setExpression) av.setExpression(exprName);
       } else {
-        window.__cristiAvatar.setExpression(exprName);
-        setCurrentActiveExpr(exprName);
+        // Parameter-target based expression — use controller.setEmotion for lock support
+        if (av.controller?.setEmotion) av.controller.setEmotion(exprName);
+        else if (av.setExpression) av.setExpression(exprName);
       }
+      setCurrentActiveExpr(exprName);
     }
   };
 
   const handleResetExpression = () => {
-    if (window.__cristiAvatar?.setExpression) {
-      window.__cristiAvatar.setExpression('none');
-      setCurrentActiveExpr(null);
-    }
+    if (!window.__cristiAvatar) return;
+    const av = window.__cristiAvatar;
+    // Always reset through the controller so the expression lock is cleared
+    if (av.controller?.setEmotion) av.controller.setEmotion('idle');
+    else if (av.setExpression) av.setExpression('none');
+    setCurrentActiveExpr(null);
   };
 
   const handleTriggerMotion = (motionEntry) => {
@@ -374,11 +403,33 @@ export function ContextMenu({
             );
           })}
         </div>
+      ) : semanticActions.length > 0 ? (
+        // Fallback: render semantic emotion buttons for models without .exp3 files.
+        // These route through controller.setEmotion() which respects the expression lock.
+        <div className="context-model-expressions-grid">
+          {semanticActions.map((emoName) => {
+            const meta = getExpressionMeta(emoName);
+            const isActive = currentActiveExpr === emoName;
+            return (
+              <button
+                key={emoName}
+                type="button"
+                className={`context-model-expr-btn ${isActive ? 'active' : ''}`}
+                onClick={() => handleTriggerCustomExpression(emoName)}
+                title={`Emoción: ${emoName}`}
+              >
+                <span className="context-expr-icon">{meta.icon}</span>
+                <span className="context-expr-name">{meta.label}</span>
+              </button>
+            );
+          })}
+        </div>
       ) : (
         <div className="context-menu-empty-hint">
           <span>Este modelo utiliza expresiones faciales orgánicas automáticas.</span>
         </div>
       )}
+
 
       {/* MODEL MOTIONS (If Available) */}
       {modelMotions.length > 0 && (

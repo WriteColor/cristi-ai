@@ -30,7 +30,7 @@
         "activated": true,
         "visualChange": true,
         "hashBefore": "0",
-        "hashAfter": "5802",
+        "hashAfter": "1088",
         "error": null
       }
     ],
@@ -43,64 +43,176 @@
   "icegirl": {
     "expressions": [
       {
-        "expression": "Crazy",
+        "expression": "←歪嘴",
         "activated": true,
         "visualChange": true,
-        "hashBefore": "1241068",
-        "hashAfter": "3379405",
+        "hashBefore": "2758854",
+        "hashAfter": "818134",
         "error": null
       },
       {
-        "expression": "Mad",
+        "expression": "惊讶",
         "activated": true,
         "visualChange": true,
-        "hashBefore": "1444377",
-        "hashAfter": "927949",
+        "hashBefore": "944437",
+        "hashAfter": "2091104",
         "error": null
       },
       {
-        "expression": "Scared",
+        "expression": "手柄",
         "activated": true,
         "visualChange": true,
-        "hashBefore": "1273003",
-        "hashAfter": "1349133",
+        "hashBefore": "1286086",
+        "hashAfter": "1450333",
         "error": null
       },
       {
-        "expression": "Yandere",
+        "expression": "披发",
         "activated": true,
         "visualChange": true,
-        "hashBefore": "1341409",
-        "hashAfter": "1585202",
+        "hashBefore": "1650232",
+        "hashAfter": "1408945",
+        "error": null
+      },
+      {
+        "expression": "星星眼",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "1009089",
+        "hashAfter": "1210118",
+        "error": null
+      },
+      {
+        "expression": "歪嘴→",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "2892432",
+        "hashAfter": "1254693",
+        "error": null
+      },
+      {
+        "expression": "流泪",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "737475",
+        "hashAfter": "2458244",
+        "error": null
+      },
+      {
+        "expression": "爱心眼",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "2757873",
+        "hashAfter": "781735",
+        "error": null
+      },
+      {
+        "expression": "猫耳",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "995282",
+        "hashAfter": "2530799",
+        "error": null
+      },
+      {
+        "expression": "王冠",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "1858637",
+        "hashAfter": "1151707",
+        "error": null
+      },
+      {
+        "expression": "生气",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "1161147",
+        "hashAfter": "1165666",
+        "error": null
+      },
+      {
+        "expression": "疑惑",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "1047456",
+        "hashAfter": "1610044",
+        "error": null
+      },
+      {
+        "expression": "白眼",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "3274274",
+        "hashAfter": "1074779",
+        "error": null
+      },
+      {
+        "expression": "直播套装",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "375473",
+        "hashAfter": "3618346",
+        "error": null
+      },
+      {
+        "expression": "翅膀",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "3227502",
+        "hashAfter": "26512",
+        "error": null
+      },
+      {
+        "expression": "脸红",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "1109716",
+        "hashAfter": "1654490",
+        "error": null
+      },
+      {
+        "expression": "脸黑",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "971988",
+        "hashAfter": "1422497",
+        "error": null
+      },
+      {
+        "expression": "舌头",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "2226227",
+        "hashAfter": "1446810",
+        "error": null
+      },
+      {
+        "expression": "金钱眼",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "762080",
+        "hashAfter": "1121861",
+        "error": null
+      },
+      {
+        "expression": "马尾",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "2766803",
+        "hashAfter": "1387330",
         "error": null
       }
     ],
     "summary": {
-      "total": 4,
-      "changed": 4,
+      "total": 20,
+      "changed": 20,
       "failed": 0
     }
   },
   "jane_doe": {
     "expressions": [
       {
-        "expression": "Crazy",
-        "activated": true,
-        "visualChange": true,
-        "hashBefore": "0",
-        "hashAfter": "1154936",
-        "error": null
-      },
-      {
-        "expression": "Mad",
-        "activated": true,
-        "visualChange": true,
-        "hashBefore": "381080",
-        "hashAfter": "0",
-        "error": null
-      },
-      {
-        "expression": "Scared",
+        "expression": "右手",
         "activated": true,
         "visualChange": false,
         "hashBefore": "0",
@@ -108,24 +220,88 @@
         "error": null
       },
       {
-        "expression": "Yandere",
+        "expression": "左手",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "32872",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "星星眼",
         "activated": true,
         "visualChange": false,
         "hashBefore": "0",
         "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "泪",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "爱心眼",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "367433",
+        "hashAfter": "592342",
+        "error": null
+      },
+      {
+        "expression": "生气",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "白眼",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "542137",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "脸红",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "0",
+        "hashAfter": "452853",
+        "error": null
+      },
+      {
+        "expression": "脸黑",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "血",
+        "activated": true,
+        "visualChange": true,
+        "hashBefore": "0",
+        "hashAfter": "814522",
         "error": null
       }
     ],
     "summary": {
-      "total": 4,
-      "changed": 2,
+      "total": 10,
+      "changed": 5,
       "failed": 0
     }
   },
   "ellen": {
     "expressions": [
       {
-        "expression": "Crazy",
+        "expression": "black",
         "activated": true,
         "visualChange": false,
         "hashBefore": "0",
@@ -133,7 +309,7 @@
         "error": null
       },
       {
-        "expression": "Mad",
+        "expression": "red",
         "activated": true,
         "visualChange": false,
         "hashBefore": "0",
@@ -141,7 +317,7 @@
         "error": null
       },
       {
-        "expression": "Scared",
+        "expression": "shock",
         "activated": true,
         "visualChange": false,
         "hashBefore": "0",
@@ -149,7 +325,15 @@
         "error": null
       },
       {
-        "expression": "Yandere",
+        "expression": "shou",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "tang",
         "activated": true,
         "visualChange": false,
         "hashBefore": "0",
@@ -158,7 +342,7 @@
       }
     ],
     "summary": {
-      "total": 4,
+      "total": 5,
       "changed": 0,
       "failed": 0
     }
@@ -166,7 +350,7 @@
   "hiyori": {
     "expressions": [
       {
-        "expression": "Crazy",
+        "expression": "happy",
         "activated": true,
         "visualChange": false,
         "hashBefore": "0",
@@ -174,7 +358,7 @@
         "error": null
       },
       {
-        "expression": "Mad",
+        "expression": "blush",
         "activated": true,
         "visualChange": false,
         "hashBefore": "0",
@@ -182,7 +366,7 @@
         "error": null
       },
       {
-        "expression": "Scared",
+        "expression": "angry",
         "activated": true,
         "visualChange": false,
         "hashBefore": "0",
@@ -190,7 +374,23 @@
         "error": null
       },
       {
-        "expression": "Yandere",
+        "expression": "sad",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "surprised",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "love",
         "activated": true,
         "visualChange": false,
         "hashBefore": "0",
@@ -199,7 +399,7 @@
       }
     ],
     "summary": {
-      "total": 4,
+      "total": 6,
       "changed": 0,
       "failed": 0
     }
@@ -207,7 +407,7 @@
   "miara": {
     "expressions": [
       {
-        "expression": "Crazy",
+        "expression": "happy",
         "activated": true,
         "visualChange": false,
         "hashBefore": "0",
@@ -215,7 +415,7 @@
         "error": null
       },
       {
-        "expression": "Mad",
+        "expression": "blush",
         "activated": true,
         "visualChange": false,
         "hashBefore": "0",
@@ -223,7 +423,7 @@
         "error": null
       },
       {
-        "expression": "Scared",
+        "expression": "angry",
         "activated": true,
         "visualChange": false,
         "hashBefore": "0",
@@ -231,7 +431,23 @@
         "error": null
       },
       {
-        "expression": "Yandere",
+        "expression": "sad",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "surprised",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "love",
         "activated": true,
         "visualChange": false,
         "hashBefore": "0",
@@ -240,7 +456,7 @@
       }
     ],
     "summary": {
-      "total": 4,
+      "total": 6,
       "changed": 0,
       "failed": 0
     }
@@ -248,7 +464,7 @@
   "toki": {
     "expressions": [
       {
-        "expression": "Crazy",
+        "expression": "happy",
         "activated": true,
         "visualChange": false,
         "hashBefore": "0",
@@ -256,7 +472,7 @@
         "error": null
       },
       {
-        "expression": "Mad",
+        "expression": "blush",
         "activated": true,
         "visualChange": false,
         "hashBefore": "0",
@@ -264,7 +480,7 @@
         "error": null
       },
       {
-        "expression": "Scared",
+        "expression": "angry",
         "activated": true,
         "visualChange": false,
         "hashBefore": "0",
@@ -272,7 +488,23 @@
         "error": null
       },
       {
-        "expression": "Yandere",
+        "expression": "sad",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "surprised",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "0",
+        "hashAfter": "0",
+        "error": null
+      },
+      {
+        "expression": "love",
         "activated": true,
         "visualChange": false,
         "hashBefore": "0",
@@ -281,7 +513,7 @@
       }
     ],
     "summary": {
-      "total": 4,
+      "total": 6,
       "changed": 0,
       "failed": 0
     }
@@ -289,7 +521,7 @@
   "ruan_mei": {
     "expressions": [
       {
-        "expression": "Crazy",
+        "expression": "happy",
         "activated": true,
         "visualChange": false,
         "hashBefore": "19358126",
@@ -297,7 +529,7 @@
         "error": null
       },
       {
-        "expression": "Mad",
+        "expression": "blush",
         "activated": true,
         "visualChange": false,
         "hashBefore": "19358126",
@@ -305,7 +537,7 @@
         "error": null
       },
       {
-        "expression": "Scared",
+        "expression": "angry",
         "activated": true,
         "visualChange": false,
         "hashBefore": "19358126",
@@ -313,7 +545,23 @@
         "error": null
       },
       {
-        "expression": "Yandere",
+        "expression": "sad",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "19358126",
+        "hashAfter": "19358126",
+        "error": null
+      },
+      {
+        "expression": "surprised",
+        "activated": true,
+        "visualChange": false,
+        "hashBefore": "19358126",
+        "hashAfter": "19358126",
+        "error": null
+      },
+      {
+        "expression": "love",
         "activated": true,
         "visualChange": false,
         "hashBefore": "19358126",
@@ -322,7 +570,7 @@
       }
     ],
     "summary": {
-      "total": 4,
+      "total": 6,
       "changed": 0,
       "failed": 0
     }

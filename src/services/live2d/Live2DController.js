@@ -30,6 +30,12 @@ export class Live2DController {
     this.blinkProgress = -1; // -1 = not blinking, 0.0 to 1.0 = in progress
     this.blinkDuration = 180; // ms
 
+    // Expression lock: when a parameter-based expression is active, track which
+    // parameter IDs should not be overwritten by the organic animation loop.
+    // This prevents setEyes/setEyebrows/setMouth from undoing active expressions.
+    this._expressionLockedParams = new Set();
+    this._expressionLockExpiry = 0; // ms timestamp
+
     // Breathing accumulator
     this.breathTime = 0;
     this.breathSpeed = 1.6; // rad/s
@@ -122,7 +128,14 @@ export class Live2DController {
 
     if (resolved.type === 'expression' && resolved.name) {
       this.adapter.setExpression(resolved.name);
+      // Expression via expressionManager — no parameter lock needed
+      this._expressionLockedParams.clear();
+      this._expressionLockExpiry = 0;
     } else if (resolved.type === 'parameters' && resolved.targets) {
+      // Parameter-based expression: lock these IDs so the organic animation
+      // loop doesn't overwrite them each frame.
+      this._expressionLockedParams = new Set(Object.keys(resolved.targets));
+      this._expressionLockExpiry = performance.now() + 8000; // 8 second lock
       for (const [pId, val] of Object.entries(resolved.targets)) {
         this.adapter.setDirectParamTarget(pId, val);
       }
@@ -238,14 +251,36 @@ export class Live2DController {
         eyeOpenR = 0;
       }
 
-      this.adapter.setEyes(
-        eyeOpenL,
-        eyeOpenR,
-        this.currentEmotion === 'happy' ? 0.8 : 0,
-        this.currentEmotion === 'happy' || this.currentEmotion === 'wink' ? 0.8 : 0,
-        this.currentGaze.x + this.saccadeOffset.x,
-        this.currentGaze.y + this.saccadeOffset.y
+      // Only call setEyes if the eye open/smile params are not expression-locked
+      const now = performance.now();
+      const lockActive = this._expressionLockExpiry > now;
+      if (lockActive) {
+        // Clear expired lock
+        if (this._expressionLockExpiry <= now) {
+          this._expressionLockedParams.clear();
+          this._expressionLockExpiry = 0;
+        }
+      }
+      const eyeParamLocked = lockActive && (
+        this._expressionLockedParams.has('ParamEyeLOpen') ||
+        this._expressionLockedParams.has('ParamEyeROpen') ||
+        this._expressionLockedParams.has('ParamEyeLSmile') ||
+        this._expressionLockedParams.has('ParamEyeRSmile')
       );
+      if (!eyeParamLocked) {
+        this.adapter.setEyes(
+          eyeOpenL,
+          eyeOpenR,
+          this.currentEmotion === 'happy' ? 0.8 : 0,
+          this.currentEmotion === 'happy' || this.currentEmotion === 'wink' ? 0.8 : 0,
+          this.currentGaze.x + this.saccadeOffset.x,
+          this.currentGaze.y + this.saccadeOffset.y
+        );
+      } else {
+        // Only update eyeball tracking, not the open/smile values
+        this.adapter.setCapabilityTarget('eye_ball_x', this.currentGaze.x + this.saccadeOffset.x);
+        this.adapter.setCapabilityTarget('eye_ball_y', this.currentGaze.y + this.saccadeOffset.y);
+      }
     }
 
     // ── 3. Eye Saccades (Micro-jitter avoiding dead stare) ─────────────────
@@ -283,6 +318,11 @@ export class Live2DController {
     }
 
     // ── 6. Push all smoothed targets into Cubism Core ──────────────────────
+    // Expire lock if past time
+    if (this._expressionLockExpiry > 0 && performance.now() > this._expressionLockExpiry) {
+      this._expressionLockedParams.clear();
+      this._expressionLockExpiry = 0;
+    }
     this.adapter.update(deltaSec * 60.0);
   }
 

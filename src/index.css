@@ -1939,31 +1939,47 @@ html, body, #root {
   white-space: nowrap;
 }
 
+
 .context-model-motions-row {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  padding: 4px 6px;
+  padding: 4px 0;
 }
 
 .context-motion-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 8px;
-  background: #14141c;
+  padding: 5px 9px;
+  background: rgba(20, 20, 28, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+  border-radius: 7px;
   color: #a1a1aa;
   font-size: 0.68rem;
+  font-family: var(--font-sans);
   cursor: pointer;
-  transition: all 0.12s ease;
+  transition: all 0.15s var(--ease-spring);
+  white-space: nowrap;
+}
+
+.context-motion-icon {
+  font-size: 0.8rem;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
 .context-motion-btn:hover {
   background: rgba(168, 85, 247, 0.15);
-  border-color: rgba(168, 85, 247, 0.35);
+  border-color: rgba(168, 85, 247, 0.4);
   color: #f4f4f5;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.18);
+}
+
+.context-motion-btn:active {
+  transform: translateY(0);
+  background: rgba(168, 85, 247, 0.25);
 }
 
 .context-menu-empty-hint {
