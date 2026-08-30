@@ -394,6 +394,8 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
             registry: live2dModelRegistry,
             setGaze: (x, y) => controller.setGazeTarget(x, y),
             setEmotion: (emo) => controller.setEmotion(emo),
+            setExpression: (exp) => adapter.setExpression(exp),
+            setMotion: (group, index) => model.motion(group, index),
             setHead: (x, y, z) => adapter.setHeadAngle(x, y, z),
             setBody: (x, y, z) => adapter.setBodyAngle(x, y, z),
             setMouth: (o, f) => adapter.setMouth(o, f),

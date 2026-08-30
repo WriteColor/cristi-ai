@@ -1770,40 +1770,207 @@ html, body, #root {
   white-space: nowrap;
 }
 
+/* Context Menu Quick Dropdowns */
+.context-menu-dropdown-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 6px;
+}
+
+.context-dropdown-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: #a1a1aa;
+}
+
+.context-label-icon {
+  color: #c084fc;
+  flex-shrink: 0;
+}
+
+.context-select-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.context-select {
+  width: 100%;
+  height: 30px;
+  padding: 0 24px 0 10px;
+  background: #15151e;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  color: #f4f4f5;
+  font-size: 0.72rem;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: all 0.15s ease;
+}
+
+.context-select:hover {
+  border-color: rgba(168, 85, 247, 0.4);
+  background: #191924;
+}
+
+.context-select:focus {
+  border-color: rgba(168, 85, 247, 0.6);
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.15);
+}
+
+.context-select option {
+  background: #0f0f15;
+  color: #f4f4f5;
+  padding: 6px;
+}
+
+.context-select-arrow {
+  position: absolute;
+  right: 8px;
+  color: #a1a1aa;
+  pointer-events: none;
+}
+
+.context-menu-section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 6px;
+}
+
 .context-menu-section-label {
   font-size: 0.62rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #71717a;
-  padding: 2px 8px;
-  margin-top: 2px;
 }
 
-.context-menu-emotions-strip {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
+.context-expr-reset-btn {
+  display: inline-flex;
+  align-items: center;
   gap: 4px;
-  padding: 2px 4px 6px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #a1a1aa;
+  font-size: 0.62rem;
+  cursor: pointer;
+  transition: all 0.12s ease;
 }
 
-.context-emotion-btn {
-  height: 30px;
+.context-expr-reset-btn:hover {
+  background: rgba(244, 63, 94, 0.15);
+  border-color: rgba(244, 63, 94, 0.3);
+  color: #fda4af;
+}
+
+/* Model Specific Individual Expressions Grid */
+.context-model-expressions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+  padding: 4px 6px;
+  max-height: 150px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.context-model-expressions-grid::-webkit-scrollbar {
+  width: 4px;
+}
+
+.context-model-expressions-grid::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+.context-model-expr-btn {
   display: flex;
   align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.04);
+  gap: 6px;
+  padding: 6px 8px;
+  background: #14141c;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
-  font-size: 0.85rem;
+  border-radius: 7px;
+  color: #e4e4e7;
+  font-size: 0.70rem;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.context-emotion-btn:hover {
-  background: rgba(168, 85, 247, 0.25);
-  border-color: rgba(168, 85, 247, 0.5);
-  transform: scale(1.1);
+.context-model-expr-btn:hover {
+  background: rgba(168, 85, 247, 0.2);
+  border-color: rgba(168, 85, 247, 0.4);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.context-model-expr-btn.active {
+  background: rgba(168, 85, 247, 0.28);
+  border-color: #a855f7;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+}
+
+.context-expr-icon {
+  font-size: 0.82rem;
+  flex-shrink: 0;
+}
+
+.context-expr-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-model-motions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 4px 6px;
+}
+
+.context-motion-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  background: #14141c;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: #a1a1aa;
+  font-size: 0.68rem;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.context-motion-btn:hover {
+  background: rgba(168, 85, 247, 0.15);
+  border-color: rgba(168, 85, 247, 0.35);
+  color: #f4f4f5;
+}
+
+.context-menu-empty-hint {
+  padding: 6px 8px;
+  font-size: 0.66rem;
+  color: #71717a;
+  line-height: 1.35;
 }
 
 .context-menu-item {

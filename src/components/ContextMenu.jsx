@@ -17,14 +17,74 @@ import {
   Activity,
   Volume2,
   Tv,
-  Monitor
+  Monitor,
+  ChevronDown,
+  Brain,
+  RotateCcw,
+  Play
 } from 'lucide-react';
 import { live2dModelRegistry } from '../services/live2d';
+import { GEMINI_MODELS } from '../config/models';
+
+/**
+ * Human-friendly metadata dictionary for Live2D expressions
+ */
+const EXPRESSION_LABELS = {
+  // Yandere Girl
+  'Crazy': { label: 'Locura', icon: '🤪' },
+  'Mad': { label: 'Enfadada', icon: '💢' },
+  'Scared': { label: 'Asustada', icon: '😨' },
+  'Yandere': { label: 'Yandere', icon: '🖤' },
+
+  // Ellen Joe
+  'black': { label: 'Sombra Oscura', icon: '😈' },
+  'red': { label: 'Sonrojo', icon: '😳' },
+  'shock': { label: 'Impacto / Shock', icon: '⚡' },
+  'shou': { label: 'Mano en Rostro', icon: '🤦‍♀️' },
+  'tang': { label: 'Paleta Dulce', icon: '🍭' },
+
+  // Ice Girl
+  '←歪嘴': { label: 'Mueca Izq', icon: '😏' },
+  '歪嘴→': { label: 'Mueca Der', icon: '😏' },
+  '惊诧': { label: 'Sorprendida', icon: '😲' },
+  '手柄': { label: 'Modo Gamer', icon: '🎮' },
+  '披发': { label: 'Cabello Suelto', icon: '💇‍♀️' },
+  '星星眼': { label: 'Ojos Estrella', icon: '⭐' },
+  '流泪': { label: 'Lágrimas', icon: '😭' },
+  '爱心眼': { label: 'Ojos Corazón', icon: '😍' },
+  '猫耳': { label: 'Orejas de Gato', icon: '🐱' },
+  '王冠': { label: 'Corona', icon: '👑' },
+  '生气': { label: 'Enojada', icon: '😡' },
+  '疑惑': { label: 'Confundida', icon: '❓' },
+  '白眼': { label: 'Mirada en Blanco', icon: '🙄' },
+  '直播套装': { label: 'Modo Streaming', icon: '🎙️' },
+  '翅膀': { label: 'Alas de Hada', icon: '🪽' },
+  '脸红': { label: 'Sonrojo', icon: '😳' },
+  '脸黑': { label: 'Sombra', icon: '😈' },
+  '舌头': { label: 'Sacar Lengua', icon: '👅' },
+  '金钱眼': { label: 'Ojos Dinero', icon: '🤑' },
+  '马尾': { label: 'Coleta', icon: '👱‍♀️' },
+
+  // Jane Doe
+  '右手': { label: 'Mano Derecha', icon: '✋' },
+  '左手': { label: 'Mano Izquierda', icon: '🤚' },
+  '泪': { label: 'Lágrima', icon: '💧' },
+  '血': { label: 'Marca Batalla', icon: '🩸' }
+};
+
+/**
+ * Format expression name into human readable label and emoji
+ */
+function getExpressionMeta(exprName) {
+  if (EXPRESSION_LABELS[exprName]) {
+    return EXPRESSION_LABELS[exprName];
+  }
+  return { label: exprName, icon: '✨' };
+}
 
 /**
  * Cristi AI - Modern Obsidian Right-Click Desktop Context Menu
- * Intuitive, ultra-responsive, and packed with quick companion gestures,
- * model shortcuts, camera vision toggles, and window management.
+ * Features individual Live2D expressions per active model, instant model and brain switchers.
  */
 export function ContextMenu({
   position,
@@ -43,23 +103,34 @@ export function ContextMenu({
   isZenMode = false,
   onToggleZenMode,
   onMinimizeToTray,
-  activeModelId = 'yanderegirl'
+  activeModelId = 'yanderegirl',
+  activeAiModelId,
+  onSwitchLive2DModel,
+  onSwitchAiModel
 }) {
   const menuRef = useRef(null);
+  const [currentActiveExpr, setCurrentActiveExpr] = useState(null);
   const [coords, setCoords] = useState({
     left: position?.x || 100,
     top: position?.y || 100,
     placement: 'right'
   });
 
+  const allLive2dModels = live2dModelRegistry.getAllModels();
   const activeModel = live2dModelRegistry.getModel(activeModelId);
+  const customExpressions = activeModel?.capabilities?.customExpressions || [];
+  const modelMotions = activeModel?.capabilities?.motions || [];
+
+  const aiModelsList = Array.isArray(GEMINI_MODELS)
+    ? GEMINI_MODELS
+    : Object.values(GEMINI_MODELS);
 
   useLayoutEffect(() => {
     if (!isOpen) return;
 
     const el = menuRef.current;
-    const menuW = el?.offsetWidth || 260;
-    const menuH = el?.offsetHeight || 440;
+    const menuW = el?.offsetWidth || 280;
+    const menuH = el?.offsetHeight || 500;
     const MARGIN = 16;
 
     const vw = window.innerWidth;
@@ -98,7 +169,7 @@ export function ContextMenu({
     }
 
     setCoords({ left: finalLeft, top: finalTop, placement });
-  }, [isOpen, position]);
+  }, [isOpen, position, activeModelId]);
 
   useEffect(() => {
     const handleGlobalClick = (e) => {
@@ -132,13 +203,29 @@ export function ContextMenu({
     }
   };
 
-  const handleTriggerExpression = (exprName) => {
-    if (window.__cristiAvatar?.setEmotion) {
-      window.__cristiAvatar.setEmotion(exprName);
-    } else if (onTriggerRandomGesture) {
-      onTriggerRandomGesture();
+  const handleTriggerCustomExpression = (exprName) => {
+    if (window.__cristiAvatar?.setExpression) {
+      if (currentActiveExpr === exprName) {
+        window.__cristiAvatar.setExpression('none');
+        setCurrentActiveExpr(null);
+      } else {
+        window.__cristiAvatar.setExpression(exprName);
+        setCurrentActiveExpr(exprName);
+      }
     }
-    onClose();
+  };
+
+  const handleResetExpression = () => {
+    if (window.__cristiAvatar?.setExpression) {
+      window.__cristiAvatar.setExpression('none');
+      setCurrentActiveExpr(null);
+    }
+  };
+
+  const handleTriggerMotion = (motionName, index = 0) => {
+    if (window.__cristiAvatar?.setMotion) {
+      window.__cristiAvatar.setMotion(motionName, index);
+    }
   };
 
   return (
@@ -155,63 +242,126 @@ export function ContextMenu({
         <div className="context-menu-header-title">Cristi AI Companion</div>
         {activeModel && (
           <div className="context-menu-header-badge">
-            <Sparkles size={10} /> {activeModel.name}
+            <Sparkles size={10} /> {activeModel.badge || activeModel.name}
           </div>
         )}
       </div>
 
-      {/* Quick Emotions & Gesture Strip */}
-      <div className="context-menu-section-label">Expresiones Rápidas</div>
-      <div className="context-menu-emotions-strip">
-        <button
-          type="button"
-          className="context-emotion-btn"
-          title="Sonrojo"
-          onClick={() => handleTriggerExpression('blush')}
-        >
-          ❤️
-        </button>
-        <button
-          type="button"
-          className="context-emotion-btn"
-          title="Feliz"
-          onClick={() => handleTriggerExpression('happy')}
-        >
-          🌸
-        </button>
-        <button
-          type="button"
-          className="context-emotion-btn"
-          title="Sorpresa"
-          onClick={() => handleTriggerExpression('surprised')}
-        >
-          ⚡
-        </button>
-        <button
-          type="button"
-          className="context-emotion-btn"
-          title="Guiño"
-          onClick={() => handleTriggerExpression('wink')}
-        >
-          😉
-        </button>
-        <button
-          type="button"
-          className="context-emotion-btn"
-          title="Bailar"
-          onClick={() => handleTriggerExpression('dance')}
-        >
-          💃
-        </button>
-        <button
-          type="button"
-          className="context-emotion-btn"
-          title="Yandere / Intensa"
-          onClick={() => handleTriggerExpression('yandere')}
-        >
-          🖤
-        </button>
+      {/* QUICK SELECTOR 1: Live2D Avatar Switcher */}
+      <div className="context-menu-dropdown-group">
+        <label className="context-dropdown-label">
+          <Smile size={12} className="context-label-icon" />
+          <span>Avatar Live2D</span>
+        </label>
+        <div className="context-select-wrapper">
+          <select
+            className="context-select"
+            value={activeModelId}
+            onChange={(e) => {
+              if (onSwitchLive2DModel) onSwitchLive2DModel(e.target.value);
+            }}
+          >
+            {allLive2dModels.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name} ({m.badge || m.theme})
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={13} className="context-select-arrow" />
+        </div>
       </div>
+
+      {/* QUICK SELECTOR 2: AI Brain / Cerebro Switcher */}
+      <div className="context-menu-dropdown-group">
+        <label className="context-dropdown-label">
+          <Brain size={12} className="context-label-icon" />
+          <span>Cerebro de IA (Gemini)</span>
+        </label>
+        <div className="context-select-wrapper">
+          <select
+            className="context-select"
+            value={activeAiModelId}
+            onChange={(e) => {
+              if (onSwitchAiModel) onSwitchAiModel(e.target.value);
+            }}
+          >
+            {aiModelsList.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.displayName || m.name}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={13} className="context-select-arrow" />
+        </div>
+      </div>
+
+      <div className="context-menu-divider" />
+
+      {/* MODEL SPECIFIC INDIVIDUAL CUSTOM EXPRESSIONS */}
+      <div className="context-menu-section-row">
+        <span className="context-menu-section-label">
+          Expresiones de {activeModel?.character || activeModel?.name || 'Modelo'}
+        </span>
+        {currentActiveExpr && (
+          <button
+            type="button"
+            className="context-expr-reset-btn"
+            onClick={handleResetExpression}
+            title="Restablecer a expresión normal"
+          >
+            <RotateCcw size={10} />
+            <span>Normal</span>
+          </button>
+        )}
+      </div>
+
+      {customExpressions.length > 0 ? (
+        <div className="context-model-expressions-grid">
+          {customExpressions.map((exprName) => {
+            const meta = getExpressionMeta(exprName);
+            const isActive = currentActiveExpr === exprName;
+            return (
+              <button
+                key={exprName}
+                type="button"
+                className={`context-model-expr-btn ${isActive ? 'active' : ''}`}
+                onClick={() => handleTriggerCustomExpression(exprName)}
+                title={`Expresión: ${exprName}`}
+              >
+                <span className="context-expr-icon">{meta.icon}</span>
+                <span className="context-expr-name">{meta.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="context-menu-empty-hint">
+          <span>Este modelo utiliza expresiones faciales orgánicas automáticas.</span>
+        </div>
+      )}
+
+      {/* MODEL MOTIONS (If Available) */}
+      {modelMotions.length > 0 && (
+        <>
+          <div className="context-menu-section-label" style={{ marginTop: '6px' }}>
+            Animaciones & Poses
+          </div>
+          <div className="context-model-motions-row">
+            {modelMotions.map((motionName, idx) => (
+              <button
+                key={motionName}
+                type="button"
+                className="context-motion-btn"
+                onClick={() => handleTriggerMotion(motionName, idx)}
+                title={`Animación: ${motionName}`}
+              >
+                <Play size={10} />
+                <span>{motionName}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="context-menu-divider" />
 
@@ -223,10 +373,10 @@ export function ContextMenu({
           onClose();
         }}
       >
-        <Settings size={15} />
+        <Settings size={14} />
         <div className="context-item-info">
-          <span>Ajustes & Avatares Live2D</span>
-          <span className="context-item-hint">8 modelos, 30 voces, API</span>
+          <span>Ajustes Completos</span>
+          <span className="context-item-hint">30 voces, API Key, personalidad</span>
         </div>
       </button>
 
@@ -238,7 +388,7 @@ export function ContextMenu({
           onClose();
         }}
       >
-        <User size={15} />
+        <User size={14} />
         <div className="context-item-info">
           <span>{viewMode === 'torso' ? 'Ver Cuerpo Completo' : 'Modo Torso (Busto)'}</span>
           <span className="context-item-hint">{viewMode === 'torso' ? 'Encuadre 100%' : 'Encuadre 40%'}</span>
@@ -253,7 +403,7 @@ export function ContextMenu({
           onClose();
         }}
       >
-        <Camera size={15} />
+        <Camera size={14} />
         <div className="context-item-info">
           <span>{isCameraActive ? 'Desactivar Cámara' : 'Activar Visión por Cámara'}</span>
           <span className="context-item-hint">{isCameraActive ? 'Sensor encendido' : 'Face-API + YOLO'}</span>
@@ -268,7 +418,7 @@ export function ContextMenu({
           onClose();
         }}
       >
-        {isZenMode ? <Eye size={15} /> : <EyeOff size={15} />}
+        {isZenMode ? <Eye size={14} /> : <EyeOff size={14} />}
         <div className="context-item-info">
           <span>{isZenMode ? 'Mostrar Controles (HUD)' : 'Ocultar Controles (Modo Zen)'}</span>
           <span className="context-item-hint">{isZenMode ? 'HUD visible' : 'Avatar puro'}</span>
@@ -283,7 +433,7 @@ export function ContextMenu({
           onClose();
         }}
       >
-        <Layers size={15} />
+        <Layers size={14} />
         <div className="context-item-info">
           <span>{isSolidBackdrop ? 'Modo Transparente (VTuber)' : 'Modo Fondo Sólido'}</span>
           <span className="context-item-hint">{isSolidBackdrop ? 'Fondo transparente' : 'Obsidian dark'}</span>
@@ -298,9 +448,9 @@ export function ContextMenu({
           onClose();
         }}
       >
-        <Pin size={15} />
+        <Pin size={14} />
         <div className="context-item-info">
-          <span>{isAlwaysOnTop ? 'Desfijar de Pantalla' : 'Fijar Siempre Visible (Top)'}</span>
+          <span>{isAlwaysOnTop ? 'Desfijar de Pantalla' : 'Fijar Siempre Visible'}</span>
           <span className="context-item-hint">{isAlwaysOnTop ? 'Capa normal' : 'Always on Top'}</span>
         </div>
       </button>
@@ -315,7 +465,7 @@ export function ContextMenu({
           onClose();
         }}
       >
-        <Inbox size={15} />
+        <Inbox size={14} />
         <div className="context-item-info">
           <span>Minimizar al System Tray</span>
           <span className="context-item-hint">Segundo plano</span>
@@ -324,7 +474,7 @@ export function ContextMenu({
 
       {/* Close app */}
       <button className="context-menu-item danger" onClick={handleCloseApp}>
-        <X size={15} />
+        <X size={14} />
         <div className="context-item-info">
           <span>Cerrar Cristi AI</span>
         </div>

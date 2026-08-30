@@ -874,6 +874,9 @@ export function App() {
         onToggleZenMode={handleToggleZenMode}
         onMinimizeToTray={handleMinimizeToTray}
         activeModelId={config.live2dModelId || 'yanderegirl'}
+        activeAiModelId={config.modelId}
+        onSwitchLive2DModel={(id) => handleSaveConfig({ ...config, live2dModelId: id })}
+        onSwitchAiModel={(id) => handleSaveConfig({ ...config, modelId: id })}
       />
 
       {/* 6. Horizontal Settings Modal */}
