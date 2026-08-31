@@ -1,33 +1,22 @@
 /**
  * Cristi AI - Cinematic Background Scene & Atmosphere Manager
- * Controls persistent background scenes, cinematic loop rendering, desktop opacity mode,
- * and extreme Wallpaper Engine scene streaming.
+ * Manages built-in procedural scenes and custom imported media scenes (local videos/images & direct URLs)
  */
 
 import { BACKGROUND_SCENES, DEFAULT_SCENE_ID } from '../config/scenes.js';
-import { wallpaperEngineService } from './wallpaperEngineService.js';
 import { eventBus, EVENTS } from './eventBus.js';
 import { logger } from './logger.js';
 
-const STORAGE_KEY_SCENE = 'cristi_ai_scene_v1';
-const STORAGE_KEY_CUSTOM_URL = 'cristi_ai_custom_scene_url_v1';
+const STORAGE_KEY_SCENE = 'cristi_ai_scene_v2';
+const STORAGE_KEY_CUSTOM_URL = 'cristi_ai_custom_scene_url_v2';
+const STORAGE_KEY_CUSTOM_LIST = 'cristi_ai_custom_scenes_list_v2';
 
 export class SceneManager {
   constructor() {
     this.currentSceneId = this.loadSavedScene();
     this.customSceneUrl = this.loadSavedCustomUrl();
+    this.customScenesList = this.loadSavedCustomList();
     this.listeners = new Set();
-
-    // Auto-scan Wallpaper Engine once in background
-    wallpaperEngineService.autoScanOnce().then(() => {
-      this.syncActiveWpe();
-      this.notify();
-    });
-
-    wallpaperEngineService.subscribe(() => {
-      this.syncActiveWpe();
-      this.notify();
-    });
   }
 
   loadSavedScene() {
@@ -49,51 +38,84 @@ export class SceneManager {
     return '';
   }
 
-  syncActiveWpe() {
-    if (this.currentSceneId && this.currentSceneId.startsWith('wpe_')) {
-      const wpeItem = wallpaperEngineService.getWallpapers().find(w => w.id === this.currentSceneId);
-      if (wpeItem && wpeItem.mainPath) {
-        this.customSceneUrl = wpeItem.mainPath;
+  loadSavedCustomList() {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const saved = localStorage.getItem(STORAGE_KEY_CUSTOM_LIST);
+        if (saved) return JSON.parse(saved);
       }
-    }
+    } catch (_) {}
+    return [];
+  }
+
+  saveCustomList() {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY_CUSTOM_LIST, JSON.stringify(this.customScenesList));
+      }
+    } catch (_) {}
   }
 
   getScene() {
-    const isWpe = this.currentSceneId ? this.currentSceneId.startsWith('wpe_') : false;
     let customUrl = this.customSceneUrl;
     let sceneType = 'procedural';
 
-    if (isWpe) {
-      const wpeItem = wallpaperEngineService.getWallpapers().find(w => w.id === this.currentSceneId);
-      if (wpeItem) {
-        customUrl = wpeItem.mainPath || this.customSceneUrl;
-        sceneType = wpeItem.type || 'video';
-      }
-    } else if (this.currentSceneId === 'custom_wallpaper') {
+    if (this.currentSceneId === 'custom_wallpaper') {
       sceneType = 'custom';
+    } else {
+      const customItem = this.customScenesList.find(s => s.id === this.currentSceneId);
+      if (customItem) {
+        customUrl = customItem.url || customItem.mainPath;
+        sceneType = customItem.type || 'video';
+      }
     }
 
     return {
       sceneId: this.currentSceneId,
       customUrl,
       sceneType,
-      isWpe,
       isTransparent: this.currentSceneId === 'transparent'
     };
   }
 
   getAvailableScenes() {
-    const wpeScenes = wallpaperEngineService.getWallpapers().map(w => ({
-      id: w.id,
-      name: w.name,
-      category: 'wallpaper_engine',
-      type: w.type || 'video',
-      mainPath: w.mainPath,
-      previewPath: w.previewPath,
-      description: w.description || 'Fondo importado desde Wallpaper Engine Workshop'
+    const customScenes = this.customScenesList.map(s => ({
+      id: s.id,
+      name: s.name,
+      category: 'custom',
+      type: s.type || 'video',
+      mainPath: s.url || s.mainPath,
+      previewPath: s.previewPath || s.url || s.mainPath,
+      description: s.description || 'Fondo importado por el usuario'
     }));
 
-    return [...BACKGROUND_SCENES, ...wpeScenes];
+    return [...BACKGROUND_SCENES, ...customScenes];
+  }
+
+  addCustomScene(sceneData) {
+    const id = sceneData.id || `custom_${Date.now()}`;
+    const newScene = {
+      id,
+      name: sceneData.name || 'Fondo Personalizado',
+      url: sceneData.url || sceneData.filePath || sceneData.fileUrl,
+      type: sceneData.type || 'video',
+      previewPath: sceneData.previewPath || sceneData.url || sceneData.filePath || sceneData.fileUrl,
+      description: sceneData.description || 'Fondo importado por el usuario'
+    };
+
+    this.customScenesList = [newScene, ...this.customScenesList.filter(s => s.id !== id)];
+    this.saveCustomList();
+    this.setScene(id, newScene.url);
+  }
+
+  removeCustomScene(id) {
+    this.customScenesList = this.customScenesList.filter(s => s.id !== id);
+    this.saveCustomList();
+    if (this.currentSceneId === id) {
+      this.setScene(DEFAULT_SCENE_ID);
+    } else {
+      this.notify();
+    }
   }
 
   setScene(sceneId, customUrl = '') {
@@ -106,7 +128,7 @@ export class SceneManager {
 
     this.currentSceneId = sceneId;
 
-    if (matched && matched.category === 'wallpaper_engine') {
+    if (matched && matched.category === 'custom') {
       this.customSceneUrl = matched.mainPath || customUrl || '';
     } else if (customUrl !== undefined && customUrl !== '') {
       this.customSceneUrl = customUrl;
@@ -119,31 +141,36 @@ export class SceneManager {
         localStorage.setItem(STORAGE_KEY_SCENE, sceneId);
         localStorage.setItem(STORAGE_KEY_CUSTOM_URL, this.customSceneUrl);
       }
-    } catch (err) {
-      logger.warn('SCENE', `Error guardando escena: ${err.message}`);
-    }
+    } catch (_) {}
 
-    this.notify();
     logger.info('SCENE', `Escena de fondo cambiada a: ${sceneId} (${this.customSceneUrl})`);
-    return true;
+    eventBus.emit(EVENTS.SCENE_CHANGED, this.getScene());
+    this.notify();
+  }
+
+  setTransparent(enabled) {
+    if (enabled) {
+      this.setScene('transparent');
+    } else {
+      const saved = this.loadSavedScene();
+      this.setScene(saved === 'transparent' ? DEFAULT_SCENE_ID : saved);
+    }
+  }
+
+  onSceneChange(callback) {
+    this.listeners.add(callback);
+    return () => this.listeners.delete(callback);
   }
 
   notify() {
-    const payload = this.getScene();
-    eventBus.emit(EVENTS.SCENE_STATE_CHANGED, payload);
-
-    for (const listener of this.listeners) {
+    const state = this.getScene();
+    this.listeners.forEach(cb => {
       try {
-        listener(payload);
-      } catch (_) {}
-    }
-  }
-
-  onSceneChange(listener) {
-    if (typeof listener !== 'function') return () => {};
-    this.listeners.add(listener);
-    listener(this.getScene());
-    return () => this.listeners.delete(listener);
+        cb(state);
+      } catch (err) {
+        logger.error('SCENE', 'Error en callback de onSceneChange', { error: err.message });
+      }
+    });
   }
 }
 

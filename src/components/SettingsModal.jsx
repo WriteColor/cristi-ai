@@ -25,14 +25,15 @@ import {
   Download,
   Upload,
   Image as ImageIcon,
-  RotateCw
+  FolderPlus,
+  Trash2,
+  Plus
 } from 'lucide-react';
 import { GEMINI_MODELS, DEFAULT_MODEL_ID } from '../config/models.js';
 import { GEMINI_STANDARD_VOICES } from '../config/voices.js';
 import { BACKGROUND_SCENES } from '../config/scenes.js';
 import { live2dModelRegistry } from '../services/live2d/index.js';
 import { sceneManager } from '../services/sceneManager.js';
-import { wallpaperEngineService } from '../services/wallpaperEngineService.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';
 import { soundFxService } from '../services/soundFxService.js';
 import { configManager } from '../services/configManager.js';
@@ -107,8 +108,7 @@ export function SettingsModal({
   const [sceneId, setSceneId] = useState(sceneManager.getScene().sceneId);
   const [customSceneUrl, setCustomSceneUrl] = useState(sceneManager.getScene().customUrl);
   const [availableScenes, setAvailableScenes] = useState(sceneManager.getAvailableScenes());
-  const [isScanningWpe, setIsScanningWpe] = useState(false);
-  const [sceneFilter, setSceneFilter] = useState('all'); // 'all' | 'builtin' | 'wallpaper_engine'
+  const [sceneFilter, setSceneFilter] = useState('all'); // 'all' | 'builtin' | 'custom'
 
   const textareaRef = useRef(null);
   const modalRef = useRef(null);
@@ -512,27 +512,35 @@ export function SettingsModal({
                   <div>
                     <h3 className="sm-section-title">Atmósfera y Escenas de Fondo</h3>
                     <p className="sm-section-desc">
-                      Alterna entre el modo transparente de escritorio (Desktop Mate), fondos cinemáticos nativos y tus fondos instalados de Wallpaper Engine.
+                      Alterna entre el modo transparente de escritorio (Desktop Mate), fondos cinemáticos nativos y tus fondos multimedia personalizados (videos e imágenes locales o URLs directas).
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    className="sm-action-btn"
-                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '0.72rem' }}
-                    onClick={async () => {
-                      soundFxService.playClick();
-                      setIsScanningWpe(true);
-                      await wallpaperEngineService.scan();
-                      setAvailableScenes(sceneManager.getAvailableScenes());
-                      setIsScanningWpe(false);
-                      toastService.success('Wallpaper Engine', 'Librería de fondos sincronizada.');
-                    }}
-                    disabled={isScanningWpe}
-                  >
-                    <RotateCw size={13} className={isScanningWpe ? 'spin' : ''} />
-                    <span>{isScanningWpe ? 'Escaneando...' : 'Escanear Wallpaper Engine'}</span>
-                  </button>
+                  {typeof window !== 'undefined' && window.electronAPI?.importCustomSceneFile && (
+                    <button
+                      type="button"
+                      className="sm-action-btn"
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '0.72rem' }}
+                      onClick={async () => {
+                        soundFxService.playClick();
+                        const res = await window.electronAPI.importCustomSceneFile();
+                        if (!res.canceled && res.filePath) {
+                          sceneManager.addCustomScene({
+                            id: `custom_${Date.now()}`,
+                            name: res.name || 'Fondo Importado',
+                            url: res.fileUrl || res.filePath,
+                            type: res.type
+                          });
+                          setSceneId(sceneManager.getScene().sceneId);
+                          setAvailableScenes(sceneManager.getAvailableScenes());
+                          toastService.success('Fondo Importado', `Se añadió "${res.name}" a tu librería de escenas.`);
+                        }
+                      }}
+                    >
+                      <FolderPlus size={13} />
+                      <span>Importar Archivo Local</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Filter Pills */}
@@ -553,23 +561,25 @@ export function SettingsModal({
                   </button>
                   <button
                     type="button"
-                    className={`sm-filter-pill ${sceneFilter === 'wallpaper_engine' ? 'active' : ''}`}
-                    onClick={() => setSceneFilter('wallpaper_engine')}
+                    className={`sm-filter-pill ${sceneFilter === 'custom' ? 'active' : ''}`}
+                    onClick={() => setSceneFilter('custom')}
                   >
-                    Wallpaper Engine ({availableScenes.filter(s => s.category === 'wallpaper_engine').length})
+                    Personalizados ({availableScenes.filter(s => s.category === 'custom').length})
                   </button>
                 </div>
 
                 <div className="sm-avatar-grid">
                   {availableScenes
                     .filter((scene) => {
-                      if (sceneFilter === 'builtin') return scene.category !== 'wallpaper_engine';
-                      if (sceneFilter === 'wallpaper_engine') return scene.category === 'wallpaper_engine';
+                      if (sceneFilter === 'builtin') return scene.category !== 'custom';
+                      if (sceneFilter === 'custom') return scene.category === 'custom';
                       return true;
                     })
                     .map((scene) => {
                       const isSelected = sceneId === scene.id;
-                      const isWpe = scene.category === 'wallpaper_engine';
+                      const isCustom = scene.category === 'custom';
+                      const isVideo = scene.type === 'video';
+
                       return (
                         <div
                           key={scene.id}
@@ -579,15 +589,15 @@ export function SettingsModal({
                             sceneManager.setScene(scene.id, scene.mainPath || customSceneUrl);
                           }}
                           className={`sm-avatar-card ${isSelected ? 'selected' : ''}`}
+                          style={{ position: 'relative' }}
                         >
                           {/* Rich Dynamic Scene Preview Thumbnail */}
                           <div className="sm-scene-thumb-container">
-                            {isWpe ? (
-                              scene.type === 'video' && scene.mainPath ? (
+                            {isCustom ? (
+                              isVideo && scene.mainPath ? (
                                 <>
                                   <video
                                     src={scene.mainPath}
-                                    poster={scene.previewPath || undefined}
                                     autoPlay
                                     loop
                                     muted
@@ -606,8 +616,8 @@ export function SettingsModal({
                                     className="sm-scene-img-thumb"
                                     loading="lazy"
                                   />
-                                  <div className={`sm-scene-thumb-badge ${scene.type === 'animated' ? 'animated' : ''}`}>
-                                    {scene.type === 'animated' ? '✨ GIF' : '🖼️ WPE'}
+                                  <div className="sm-scene-thumb-badge">
+                                    🖼️ IMAGEN
                                   </div>
                                 </>
                               )
@@ -628,16 +638,35 @@ export function SettingsModal({
                           <div className="sm-avatar-card-header">
                             <div className="sm-avatar-card-title-group">
                               <span className="sm-avatar-card-name">{scene.name}</span>
-                              <span className={`sm-badge sm-badge-tag sm-badge-small ${isWpe ? 'sm-badge-recommended' : ''}`}>
-                                {isWpe ? 'WPE' : scene.category.toUpperCase()}
+                              <span className={`sm-badge sm-badge-tag sm-badge-small ${isCustom ? 'sm-badge-recommended' : ''}`}>
+                                {isCustom ? 'CUSTOM' : scene.category.toUpperCase()}
                               </span>
                             </div>
-                            <div className="sm-model-radio">
-                              {isSelected ? (
-                                <div className="sm-radio-selected" />
-                              ) : (
-                                <div className="sm-radio-empty" />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              {isCustom && scene.id !== 'custom_wallpaper' && (
+                                <button
+                                  type="button"
+                                  className="sm-icon-action-btn"
+                                  style={{ background: 'transparent', border: 'none', color: '#f43f5e', cursor: 'pointer', padding: '2px' }}
+                                  title="Eliminar fondo"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    soundFxService.playClick();
+                                    sceneManager.removeCustomScene(scene.id);
+                                    setAvailableScenes(sceneManager.getAvailableScenes());
+                                    toastService.info('Fondo Eliminado', 'Se quitó el fondo de tu librería.');
+                                  }}
+                                >
+                                  <Trash2 size={12} />
+                                </button>
                               )}
+                              <div className="sm-model-radio">
+                                {isSelected ? (
+                                  <div className="sm-radio-selected" />
+                                ) : (
+                                  <div className="sm-radio-empty" />
+                                )}
+                              </div>
                             </div>
                           </div>
                           <p className="sm-avatar-card-desc">{scene.description}</p>
@@ -646,26 +675,47 @@ export function SettingsModal({
                     })}
                 </div>
 
-                {sceneId === 'custom_wallpaper' && (
-                  <div className="sm-field-group" style={{ marginTop: '16px' }}>
-                    <label className="sm-field-label">
-                      <ImageIcon size={14} className="sm-label-icon" />
-                      <span>URL o Ruta Local de Imagen / Video (MP4, WebM)</span>
-                    </label>
-                    <div className="sm-input-wrapper">
-                      <input
-                        type="text"
-                        className="sm-input"
-                        placeholder="https://ejemplo.com/fondo-cyberpunk.mp4"
-                        value={customSceneUrl}
-                        onChange={(e) => {
-                          setCustomSceneUrl(e.target.value);
-                          sceneManager.setScene('custom_wallpaper', e.target.value);
-                        }}
-                      />
-                    </div>
+                {/* Direct URL Input */}
+                <div className="sm-field-group" style={{ marginTop: '16px', background: 'rgba(10, 12, 20, 0.6)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                  <label className="sm-field-label">
+                    <ImageIcon size={14} className="sm-label-icon" />
+                    <span>Añadir Fondo desde URL Directa (Video / Imagen Web)</span>
+                  </label>
+                  <div className="sm-input-wrapper" style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      className="sm-input"
+                      style={{ flex: 1 }}
+                      placeholder="https://ejemplo.com/fondo-cyberpunk.mp4"
+                      value={customSceneUrl}
+                      onChange={(e) => {
+                        setCustomSceneUrl(e.target.value);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="sm-action-btn"
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                      onClick={() => {
+                        if (!customSceneUrl) return;
+                        soundFxService.playClick();
+                        const isVid = /\.(mp4|webm|mkv|mov)$/i.test(customSceneUrl);
+                        sceneManager.addCustomScene({
+                          id: `custom_url_${Date.now()}`,
+                          name: `Web Scene (${new URL(customSceneUrl).hostname || 'Custom'})`,
+                          url: customSceneUrl,
+                          type: isVid ? 'video' : 'image'
+                        });
+                        setSceneId(sceneManager.getScene().sceneId);
+                        setAvailableScenes(sceneManager.getAvailableScenes());
+                        toastService.success('Fondo Añadido', 'Escena web añadida a la librería.');
+                      }}
+                    >
+                      <Plus size={12} />
+                      <span>Añadir a Fondos</span>
+                    </button>
                   </div>
-                )}
+                </div>
               </div>
             )}
 

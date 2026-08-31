@@ -43,8 +43,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setClipboardText: (text) => ipcRenderer.invoke('set-clipboard-text', text),
   showNotification: (payload) => ipcRenderer.invoke('show-notification', payload),
   captureScreenNative: (region) => ipcRenderer.invoke('capture-screen-native', region),
-  scanWallpaperEngine: () => ipcRenderer.invoke('scan-wallpaper-engine'),
-  applyWallpaperEngineNative: (projectPath) => ipcRenderer.invoke('apply-wallpaper-engine-native', projectPath),
+  importCustomSceneFile: () => ipcRenderer.invoke('import-custom-scene-file'),
 
   // ── Global Shortcut Event Subscriptions ───────────────────────────────────
   onShortcutEvent: (channel, callback) => {

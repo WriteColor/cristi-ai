@@ -422,7 +422,7 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
           resolution: nativeResolution,
           autoDensity: true,
           autoStart: true,
-          preserveDrawingBuffer: true,
+          preserveDrawingBuffer: false,
           clearBeforeRender: true,
           powerPreference: 'high-performance'
         });

@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { sceneManager } from '../services/sceneManager.js';
-import { WpeSceneCanvas } from '../modules/scenes/wpe/WpeSceneCanvas.jsx';
 
 export function BackgroundScene() {
   const [sceneState, setSceneState] = useState(sceneManager.getScene());
@@ -24,50 +23,47 @@ export function BackgroundScene() {
 
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
 
+    const ctx = canvas.getContext('2d', { alpha: true });
     let width = (canvas.width = window.innerWidth);
     let height = (canvas.height = window.innerHeight);
 
-    const onResize = () => {
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
-    };
-    window.addEventListener('resize', onResize);
-
-    const katakana = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const chars = katakana.split('');
-    const fontSize = 14;
+    const characters = 'アカサタナハマヤラワ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ<>{}[]=+/\\';
+    const fontSize = 16;
     const columns = Math.floor(width / fontSize);
     const drops = new Array(columns).fill(1);
 
-    let lastDraw = performance.now();
+    const handleResize = () => {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    };
 
-    const draw = (now) => {
-      // Throttle to ~30 FPS for minimal CPU/GPU overhead
-      if (now - lastDraw < 33) {
-        animFrameRef.current = requestAnimationFrame(draw);
-        return;
-      }
-      lastDraw = now;
+    window.addEventListener('resize', handleResize);
 
-      ctx.fillStyle = 'rgba(2, 8, 4, 0.08)';
+    let lastTime = 0;
+    const interval = 33; // ~30-60 FPS matrix draw
+
+    const draw = (currentTime) => {
+      animFrameRef.current = requestAnimationFrame(draw);
+      const delta = currentTime - lastTime;
+      if (delta < interval) return;
+      lastTime = currentTime;
+
+      ctx.fillStyle = 'rgba(4, 5, 7, 0.08)';
       ctx.fillRect(0, 0, width, height);
 
-      ctx.fillStyle = '#00ff66';
-      ctx.font = `${fontSize}px monospace`;
+      ctx.fillStyle = '#a855f7';
+      ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
 
       for (let i = 0; i < drops.length; i++) {
-        const text = chars[Math.floor(Math.random() * chars.length)];
+        const text = characters.charAt(Math.floor(Math.random() * characters.length));
         const x = i * fontSize;
         const y = drops[i] * fontSize;
 
-        // White head for glowing leading edge
-        if (Math.random() > 0.92) {
-          ctx.fillStyle = '#ffffff';
+        if (Math.random() > 0.95) {
+          ctx.fillStyle = '#f8fafc';
         } else {
-          ctx.fillStyle = '#00ff88';
+          ctx.fillStyle = i % 3 === 0 ? '#38bdf8' : '#a855f7';
         }
 
         ctx.fillText(text, x, y);
@@ -77,14 +73,12 @@ export function BackgroundScene() {
         }
         drops[i]++;
       }
-
-      animFrameRef.current = requestAnimationFrame(draw);
     };
 
     animFrameRef.current = requestAnimationFrame(draw);
 
     return () => {
-      window.removeEventListener('resize', onResize);
+      window.removeEventListener('resize', handleResize);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
   }, [sceneId]);
@@ -93,14 +87,15 @@ export function BackgroundScene() {
     return null;
   }
 
-  // ── Wallpaper Engine & Custom Media ───────────────────────────────────────
-  if ((sceneState.isWpe || sceneId === 'custom_wallpaper') && customUrl) {
+  // ── Custom Imported Media (Local Video / Local Image / Web URL) ───────────
+  const isCustomScene = (sceneId === 'custom_wallpaper' || (sceneId && sceneId.startsWith('custom_'))) && customUrl;
+  if (isCustomScene) {
     const isVideo = (/\.(mp4|webm|ogg|mov|mkv)/i.test(customUrl) || sceneState.sceneType === 'video') && !/\.(gif|png|jpg|jpeg|webp)/i.test(customUrl);
     const isWeb = /\.(html|htm)/i.test(customUrl) || sceneState.sceneType === 'web';
 
     return (
       <div className="scene-viewport custom-scene-active">
-        {/* Dynamic Ambient Aura Backdrop (Fills widescreen margins with matching soft ambient glow) */}
+        {/* Dynamic Ambient Aura Backdrop */}
         {!isWeb && (
           <div
             className="scene-ambient-backdrop"
@@ -112,7 +107,7 @@ export function BackgroundScene() {
           />
         )}
 
-        {/* Main Media - Perfectly fitted to screen aspect ratio without stretching or pixelation */}
+        {/* Main Media - Perfectly fitted to screen aspect ratio without stretching or distortion */}
         {isVideo ? (
           <video
             key={customUrl}
@@ -136,12 +131,14 @@ export function BackgroundScene() {
             src={customUrl}
             className="scene-iframe-element"
             sandbox="allow-scripts allow-same-origin"
-            title="Wallpaper Engine Web Scene"
+            title="Custom Web Scene"
           />
         ) : (
-          <WpeSceneCanvas
+          <img
             key={customUrl}
-            imageUrl={customUrl}
+            src={customUrl}
+            alt="Custom Scene"
+            className="scene-media-element scene-media-contain scene-image-element"
           />
         )}
         <div className="scene-ambient-overlay" />
@@ -159,46 +156,47 @@ export function BackgroundScene() {
     );
   }
 
-  // ── Procedural CSS Cinematic Atmospheric Scenes ───────────────────────────
+  // ── Procedural Built-In Shaders / CSS Scenes ──────────────────────────────
   return (
     <div className={`scene-viewport scene-${sceneId}`}>
-      {/* Dynamic Procedural Background Elements */}
+      {/* Cyber Loft Room */}
       {sceneId === 'cyber_loft' && (
-        <div className="scene-loft-container">
-          <div className="scene-skyline-silhouette" />
-          <div className="scene-neon-window-glow" />
-          <div className="scene-grid-lines" />
-          <div className="scene-rain-overlay" />
+        <div className="scene-layer scene-cyber-loft">
+          <div className="scene-window-grid" />
+          <div className="scene-rain-drops" />
+          <div className="scene-neon-sign">CRISTI // 2077</div>
+          <div className="scene-hologram-glow" />
         </div>
       )}
 
+      {/* Neon Grid / Synthwave */}
       {sceneId === 'neon_grid' && (
-        <div className="scene-synthwave-container">
-          <div className="scene-synthwave-sun" />
-          <div className="scene-synthwave-horizon" />
-          <div className="scene-synthwave-grid" />
-          <div className="scene-stars-twinkle" />
+        <div className="scene-layer scene-neon-grid">
+          <div className="scene-sun" />
+          <div className="scene-horizon-grid" />
+          <div className="scene-grid-lines" />
         </div>
       )}
 
+      {/* Deep Nebula Space */}
       {sceneId === 'deep_nebula' && (
-        <div className="scene-nebula-container">
-          <div className="scene-nebula-glow-1" />
-          <div className="scene-nebula-glow-2" />
-          <div className="scene-stars-dense" />
-          <div className="scene-stars-twinkle" />
+        <div className="scene-layer scene-deep-nebula">
+          <div className="scene-starfield-1" />
+          <div className="scene-starfield-2" />
+          <div className="scene-nebula-clouds" />
         </div>
       )}
 
+      {/* Zen Cyber Temple */}
       {sceneId === 'zen_temple' && (
-        <div className="scene-zen-container">
-          <div className="scene-sunset-gradient" />
-          <div className="scene-temple-silhouette" />
+        <div className="scene-layer scene-zen-temple">
           <div className="scene-sakura-petals" />
+          <div className="scene-moon-glow" />
+          <div className="scene-torii-silhouette" />
         </div>
       )}
 
-      {/* Atmospheric Vignette & Soft Gradient Overlay */}
+      {/* Ambient Vignette & Scanline Overlay */}
       <div className="scene-ambient-overlay" />
     </div>
   );

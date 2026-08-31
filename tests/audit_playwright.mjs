@@ -109,8 +109,8 @@ async function runAudit() {
       await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'playwright_02_model_voice_open.png') });
     }
 
-    // 4. Test Background Scene Switching (including WPE) via TacticalDropdown
-    console.log('\n[4/6] Probando activación de Escenas Cinemáticas y Wallpaper Engine via TacticalDropdown...');
+    // 4. Test Background Scene Switching via TacticalDropdown
+    console.log('\n[4/6] Probando activación de Escenas Cinemáticas y Fondos Personalizados via TacticalDropdown...');
     const sceneBtnAgain = await page.$('.ctx-mini-category-btn:has-text("Fondo & Escena")');
     if (sceneBtnAgain) {
       await sceneBtnAgain.click();
@@ -119,10 +119,9 @@ async function runAudit() {
       if (sceneDropTrigger) {
         await sceneDropTrigger.click();
         await page.waitForTimeout(300);
-        // Click WPE option if available or cyber_loft
-        const wpeOption = await page.$('.tactical-option:has-text("Frieren"), .tactical-option:has-text("SAO"), .tactical-option:has-text("Cyberpunk Loft")');
-        if (wpeOption) {
-          await wpeOption.click();
+        const sceneOpt = await page.$('.tactical-option:has-text("Cyberpunk Loft"), .tactical-option:has-text("Neon Grid")');
+        if (sceneOpt) {
+          await sceneOpt.click();
           await page.waitForTimeout(600);
         }
       }
@@ -139,7 +138,7 @@ async function runAudit() {
     await page.keyboard.press('Escape');
     await page.waitForTimeout(400);
 
-    // 5. Test Settings Modal & Wallpaper Engine Tab with Live Previews
+    // 5. Test Settings Modal & Scene Tab with Live Previews
     console.log('\n[5/6] Probando apertura del Modal de Ajustes y Pestaña de Fondo & Escenas con Vistas Previas...');
     await page.evaluate(() => {
       const btn = document.querySelector('button[title*="Ajustes"], button[title*="Configuración"], .hud-control-btn');

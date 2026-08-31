@@ -15,14 +15,13 @@ import {
   Eye,
   Sliders,
   Image as ImageIcon,
-  RotateCw
+  FolderPlus
 } from 'lucide-react';
 import { live2dModelRegistry } from '../services/live2d/index.js';
 import { GEMINI_MODELS, GEMINI_MODELS_LIST } from '../config/models.js';
 import { GEMINI_STANDARD_VOICES } from '../config/voices.js';
 import { BACKGROUND_SCENES } from '../config/scenes.js';
 import { sceneManager } from '../services/sceneManager.js';
-import { wallpaperEngineService } from '../services/wallpaperEngineService.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';
 import { electronBridge } from '../services/desktop/ElectronBridge.js';
 import { soundFxService } from '../services/soundFxService.js';
@@ -60,7 +59,6 @@ export function ContextMenu({
   const [activeScene, setActiveScene] = useState(sceneManager.getScene().sceneId);
   const [availableScenes, setAvailableScenes] = useState(sceneManager.getAvailableScenes());
   const [currentActiveExpr, setCurrentActiveExpr] = useState(null);
-  const [isScanningWpe, setIsScanningWpe] = useState(false);
 
   const posX = coords?.x ?? position?.x ?? 60;
   const posY = coords?.y ?? position?.y ?? 60;
@@ -157,13 +155,22 @@ export function ContextMenu({
     }
   };
 
-  const handleRescanWallpaperEngine = async (e) => {
+  const handleImportCustomSceneFile = async (e) => {
     e.stopPropagation();
     soundFxService.playClick();
-    setIsScanningWpe(true);
-    await wallpaperEngineService.scan();
-    setAvailableScenes(sceneManager.getAvailableScenes());
-    setIsScanningWpe(false);
+    if (typeof window !== 'undefined' && window.electronAPI?.importCustomSceneFile) {
+      const res = await window.electronAPI.importCustomSceneFile();
+      if (!res.canceled && res.filePath) {
+        sceneManager.addCustomScene({
+          id: `custom_${Date.now()}`,
+          name: res.name || 'Fondo Importado',
+          url: res.fileUrl || res.filePath,
+          type: res.type
+        });
+        setActiveScene(sceneManager.getScene().sceneId);
+        setAvailableScenes(sceneManager.getAvailableScenes());
+      }
+    }
   };
 
   const handleCloseApp = () => {
@@ -183,7 +190,7 @@ export function ContextMenu({
   const sceneOptions = availableScenes.map((s) => ({
     value: s.id,
     label: s.name,
-    badge: s.category === 'wallpaper_engine' ? 'WPE' : s.category?.toUpperCase(),
+    badge: s.category === 'custom' ? 'CUSTOM' : s.category?.toUpperCase(),
     subtitle: s.description
   }));
 
@@ -299,15 +306,16 @@ export function ContextMenu({
               icon={ImageIcon}
             />
 
-            <button
-              type="button"
-              className="ctx-action-item wpe-rescan-btn"
-              onClick={handleRescanWallpaperEngine}
-              disabled={isScanningWpe}
-            >
-              <RotateCw size={11} className={isScanningWpe ? 'spin' : ''} />
-              <span>{isScanningWpe ? 'Escaneando Steam...' : 'Escanear Wallpaper Engine'}</span>
-            </button>
+            {typeof window !== 'undefined' && window.electronAPI?.importCustomSceneFile && (
+              <button
+                type="button"
+                className="ctx-action-item"
+                onClick={handleImportCustomSceneFile}
+              >
+                <FolderPlus size={11} />
+                <span>Importar Archivo Local</span>
+              </button>
+            )}
           </div>
         )}
       </div>

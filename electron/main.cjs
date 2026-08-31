@@ -253,169 +253,53 @@ ipcMain.handle('capture-screen-native', async (event, region = null) => {
   });
 });
 
-// ── Wallpaper Engine Native Auto-Scanner (Zero-Cost Async) ───────────────────
-ipcMain.handle('scan-wallpaper-engine', async () => {
-  const drives = ['C:', 'D:', 'E:', 'F:', 'G:', 'H:'];
-  const possibleRoots = [];
+// ── Custom Wallpaper & Scene Native Importer ────────────────────────────────
+ipcMain.handle('import-custom-scene-file', async () => {
+  try {
+    const { dialog } = require('electron');
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Seleccionar Archivo de Escena / Fondo',
+      buttonLabel: 'Importar Fondo',
+      filters: [
+        { name: 'Multimedia (Video / Imagen)', extensions: ['mp4', 'webm', 'mkv', 'mov', 'png', 'jpg', 'jpeg', 'gif', 'webp'] },
+        { name: 'Videos', extensions: ['mp4', 'webm', 'mkv', 'mov'] },
+        { name: 'Imágenes', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
+        { name: 'Todos los Archivos', extensions: ['*'] }
+      ],
+      properties: ['openFile']
+    });
 
-  for (const d of drives) {
-    possibleRoots.push(
-      path.join(d, 'Program Files (x86)', 'Steam', 'steamapps'),
-      path.join(d, 'Program Files', 'Steam', 'steamapps'),
-      path.join(d, 'SteamLibrary', 'steamapps'),
-      path.join(d, 'Steam', 'steamapps'),
-      path.join(d, 'Games', 'SteamLibrary', 'steamapps')
-    );
-  }
-
-  const results = [];
-  const visited = new Set();
-
-  for (const steamRoot of possibleRoots) {
-    try {
-      if (!fs.existsSync(steamRoot)) continue;
-
-      // 1. Workshop Items (Steam AppID: 431960)
-      const workshopDir = path.join(steamRoot, 'workshop', 'content', '431960');
-      if (fs.existsSync(workshopDir)) {
-        const itemDirs = await fs.promises.readdir(workshopDir, { withFileTypes: true });
-        for (const itemDir of itemDirs) {
-          if (!itemDir.isDirectory()) continue;
-          const fullPath = path.join(workshopDir, itemDir.name);
-          if (visited.has(fullPath)) continue;
-          visited.add(fullPath);
-
-          const projectJson = path.join(fullPath, 'project.json');
-          if (fs.existsSync(projectJson)) {
-            try {
-              const data = JSON.parse(await fs.promises.readFile(projectJson, 'utf8'));
-              let mainFile = data.file ? path.join(fullPath, data.file) : null;
-              let previewFile = data.preview ? path.join(fullPath, data.preview) : null;
-              let finalType = data.type ? data.type.toLowerCase() : 'video';
-
-              const files = await fs.promises.readdir(fullPath);
-              const videoMatch = files.find(f => /\.(mp4|webm|mkv|mov)$/i.test(f));
-              const htmlMatch = files.find(f => /\.(html|htm)$/i.test(f));
-              const pkgMatch = files.find(f => /\.pkg$/i.test(f));
-              const imageMatch = files.find(f => /\.(png|jpg|jpeg|webp)$/i.test(f));
-
-              if (videoMatch) {
-                mainFile = path.join(fullPath, videoMatch);
-                finalType = 'video';
-              } else if (htmlMatch) {
-                mainFile = path.join(fullPath, htmlMatch);
-                finalType = 'web';
-              } else if (pkgMatch) {
-                const { resolveHdMediaFromPkg } = require('../server/wpePkgExtractor.cjs');
-                const hdFile = resolveHdMediaFromPkg(path.join(fullPath, pkgMatch));
-                if (hdFile && fs.existsSync(hdFile)) {
-                  mainFile = hdFile;
-                } else if (previewFile && fs.existsSync(previewFile)) {
-                  mainFile = previewFile;
-                }
-                finalType = 'image';
-              } else if (imageMatch) {
-                mainFile = path.join(fullPath, imageMatch);
-                finalType = 'image';
-              } else if (previewFile && fs.existsSync(previewFile)) {
-                mainFile = previewFile;
-                finalType = previewFile.endsWith('.gif') ? 'animated' : 'image';
-              }
-
-              if (previewFile && !fs.existsSync(previewFile)) {
-                previewFile = mainFile;
-              }
-
-              results.push({
-                id: `wpe_${itemDir.name}`,
-                workshopId: itemDir.name,
-                name: data.title || `Wallpaper ${itemDir.name}`,
-                category: 'wallpaper_engine',
-                type: finalType,
-                mainPath: mainFile ? `/__wpe_media?path=${encodeURIComponent(mainFile)}` : null,
-                previewPath: previewFile ? `/__wpe_media?path=${encodeURIComponent(previewFile)}` : (mainFile ? `/__wpe_media?path=${encodeURIComponent(mainFile)}` : null),
-                description: data.description || `Wallpaper Engine Workshop (#${itemDir.name})`
-              });
-            } catch (_) {}
-          }
-        }
-      }
-
-      // 2. Default Built-in Projects & My Projects
-      const localRoots = [
-        path.join(steamRoot, 'common', 'wallpaper_engine', 'projects', 'defaultprojects'),
-        path.join(steamRoot, 'common', 'wallpaper_engine', 'projects', 'myprojects')
-      ];
-
-      for (const locRoot of localRoots) {
-        if (fs.existsSync(locRoot)) {
-          const itemDirs = await fs.promises.readdir(locRoot, { withFileTypes: true });
-          for (const itemDir of itemDirs) {
-            if (!itemDir.isDirectory()) continue;
-            const fullPath = path.join(locRoot, itemDir.name);
-            if (visited.has(fullPath)) continue;
-            visited.add(fullPath);
-
-            const projectJson = path.join(fullPath, 'project.json');
-            if (fs.existsSync(projectJson)) {
-              try {
-                const data = JSON.parse(await fs.promises.readFile(projectJson, 'utf8'));
-                let mainFile = data.file ? path.join(fullPath, data.file) : null;
-                let previewFile = data.preview ? path.join(fullPath, data.preview) : null;
-                let finalType = data.type ? data.type.toLowerCase() : 'scene';
-
-                const files = await fs.promises.readdir(fullPath);
-                const videoMatch = files.find(f => /\.(mp4|webm|mkv|mov)$/i.test(f));
-                const htmlMatch = files.find(f => /\.(html|htm)$/i.test(f));
-                const imageMatch = files.find(f => /\.(gif|png|jpg|jpeg|webp)$/i.test(f));
-
-                if (videoMatch) {
-                  mainFile = path.join(fullPath, videoMatch);
-                  finalType = 'video';
-                } else if (htmlMatch) {
-                  mainFile = path.join(fullPath, htmlMatch);
-                  finalType = 'web';
-                } else if (!mainFile || mainFile.endsWith('.json') || mainFile.endsWith('.pkg')) {
-                  if (previewFile && fs.existsSync(previewFile)) {
-                    mainFile = previewFile;
-                  } else if (imageMatch) {
-                    mainFile = path.join(fullPath, imageMatch);
-                  }
-                  finalType = mainFile && /\.gif$/i.test(mainFile) ? 'animated' : 'image';
-                }
-
-                results.push({
-                  id: `wpe_local_${itemDir.name}`,
-                  name: data.title || itemDir.name,
-                  category: 'wallpaper_engine',
-                  type: finalType,
-                  mainPath: mainFile ? `/__wpe_media?path=${encodeURIComponent(mainFile)}` : null,
-                  previewPath: previewFile ? `/__wpe_media?path=${encodeURIComponent(previewFile)}` : (mainFile ? `/__wpe_media?path=${encodeURIComponent(mainFile)}` : null),
-                  description: data.description || `Wallpaper Engine Oficial (${itemDir.name})`
-                });
-              } catch (_) {}
-            }
-          }
-        }
-      }
-    } catch (_) {}
-  }
-
-  return results;
-});
-
-// ── Native Wallpaper Engine CLI Bridge ──────────────────────────────────────
-ipcMain.handle('apply-wallpaper-engine-native', async (event, projectPath) => {
-  const wpeExe = 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\wallpaper_engine\\wallpaper64.exe';
-  if (fs.existsSync(wpeExe) && projectPath) {
-    try {
-      exec(`"${wpeExe}" -control openWallpaper -file "${projectPath}" -playAudio false`);
-      return { success: true };
-    } catch (e) {
-      return { success: false, error: e.message };
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+      return { canceled: true };
     }
+
+    const sourcePath = result.filePaths[0];
+    const customScenesDir = path.join(app.getPath('userData'), 'custom_scenes');
+    if (!fs.existsSync(customScenesDir)) {
+      fs.mkdirSync(customScenesDir, { recursive: true });
+    }
+
+    const ext = path.extname(sourcePath);
+    const baseName = path.basename(sourcePath, ext);
+    const destName = `${Date.now()}_${baseName}${ext}`;
+    const destPath = path.join(customScenesDir, destName);
+
+    await fs.promises.copyFile(sourcePath, destPath);
+
+    const isVideo = /\.(mp4|webm|mkv|mov)$/i.test(destPath);
+    const isAnimated = /\.gif$/i.test(destPath);
+
+    return {
+      canceled: false,
+      filePath: destPath,
+      fileUrl: `file:///${destPath.replace(/\\/g, '/')}`,
+      name: baseName,
+      type: isVideo ? 'video' : isAnimated ? 'animated' : 'image'
+    };
+  } catch (err) {
+    console.error('[Main] Error importing custom scene file:', err);
+    return { canceled: true, error: err.message };
   }
-  return { success: false, error: 'Wallpaper Engine executable not found' };
 });
 
 // ── Global Shortcuts Registration ───────────────────────────────────────────
