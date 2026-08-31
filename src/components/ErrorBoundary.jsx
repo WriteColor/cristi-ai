@@ -1,5 +1,6 @@
 import React from 'react';
 import { ShieldAlert, RefreshCw } from 'lucide-react';
+import { electronBridge } from '../services/desktop/ElectronBridge.js';
 
 export class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -13,6 +14,9 @@ export class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error('ErrorBoundary capturó una excepción:', error, errorInfo);
+    try {
+      electronBridge.setIgnoreMouseEvents(false);
+    } catch (_) {}
   }
 
   handleReload = () => {

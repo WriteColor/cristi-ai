@@ -1,5 +1,6 @@
-import { logger } from '../logger';
-import { eventBus, EVENTS } from '../eventBus';
+import { logger } from '../logger.js';
+import { eventBus, EVENTS } from '../eventBus.js';
+import { electronBridge } from './ElectronBridge.js';
 
 /**
  * Cristi AI - Windows 11 Lock Screen Integration Service
@@ -9,7 +10,6 @@ import { eventBus, EVENTS } from '../eventBus';
 class LockScreenService {
   constructor() {
     this.isLocked = false;
-    this.listeners = [];
     this.listeners = new Set();
     this.sessionMonitoringTimer = null;
     this.init();
@@ -98,9 +98,9 @@ class LockScreenService {
   }
 
   onStateChange(fn) {
-    this.listeners.push(fn);
+    this.listeners.add(fn);
     return () => {
-      this.listeners = this.listeners.filter((l) => l !== fn);
+      this.listeners.delete(fn);
     };
   }
 

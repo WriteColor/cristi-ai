@@ -245,6 +245,63 @@ export function App() {
     };
   }, [resetInactivityTimer]);
 
+  // --- Global Intelligent Hit-Tester for Seamless Desktop & Background Click Interactivity ---
+  useEffect(() => {
+    if (!electronBridge.isElectron) return;
+
+    let isHoveringInteractive = false;
+
+    const evaluateHitTarget = (clientX, clientY) => {
+      const el = document.elementFromPoint(clientX, clientY);
+      if (!el) {
+        if (isHoveringInteractive) {
+          isHoveringInteractive = false;
+          electronBridge.setIgnoreMouseEvents(true, { forward: true });
+        }
+        return;
+      }
+
+      // Check if cursor is over the non-interactive transparent canvas/root background
+      const isNonInteractiveBackground =
+        el === document.documentElement ||
+        el === document.body ||
+        el.id === 'root' ||
+        el.classList.contains('live2d-root') ||
+        el.classList.contains('live2d-canvas-container') ||
+        el.classList.contains('live2d-canvas') ||
+        el.classList.contains('cristi-widgets-viewport') ||
+        window.getComputedStyle(el).pointerEvents === 'none';
+
+      if (!isNonInteractiveBackground) {
+        if (!isHoveringInteractive) {
+          isHoveringInteractive = true;
+          electronBridge.setIgnoreMouseEvents(false);
+        }
+      } else {
+        if (isHoveringInteractive) {
+          isHoveringInteractive = false;
+          electronBridge.setIgnoreMouseEvents(true, { forward: true });
+        }
+      }
+    };
+
+    const onGlobalMouseMove = (e) => {
+      evaluateHitTarget(e.clientX, e.clientY);
+    };
+
+    const onGlobalPointerDown = (e) => {
+      evaluateHitTarget(e.clientX, e.clientY);
+    };
+
+    window.addEventListener('mousemove', onGlobalMouseMove, { passive: true, capture: true });
+    window.addEventListener('pointerdown', onGlobalPointerDown, { passive: true, capture: true });
+
+    return () => {
+      window.removeEventListener('mousemove', onGlobalMouseMove, { capture: true });
+      window.removeEventListener('pointerdown', onGlobalPointerDown, { capture: true });
+    };
+  }, []);
+
   // --- Initialize Electron Native Desktop Environment & System Tray ---
   useEffect(() => {
     if (electronBridge.isElectron) {
