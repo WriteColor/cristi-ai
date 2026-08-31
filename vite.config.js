@@ -1,5 +1,155 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
+import path from 'path';
+
+function getMimeType(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const mimes = {
+    '.mp4': 'video/mp4',
+    '.webm': 'video/webm',
+    '.mkv': 'video/mp4',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.html': 'text/html',
+    '.htm': 'text/html',
+    '.css': 'text/css',
+    '.js': 'application/javascript',
+    '.json': 'application/json'
+  };
+  return mimes[ext] || 'application/octet-stream';
+}
+
+function wpeMediaPlugin() {
+  return {
+    name: 'wpe-media-plugin',
+    configureServer(server) {
+      // 1. Wallpaper Engine Scanner Endpoint for Web/Browser & Electron
+      server.middlewares.use('/__wpe_scan', async (req, res) => {
+        const drives = ['C:', 'D:', 'E:', 'F:', 'G:'];
+        const possibleRoots = [];
+        for (const d of drives) {
+          possibleRoots.push(
+            path.join(d, 'Program Files (x86)', 'Steam', 'steamapps'),
+            path.join(d, 'Program Files', 'Steam', 'steamapps'),
+            path.join(d, 'SteamLibrary', 'steamapps'),
+            path.join(d, 'Steam', 'steamapps')
+          );
+        }
+
+        const results = [];
+        const visited = new Set();
+
+        for (const steamRoot of possibleRoots) {
+          try {
+            if (!fs.existsSync(steamRoot)) continue;
+
+            // Workshop Wallpapers
+            const workshopDir = path.join(steamRoot, 'workshop', 'content', '431960');
+            if (fs.existsSync(workshopDir)) {
+              const itemDirs = await fs.promises.readdir(workshopDir, { withFileTypes: true });
+              for (const itemDir of itemDirs) {
+                if (!itemDir.isDirectory()) continue;
+                const fullPath = path.join(workshopDir, itemDir.name);
+                if (visited.has(fullPath)) continue;
+                visited.add(fullPath);
+
+                const projectJson = path.join(fullPath, 'project.json');
+                if (fs.existsSync(projectJson)) {
+                  try {
+                    const data = JSON.parse(await fs.promises.readFile(projectJson, 'utf8'));
+                    let mainFile = data.file ? path.join(fullPath, data.file) : null;
+                    let previewFile = data.preview ? path.join(fullPath, data.preview) : null;
+
+                    // Fallback to searching video/image if main file is a package or json
+                    if (!mainFile || mainFile.endsWith('.json') || mainFile.endsWith('.pkg')) {
+                      const files = await fs.promises.readdir(fullPath);
+                      const videoMatch = files.find(f => /\.(mp4|webm|mkv)$/i.test(f));
+                      const imageMatch = files.find(f => /\.(gif|png|jpg|jpeg|webp)$/i.test(f));
+                      if (videoMatch) {
+                        mainFile = path.join(fullPath, videoMatch);
+                        data.type = 'video';
+                      } else if (previewFile) {
+                        mainFile = previewFile;
+                      } else if (imageMatch) {
+                        mainFile = path.join(fullPath, imageMatch);
+                      }
+                    }
+
+                    results.push({
+                      id: `wpe_${itemDir.name}`,
+                      workshopId: itemDir.name,
+                      name: data.title || `Wallpaper ${itemDir.name}`,
+                      category: 'wallpaper_engine',
+                      type: data.type ? data.type.toLowerCase() : 'video',
+                      mainPath: mainFile ? `/__wpe_media?path=${encodeURIComponent(mainFile)}` : null,
+                      previewPath: previewFile ? `/__wpe_media?path=${encodeURIComponent(previewFile)}` : null,
+                      rawPath: mainFile,
+                      description: data.description || `Wallpaper Engine Workshop (#${itemDir.name})`
+                    });
+                  } catch (_) {}
+                }
+              }
+            }
+          } catch (_) {}
+        }
+
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.end(JSON.stringify(results));
+      });
+
+      // 2. High-Performance Media Streaming Endpoint (with HTTP 206 Range support)
+      server.middlewares.use('/__wpe_media', (req, res) => {
+        try {
+          const urlObj = new URL(req.url, 'http://localhost');
+          const filePath = urlObj.searchParams.get('path');
+          if (!filePath || !fs.existsSync(filePath)) {
+            res.statusCode = 404;
+            return res.end('Archivo no encontrado');
+          }
+
+          const stat = fs.statSync(filePath);
+          const fileSize = stat.size;
+          const range = req.headers.range;
+          const contentType = getMimeType(filePath);
+
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Range');
+          res.setHeader('Accept-Ranges', 'bytes');
+
+          if (range) {
+            const parts = range.replace(/bytes=/, '').split('-');
+            const start = parseInt(parts[0], 10);
+            const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+            const chunksize = end - start + 1;
+            const file = fs.createReadStream(filePath, { start, end });
+            res.writeHead(206, {
+              'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+              'Accept-Ranges': 'bytes',
+              'Content-Length': chunksize,
+              'Content-Type': contentType,
+            });
+            file.pipe(res);
+          } else {
+            res.writeHead(200, {
+              'Content-Length': fileSize,
+              'Content-Type': contentType,
+            });
+            fs.createReadStream(filePath).pipe(res);
+          }
+        } catch (e) {
+          res.statusCode = 500;
+          res.end(e.message);
+        }
+      });
+    }
+  };
+}
 
 function terminalLoggerPlugin() {
   return {
@@ -17,12 +167,13 @@ function terminalLoggerPlugin() {
             const chalkTime = `\x1b[90m[${timestamp}]\x1b[0m`;
 
             const tagColorMap = {
-              GEMINI: '\x1b[35m', // Magenta
-              AUDIO: '\x1b[36m',  // Cyan
-              ASR: '\x1b[32m',    // Green
-              VISION: '\x1b[31m', // Red
-              TOOL: '\x1b[33m',   // Yellow
-              SYSTEM: '\x1b[34m'  // Blue
+              GEMINI: '\x1b[35m',
+              AUDIO: '\x1b[36m',
+              ASR: '\x1b[32m',
+              VISION: '\x1b[31m',
+              TOOL: '\x1b[33m',
+              SYSTEM: '\x1b[34m',
+              SCENE: '\x1b[35m'
             };
             const tagColor = tagColorMap[tag] || '\x1b[35m';
             const chalkTag = `${tagColor}[${tag}]\x1b[0m`;
@@ -45,7 +196,7 @@ function terminalLoggerPlugin() {
 }
 
 export default defineConfig({
-  plugins: [react(), terminalLoggerPlugin()],
+  plugins: [react(), wpeMediaPlugin(), terminalLoggerPlugin()],
   base: './',
   server: {
     port: 5173,

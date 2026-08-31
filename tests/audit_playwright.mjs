@@ -135,18 +135,28 @@ async function runAudit() {
     await page.keyboard.press('Escape');
     await page.waitForTimeout(400);
 
-    // 5. Test Settings Modal Tabs
-    console.log('\n[5/6] Probando apertura y pestañas del Modal de Ajustes...');
+    // 5. Test Settings Modal & Wallpaper Engine Tab
+    console.log('\n[5/6] Probando apertura del Modal de Ajustes y Pestaña de Fondo & Escenas...');
     await page.evaluate(() => {
       const btn = document.querySelector('button[title*="Ajustes"], button[title*="Configuración"], .hud-control-btn');
       if (btn) btn.click();
     });
     await page.waitForTimeout(600);
-    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'playwright_03_settings.png') });
+
+    // Click "Fondo & Escenas" tab in SettingsModal
+    const sceneTabBtn = await page.$('.sm-tab-item:has-text("Fondo")');
+    if (sceneTabBtn) {
+      await sceneTabBtn.click();
+      await page.waitForTimeout(400);
+      const wpeCards = await page.$$('.sm-avatar-card');
+      console.log(`  ✓ Pestaña de Fondos & Escenas abierta en Ajustes: ${wpeCards.length} tarjetas desplegadas.`);
+      await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'playwright_03_settings_scenes.png') });
+    }
 
     // Close modal
     await page.keyboard.press('Escape');
     await page.waitForTimeout(400);
+
     const runtimeAvatar = await page.evaluate(() => {
       return {
         hasAvatar: !!window.__cristiAvatar,

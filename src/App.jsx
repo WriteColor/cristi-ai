@@ -170,15 +170,7 @@ export function App() {
   const [screenRegion, setScreenRegion] = useState(null);
   const [isRegionPickerOpen, setIsRegionPickerOpen] = useState(false);
 
-  // Save configuration changes
-  const handleSaveConfig = (newConfig) => {
-    const isModelChange = newConfig.live2dModelId !== config.live2dModelId;
-    const isAiChange = newConfig.modelId !== config.modelId;
-    setConfig(newConfig);
-    localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(newConfig));
 
-    // Configuration saved quietly without spamming the viewport
-  };
 
   // Toggle Torso vs Full body framing
   const handleToggleViewMode = () => {
@@ -926,6 +918,43 @@ export function App() {
     electronBridge.setAlwaysOnTop(nextState);
   };
 
+  // --- Configuration Persistence and Live Updates ---
+  const handleSaveConfig = (newConfig) => {
+    setConfig(newConfig);
+    try {
+      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(newConfig));
+      configManager.saveConfig(newConfig);
+    } catch (e) {}
+
+    // Update active Live2D model in runtime if changed
+    if (newConfig.live2dModelId) {
+      if (window.__cristiAvatar?.loadModel) {
+        window.__cristiAvatar.loadModel(newConfig.live2dModelId);
+      }
+      if (live2dRef.current?.switchModel) {
+        live2dRef.current.switchModel(newConfig.live2dModelId);
+      }
+    }
+  };
+
+  const handleSwitchLive2DModel = (modelId) => {
+    const nextConfig = { ...config, live2dModelId: modelId };
+    handleSaveConfig(nextConfig);
+    toastService.info('Personaje Live2D', `Modelo cambiado a: ${live2dModelRegistry.getModel(modelId)?.name || modelId}`);
+  };
+
+  const handleSwitchAiModel = (modelId) => {
+    const nextConfig = { ...config, modelId };
+    handleSaveConfig(nextConfig);
+    toastService.info('Modelo IA', `Motor cambiado a: ${modelId}`);
+  };
+
+  const handleSwitchVoice = (voiceName) => {
+    const nextConfig = { ...config, voiceName };
+    handleSaveConfig(nextConfig);
+    toastService.info('Voz de Cristi', `Timbre cambiado a: ${voiceName}`);
+  };
+
   // --- Right-Click Context Menu Handler ---
   const handleModelContextMenu = (e, bounds) => {
     if (e && e.preventDefault) e.preventDefault();
@@ -1117,10 +1146,18 @@ export function App() {
         onToggleLockScreen={() => setIsLockScreenActive((prev) => !prev)}
         onOpenLockSandbox={() => setIsLockSandboxOpen(true)}
         onOpenVoiceEnrollment={() => setIsVoiceEnrollmentOpen(true)}
+        onOpenSpeakerHUD={() => setIsVoiceEnrollmentOpen(true)}
+        onOpenRegionPicker={() => setIsRegionPickerOpen(true)}
+        isMuted={isMuted}
+        onToggleMute={handleToggleMute}
+        isScreenWatchActive={isScreenWatchActive}
+        onToggleScreenWatch={handleToggleScreenWatch}
         activeModelId={config.live2dModelId || 'yanderegirl'}
-        activeAiModelId={config.modelId}
-        onSwitchLive2DModel={(id) => handleSaveConfig({ ...config, live2dModelId: id })}
-        onSwitchAiModel={(id) => handleSaveConfig({ ...config, modelId: id })}
+        onSwitchLive2DModel={handleSwitchLive2DModel}
+        activeAiModelId={config.modelId || DEFAULT_MODEL_ID}
+        onSwitchAiModel={handleSwitchAiModel}
+        activeVoiceName={config.voiceName || 'Aoede'}
+        onSwitchVoice={handleSwitchVoice}
       />
 
       {/* 7. Live S2S Voice Biometrics & Speaker Recognition Diagnostics HUD */}

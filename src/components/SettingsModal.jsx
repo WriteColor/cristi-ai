@@ -24,13 +24,15 @@ import {
   Coffee,
   Download,
   Upload,
-  Image as ImageIcon
+  Image as ImageIcon,
+  RotateCw
 } from 'lucide-react';
 import { GEMINI_MODELS, DEFAULT_MODEL_ID } from '../config/models.js';
 import { GEMINI_STANDARD_VOICES } from '../config/voices.js';
 import { BACKGROUND_SCENES } from '../config/scenes.js';
 import { live2dModelRegistry } from '../services/live2d/index.js';
 import { sceneManager } from '../services/sceneManager.js';
+import { wallpaperEngineService } from '../services/wallpaperEngineService.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';
 import { soundFxService } from '../services/soundFxService.js';
 import { configManager } from '../services/configManager.js';
@@ -104,6 +106,9 @@ export function SettingsModal({
   const [systemPrompt, setSystemPrompt] = useState(config.systemPrompt || '');
   const [sceneId, setSceneId] = useState(sceneManager.getScene().sceneId);
   const [customSceneUrl, setCustomSceneUrl] = useState(sceneManager.getScene().customUrl);
+  const [availableScenes, setAvailableScenes] = useState(sceneManager.getAvailableScenes());
+  const [isScanningWpe, setIsScanningWpe] = useState(false);
+  const [sceneFilter, setSceneFilter] = useState('all'); // 'all' | 'builtin' | 'wallpaper_engine'
 
   const textareaRef = useRef(null);
   const modalRef = useRef(null);
@@ -115,6 +120,7 @@ export function SettingsModal({
     return sceneManager.onSceneChange((s) => {
       setSceneId(s.sceneId);
       setCustomSceneUrl(s.customUrl);
+      setAvailableScenes(sceneManager.getAvailableScenes());
     });
   }, []);
 
@@ -502,43 +508,114 @@ export function SettingsModal({
             {/* TAB: SCENE & BACKGROUNDS */}
             {activeTab === 'scene' && (
               <div className="sm-tab-pane">
-                <div className="sm-section-header">
-                  <h3 className="sm-section-title">Atmósfera y Escenas de Fondo</h3>
-                  <p className="sm-section-desc">
-                    Alterna entre el modo transparente de escritorio (Desktop Mate) y escenarios cinemáticos o fondos personalizados de alta definición.
-                  </p>
+                <div className="sm-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+                  <div>
+                    <h3 className="sm-section-title">Atmósfera y Escenas de Fondo</h3>
+                    <p className="sm-section-desc">
+                      Alterna entre el modo transparente de escritorio (Desktop Mate), fondos cinemáticos nativos y tus fondos instalados de Wallpaper Engine.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="sm-action-btn"
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '0.72rem' }}
+                    onClick={async () => {
+                      soundFxService.playClick();
+                      setIsScanningWpe(true);
+                      await wallpaperEngineService.scan();
+                      setAvailableScenes(sceneManager.getAvailableScenes());
+                      setIsScanningWpe(false);
+                      toastService.success('Wallpaper Engine', 'Librería de fondos sincronizada.');
+                    }}
+                    disabled={isScanningWpe}
+                  >
+                    <RotateCw size={13} className={isScanningWpe ? 'spin' : ''} />
+                    <span>{isScanningWpe ? 'Escaneando...' : 'Escanear Wallpaper Engine'}</span>
+                  </button>
+                </div>
+
+                {/* Filter Pills */}
+                <div className="sm-filter-pills" style={{ display: 'flex', gap: '6px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className={`sm-filter-pill ${sceneFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => setSceneFilter('all')}
+                  >
+                    Todos ({availableScenes.length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`sm-filter-pill ${sceneFilter === 'builtin' ? 'active' : ''}`}
+                    onClick={() => setSceneFilter('builtin')}
+                  >
+                    Nativos & Cinemáticos
+                  </button>
+                  <button
+                    type="button"
+                    className={`sm-filter-pill ${sceneFilter === 'wallpaper_engine' ? 'active' : ''}`}
+                    onClick={() => setSceneFilter('wallpaper_engine')}
+                  >
+                    Wallpaper Engine ({availableScenes.filter(s => s.category === 'wallpaper_engine').length})
+                  </button>
                 </div>
 
                 <div className="sm-avatar-grid">
-                  {BACKGROUND_SCENES.map((scene) => {
-                    const isSelected = sceneId === scene.id;
-                    return (
-                      <div
-                        key={scene.id}
-                        onClick={() => {
-                          soundFxService.playClick();
-                          setSceneId(scene.id);
-                          sceneManager.setScene(scene.id, customSceneUrl);
-                        }}
-                        className={`sm-avatar-card ${isSelected ? 'selected' : ''}`}
-                      >
-                        <div className="sm-avatar-card-header">
-                          <div className="sm-avatar-card-title-group">
-                            <span className="sm-avatar-card-name">{scene.name}</span>
-                            <span className="sm-badge sm-badge-tag sm-badge-small">{scene.category.toUpperCase()}</span>
+                  {availableScenes
+                    .filter((scene) => {
+                      if (sceneFilter === 'builtin') return scene.category !== 'wallpaper_engine';
+                      if (sceneFilter === 'wallpaper_engine') return scene.category === 'wallpaper_engine';
+                      return true;
+                    })
+                    .map((scene) => {
+                      const isSelected = sceneId === scene.id;
+                      const isWpe = scene.category === 'wallpaper_engine';
+                      return (
+                        <div
+                          key={scene.id}
+                          onClick={() => {
+                            soundFxService.playClick();
+                            setSceneId(scene.id);
+                            sceneManager.setScene(scene.id, scene.mainPath || customSceneUrl);
+                          }}
+                          className={`sm-avatar-card ${isSelected ? 'selected' : ''}`}
+                        >
+                          {/* Optional WPE Thumbnail Banner */}
+                          {scene.previewPath && (
+                            <div
+                              className="sm-scene-card-preview"
+                              style={{
+                                width: '100%',
+                                height: '80px',
+                                borderRadius: '3px',
+                                marginBottom: '8px',
+                                backgroundImage: `url(${scene.previewPath})`,
+                                backgroundSize: 'cover',
+                                backgroundPosition: 'center',
+                                border: '1px dotted rgba(255,255,255,0.1)'
+                              }}
+                            />
+                          )}
+
+                          <div className="sm-avatar-card-header">
+                            <div className="sm-avatar-card-title-group">
+                              <span className="sm-avatar-card-name">{scene.name}</span>
+                              <span className={`sm-badge sm-badge-tag sm-badge-small ${isWpe ? 'sm-badge-recommended' : ''}`}>
+                                {isWpe ? 'WPE' : scene.category.toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="sm-model-radio">
+                              {isSelected ? (
+                                <div className="sm-radio-selected" />
+                              ) : (
+                                <div className="sm-radio-empty" />
+                              )}
+                            </div>
                           </div>
-                          <div className="sm-model-radio">
-                            {isSelected ? (
-                              <div className="sm-radio-selected" />
-                            ) : (
-                              <div className="sm-radio-empty" />
-                            )}
-                          </div>
+                          <p className="sm-avatar-card-desc">{scene.description}</p>
                         </div>
-                        <p className="sm-avatar-card-desc">{scene.description}</p>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                 </div>
 
                 {sceneId === 'custom_wallpaper' && (

@@ -60,7 +60,6 @@ export class WallpaperEngineService {
     if (this.hasAutoScanned) return this.wallpapers;
     this.hasAutoScanned = true;
 
-    // If cache exists and has items, return immediately and do non-blocking background refresh
     if (this.wallpapers.length > 0) {
       this.scanInBackground();
       return this.wallpapers;
@@ -74,27 +73,53 @@ export class WallpaperEngineService {
       try {
         await this.scan();
       } catch (_) {}
-    }, 2000);
+    }, 1500);
   }
 
   /**
-   * Full scan of Wallpaper Engine projects
+   * Full scan of Wallpaper Engine projects across Steam libraries
    */
   async scan() {
     if (this.isScanning) return this.wallpapers;
     this.isScanning = true;
 
     try {
+      let results = [];
+
+      // 1. Try Native Electron IPC Scanner
       if (typeof window !== 'undefined' && window.electronAPI?.scanWallpaperEngine) {
-        const results = await window.electronAPI.scanWallpaperEngine();
-        if (Array.isArray(results) && results.length > 0) {
-          this.wallpapers = results;
-          this.saveCachedWallpapers(results);
-          logger.info('SCENE', `Wallpaper Engine detectado: ${results.length} fondos importados.`);
-          this.notify();
-          eventBus.emit(EVENTS.WPE_WALLPAPERS_UPDATED, results);
-          return results;
-        }
+        try {
+          const rawResults = await window.electronAPI.scanWallpaperEngine();
+          if (Array.isArray(rawResults) && rawResults.length > 0) {
+            results = rawResults.map(item => ({
+              ...item,
+              mainPath: item.mainPath ? `/__wpe_media?path=${encodeURIComponent(item.mainPath.replace(/^file:\/\/\//, ''))}` : item.mainPath,
+              previewPath: item.previewPath ? `/__wpe_media?path=${encodeURIComponent(item.previewPath.replace(/^file:\/\/\//, ''))}` : item.previewPath
+            }));
+          }
+        } catch (_) {}
+      }
+
+      // 2. Fallback to Vite Dev Server Scanner
+      if (results.length === 0 && typeof window !== 'undefined' && window.fetch) {
+        try {
+          const response = await fetch('/__wpe_scan');
+          if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data) && data.length > 0) {
+              results = data;
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (results.length > 0) {
+        this.wallpapers = results;
+        this.saveCachedWallpapers(results);
+        logger.info('SCENE', `Wallpaper Engine detectado: ${results.length} fondos indexados.`);
+        this.notify();
+        eventBus.emit(EVENTS.WPE_WALLPAPERS_UPDATED, results);
+        return results;
       }
     } catch (err) {
       logger.warn('SCENE', `Error escaneando Wallpaper Engine: ${err.message}`);
