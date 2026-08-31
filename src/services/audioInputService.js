@@ -78,6 +78,18 @@ export class AudioInputService {
     this.rollingBufferSize = 16000 * 4;
     this.rollingBuffer = new Float32Array(this.rollingBufferSize);
     this.rollingBufferIndex = 0;
+    this._processedChunksCount = 0;
+  }
+
+  getTelemetry() {
+    return {
+      isRecording: this.isRecording,
+      processorType: this.workletNode ? 'AudioWorklet (Low Latency)' : 'ScriptProcessor (Fallback)',
+      sampleRate: this.audioContext?.sampleRate || 0,
+      targetRate: this.targetSampleRate,
+      hpfEnabled: !!this.hpfFilterNode,
+      processedChunksCount: this._processedChunksCount
+    };
   }
 
   async start() {
@@ -191,6 +203,8 @@ export class AudioInputService {
     this.rollingBufferIndex = (this.rollingBufferIndex + resampledData.length) % this.rollingBufferSize;
 
     this.onRawPCMChunk(resampledData);
+
+    this._processedChunksCount++;
 
     // Convert Float32Array to 16-bit Int PCM Little Endian
     const pcm16Buffer = this.floatTo16BitPCM(resampledData);

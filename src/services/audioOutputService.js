@@ -35,6 +35,15 @@ export class AudioOutputService {
     });
   }
 
+  getTelemetry() {
+    return {
+      isPlaying: this.isPlaying,
+      activeSourcesCount: this.activeSources.length,
+      sampleRate: this.sampleRate,
+      jitterLeadTimeMs: Math.round(this.jitterLeadTime * 1000)
+    };
+  }
+
   initContext() {
     if (!this.audioContext || this.audioContext.state === 'closed') {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
