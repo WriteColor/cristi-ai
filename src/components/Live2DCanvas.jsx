@@ -624,7 +624,7 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
         adapterRef.current = null;
       }
       if (model) {
-        try { model.destroy(); } catch (_) {}
+        try { model.destroy({ children: true, texture: true, baseTexture: true }); } catch (_) {}
         modelRef.current = null;
       }
       if (app) {
@@ -634,7 +634,10 @@ export const Live2DCanvas = forwardRef(function Live2DCanvas(
             app.view.removeEventListener('webglcontextlost', onContextLost);
             app.view.removeEventListener('webglcontextrestored', onContextRestored);
           }
-          app.destroy(true, { children: true, texture: false, baseTexture: false });
+          app.destroy(true, { children: true, texture: true, baseTexture: true });
+          if (PIXI.utils?.clearTextureCache) {
+            PIXI.utils.clearTextureCache();
+          }
         } catch (_) {}
         pixiAppRef.current = null;
       }
