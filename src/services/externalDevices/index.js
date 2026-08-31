@@ -1,1 +1,2 @@
-export { ExternalDeviceManager, externalDeviceManager } from './ExternalDeviceManager';
+export { ExternalDeviceManager, externalDeviceManager } from './ExternalDeviceManager.js';
+

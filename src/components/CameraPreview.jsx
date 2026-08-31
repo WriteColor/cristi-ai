@@ -13,7 +13,7 @@ import {
   Zap,
   Sliders
 } from 'lucide-react';
-import { useClickThrough } from '../hooks/useClickThrough';
+import { useClickThrough } from '../hooks/useClickThrough.js';
 
 /**
  * Cristi AI - Sensory Camera Preview with Windows Hello IR support & Multi-Sample Face Enrollment

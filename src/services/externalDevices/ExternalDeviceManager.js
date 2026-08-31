@@ -4,8 +4,8 @@
  * and smart actuators (RGB lights, buzzers) communicating via EventBus.
  */
 
-import { eventBus, EVENTS } from '../eventBus';
-import { logger } from '../logger';
+import { eventBus, EVENTS } from '../eventBus.js';
+import { logger } from '../logger.js';
 
 export class ExternalDeviceManager {
   constructor() {

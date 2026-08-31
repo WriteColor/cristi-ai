@@ -280,10 +280,15 @@ function registerGlobalShortcuts() {
 
 // ── System Tray ─────────────────────────────────────────────────────────────
 function createTray() {
-  const iconPath = path.join(__dirname, '../resources/icons/icon_16.png');
+  const trayIconCandidates = [
+    path.join(__dirname, '../resources/icons/tray-icon.png'),
+    path.join(__dirname, '../public/tray-icon.png'),
+    path.join(__dirname, '../resources/icons/icon.png')
+  ];
+  let iconPath = trayIconCandidates.find((p) => fs.existsSync(p)) || '';
   let icon;
   try {
-    icon = fs.existsSync(iconPath)
+    icon = iconPath
       ? nativeImage.createFromPath(iconPath)
       : nativeImage.createEmpty();
   } catch (e) {

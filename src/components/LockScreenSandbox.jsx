@@ -24,10 +24,10 @@ import {
   MessageSquare,
   Sliders
 } from 'lucide-react';
-import { lockScreenService } from '../services/desktop/LockScreenService';
-import { eventBus, EVENTS } from '../services/eventBus';
-import { useClickThrough } from '../hooks/useClickThrough';
-import { soundFxService } from '../services/soundFxService';
+import { lockScreenService } from '../services/desktop/LockScreenService.js';
+import { eventBus, EVENTS } from '../services/eventBus.js';
+import { useClickThrough } from '../hooks/useClickThrough.js';
+import { soundFxService } from '../services/soundFxService.js';
 
 const WALLPAPERS = [
   { id: 'aurora', name: 'Win11 Aurora Bloom', gradient: 'radial-gradient(ellipse at top, #1e1b4b 0%, #0f172a 45%, #020617 100%)' },

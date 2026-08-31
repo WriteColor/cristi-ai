@@ -22,10 +22,10 @@ import {
   UserX,
   HelpCircle
 } from 'lucide-react';
-import { speakerRecognitionService } from '../services/audio/SpeakerRecognitionService';
-import { logger } from '../services/logger';
-import { useClickThrough } from '../hooks/useClickThrough';
-import { soundFxService } from '../services/soundFxService';
+import { speakerRecognitionService } from '../services/audio/SpeakerRecognitionService.js';
+import { logger } from '../services/logger.js';
+import { useClickThrough } from '../hooks/useClickThrough.js';
+import { soundFxService } from '../services/soundFxService.js';
 
 const ENROLLMENT_PHRASES = [
   {

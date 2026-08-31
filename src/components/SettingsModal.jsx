@@ -25,13 +25,13 @@ import {
   Download,
   Upload
 } from 'lucide-react';
-import { GEMINI_MODELS, DEFAULT_MODEL_ID } from '../config/models';
-import { GEMINI_STANDARD_VOICES } from '../config/voices';
-import { live2dModelRegistry } from '../services/live2d';
-import { useClickThrough } from '../hooks/useClickThrough';
-import { soundFxService } from '../services/soundFxService';
-import { configManager } from '../services/configManager';
-import { toastService } from '../services/toastService';
+import { GEMINI_MODELS, DEFAULT_MODEL_ID } from '../config/models.js';
+import { GEMINI_STANDARD_VOICES } from '../config/voices.js';
+import { live2dModelRegistry } from '../services/live2d/index.js';
+import { useClickThrough } from '../hooks/useClickThrough.js';
+import { soundFxService } from '../services/soundFxService.js';
+import { configManager } from '../services/configManager.js';
+import { toastService } from '../services/toastService.js';
 
 /**
  * Predefined System Prompt Presets for Quick Persona Switching

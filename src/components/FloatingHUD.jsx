@@ -16,9 +16,9 @@ import {
   User,
   EyeOff
 } from 'lucide-react';
-import { getModelDisplayName } from '../config/models';
-import { useClickThrough } from '../hooks/useClickThrough';
-import { soundFxService } from '../services/soundFxService';
+import { getModelDisplayName } from '../config/models.js';
+import { useClickThrough } from '../hooks/useClickThrough.js';
+import { soundFxService } from '../services/soundFxService.js';
 
 /**
  * Cristi AI - Cyberpunk Tactical HUD Dock & Status Bar

@@ -10,7 +10,7 @@ import {
   X
 } from 'lucide-react';
 import { toastService } from '../services/toastService.js';
-import { useClickThrough } from '../hooks/useClickThrough';
+import { useClickThrough } from '../hooks/useClickThrough.js';
 
 const TYPE_ICONS = {
   info: Info,

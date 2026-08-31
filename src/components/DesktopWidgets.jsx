@@ -10,8 +10,8 @@ import {
   Calendar,
   AlertCircle
 } from 'lucide-react';
-import { eventBus, EVENTS } from '../services/eventBus';
-import { useClickThrough } from '../hooks/useClickThrough';
+import { eventBus, EVENTS } from '../services/eventBus.js';
+import { useClickThrough } from '../hooks/useClickThrough.js';
 
 const STORAGE_KEY_CRISTI_WIDGETS = 'cristi_ai_active_widgets';
 

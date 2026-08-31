@@ -26,12 +26,12 @@ import {
   ShieldCheck,
   Lock as LockIcon
 } from 'lucide-react';
-import { live2dModelRegistry } from '../services/live2d';
-import { GEMINI_MODELS } from '../config/models';
-import { GEMINI_STANDARD_VOICES } from '../config/voices';
-import { useClickThrough } from '../hooks/useClickThrough';
-import { electronBridge } from '../services/desktop/ElectronBridge';
-import { soundFxService } from '../services/soundFxService';
+import { live2dModelRegistry } from '../services/live2d/index.js';
+import { GEMINI_MODELS } from '../config/models.js';
+import { GEMINI_STANDARD_VOICES } from '../config/voices.js';
+import { useClickThrough } from '../hooks/useClickThrough.js';
+import { electronBridge } from '../services/desktop/ElectronBridge.js';
+import { soundFxService } from '../services/soundFxService.js';
 
 /**
  * Human-friendly metadata dictionary for Live2D expressions

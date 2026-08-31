@@ -4,8 +4,8 @@
  * and conversational companion reactions without bypassing authentication or DRM.
  */
 
-import { eventBus, EVENTS } from '../eventBus';
-import { logger } from '../logger';
+import { eventBus, EVENTS } from '../eventBus.js';
+import { logger } from '../logger.js';
 
 export class GameIntegrationManager {
   constructor() {

@@ -1,1 +1,2 @@
-export { useClickThrough } from './useClickThrough';
+export { useClickThrough } from './useClickThrough.js';
+

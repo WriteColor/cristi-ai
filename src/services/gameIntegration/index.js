@@ -1,1 +1,2 @@
-export { GameIntegrationManager, gameIntegrationManager } from './GameIntegrationManager';
+export { GameIntegrationManager, gameIntegrationManager } from './GameIntegrationManager.js';
+

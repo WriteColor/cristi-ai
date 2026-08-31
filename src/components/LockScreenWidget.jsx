@@ -9,8 +9,8 @@ import {
   Sparkles,
   ExternalLink
 } from 'lucide-react';
-import { lockScreenService } from '../services/desktop/LockScreenService';
-import { useClickThrough } from '../hooks/useClickThrough';
+import { lockScreenService } from '../services/desktop/LockScreenService.js';
+import { useClickThrough } from '../hooks/useClickThrough.js';
 
 /**
  * Cristi AI - Specialized Windows 11 Lock Screen Tactical Widget

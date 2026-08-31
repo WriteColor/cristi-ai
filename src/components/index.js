@@ -3,18 +3,18 @@
  * Provides both named and default exports for maximum compatibility
  */
 
-export { Live2DCanvas } from './Live2DCanvas';
-export { FloatingHUD } from './FloatingHUD';
-export { SettingsModal } from './SettingsModal';
-export { ContextMenu } from './ContextMenu';
-export { CameraPreview } from './CameraPreview';
-export { ScreenRegionPicker } from './ScreenRegionPicker';
-export { ScreenRegionOverlay } from './ScreenRegionOverlay';
-export { SubtitleOverlay } from './SubtitleOverlay';
-export { ErrorBoundary } from './ErrorBoundary';
-export { ToastContainer } from './ToastContainer';
-export { DesktopWidgets } from './DesktopWidgets';
-export { LockScreenWidget } from './LockScreenWidget';
-export { LockScreenSandbox } from './LockScreenSandbox';
-export { VoiceEnrollmentModal } from './VoiceEnrollmentModal';
-export { SpeakerDiagnosticsHUD } from './SpeakerDiagnosticsHUD';
+export { Live2DCanvas } from './Live2DCanvas.jsx';
+export { FloatingHUD } from './FloatingHUD.jsx';
+export { SettingsModal } from './SettingsModal.jsx';
+export { ContextMenu } from './ContextMenu.jsx';
+export { CameraPreview } from './CameraPreview.jsx';
+export { ScreenRegionPicker } from './ScreenRegionPicker.jsx';
+export { ScreenRegionOverlay } from './ScreenRegionOverlay.jsx';
+export { SubtitleOverlay } from './SubtitleOverlay.jsx';
+export { ErrorBoundary } from './ErrorBoundary.jsx';
+export { ToastContainer } from './ToastContainer.jsx';
+export { DesktopWidgets } from './DesktopWidgets.jsx';
+export { LockScreenWidget } from './LockScreenWidget.jsx';
+export { LockScreenSandbox } from './LockScreenSandbox.jsx';
+export { VoiceEnrollmentModal } from './VoiceEnrollmentModal.jsx';
+export { SpeakerDiagnosticsHUD } from './SpeakerDiagnosticsHUD.jsx';

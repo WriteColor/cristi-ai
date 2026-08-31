@@ -15,7 +15,7 @@ import {
   LockScreenSandbox,
   VoiceEnrollmentModal,
   SpeakerDiagnosticsHUD
-} from './components';
+} from './components/index.js';
 import {
   eventBus,
   EVENTS,
@@ -39,13 +39,13 @@ import {
   toast,
   toastService,
   logger
-} from './services';
+} from './services/index.js';
 import {
   DEFAULT_MODEL_ID,
   SYSTEM_PERSONA_PROMPT,
   GEMINI_MODELS,
   getScreenCaptureFPS
-} from './config';
+} from './config/index.js';
 
 const STORAGE_KEY_CONFIG = 'cristi_ai_settings_v1';
 const STORAGE_KEY_VIEWMODE = 'cristi_ai_viewmode_v1';

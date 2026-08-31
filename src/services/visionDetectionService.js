@@ -16,8 +16,8 @@ import * as tf from '@tensorflow/tfjs-core';
 import { loadGraphModel } from '@tensorflow/tfjs-converter';
 import * as faceapi from '@vladmandic/face-api';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
-import { VISION_CONFIG } from '../config/visionConfig';
-import { logger } from './logger';
+import { VISION_CONFIG } from '../config/visionConfig.js';
+import { logger } from './logger.js';
 
 const STORAGE_OWNER_SAMPLES = 'cristi_ai_owner_samples_v2';
 const STORAGE_OWNER_NAME = 'cristi_ai_owner_name_v2';

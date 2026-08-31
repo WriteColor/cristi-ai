@@ -6,8 +6,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Shield, ShieldAlert, ShieldCheck, Activity, User, UserX, Sliders } from 'lucide-react';
-import { speakerRecognitionService } from '../services/audio/SpeakerRecognitionService';
-import { useClickThrough } from '../hooks/useClickThrough';
+import { speakerRecognitionService } from '../services/audio/SpeakerRecognitionService.js';
+import { useClickThrough } from '../hooks/useClickThrough.js';
 
 export function SpeakerDiagnosticsHUD({ onOpenEnrollment }) {
   const [telemetry, setTelemetry] = useState(() => ({

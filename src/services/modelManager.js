@@ -4,8 +4,8 @@
  * and ensures vision & speaker recognition models are ready for offline inference.
  */
 
-import { logger } from './logger';
-import { eventBus, EVENTS } from './eventBus';
+import { logger } from './logger.js';
+import { eventBus, EVENTS } from './eventBus.js';
 
 export const AI_MODELS_REGISTRY = {
   // 1. Face Detection & Recognition Models (Face-API)

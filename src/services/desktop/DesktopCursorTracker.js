@@ -12,7 +12,7 @@
  * 5. Window Blur / Out-of-bounds Directional Memory & Organic Saccades.
  */
 
-import { eventBus, EVENTS } from '../eventBus';
+import { eventBus, EVENTS } from '../eventBus.js';
 
 export class DesktopCursorTracker {
   constructor() {
