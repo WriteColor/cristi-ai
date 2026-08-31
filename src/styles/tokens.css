@@ -1,0 +1,67 @@
+/**
+ * Cristi AI - Three-Layer Design Tokens (Design System)
+ * Layer 1: Primitive Tokens (Raw HSL / Hex / Typography / Spacing)
+ * Layer 2: Semantic Tokens (Purpose Aliases for Themes & Dark Mode)
+ * Layer 3: Component Tokens (Component-Specific Styling)
+ */
+
+:root {
+  /* ── 1. PRIMITIVE TOKENS ─────────────────────────────────────────────────── */
+  --primitive-purple-500: #a855f7;
+  --primitive-purple-600: #9333ea;
+  --primitive-purple-700: #7e22ce;
+  --primitive-cyan-400: #38bdf8;
+  --primitive-cyan-500: #06b6d4;
+  --primitive-emerald-400: #34d399;
+  --primitive-rose-500: #f43f5e;
+  --primitive-amber-400: #fbbf24;
+
+  --primitive-obsidian-950: #030308;
+  --primitive-obsidian-900: #070712;
+  --primitive-obsidian-850: #0c0d1c;
+  --primitive-obsidian-800: #121426;
+  --primitive-obsidian-700: #1b1e36;
+
+  --primitive-font-main: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  --primitive-font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+
+  /* ── 2. SEMANTIC TOKENS ─────────────────────────────────────────────────── */
+  --bg-primary: var(--primitive-obsidian-900);
+  --bg-surface: var(--primitive-obsidian-850);
+  --bg-surface-glass: rgba(12, 13, 28, 0.85);
+  --bg-surface-hover: var(--primitive-obsidian-800);
+  --bg-surface-active: var(--primitive-obsidian-700);
+
+  --accent-primary: var(--primitive-purple-500);
+  --accent-secondary: var(--primitive-cyan-400);
+  --accent-success: var(--primitive-emerald-400);
+  --accent-danger: var(--primitive-rose-500);
+  --accent-warning: var(--primitive-amber-400);
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-accent: rgba(168, 85, 247, 0.35);
+  --border-active: var(--primitive-purple-500);
+
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-accent: var(--primitive-purple-500);
+
+  --glow-primary: 0 0 20px rgba(168, 85, 247, 0.4);
+  --glow-cyan: 0 0 20px rgba(56, 189, 248, 0.4);
+  --glow-success: 0 0 20px rgba(52, 211, 153, 0.4);
+
+  /* ── 3. COMPONENT TOKENS ─────────────────────────────────────────────────── */
+  --hud-bg: rgba(7, 7, 18, 0.88);
+  --hud-border: 1px solid rgba(168, 85, 247, 0.25);
+  --hud-shadow: 0 10px 30px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  --hud-radius: 12px;
+
+  --dropdown-bg: rgba(10, 11, 24, 0.95);
+  --dropdown-border: 1px solid rgba(168, 85, 247, 0.3);
+  --dropdown-hover: rgba(168, 85, 247, 0.15);
+  --dropdown-selected: rgba(168, 85, 247, 0.25);
+
+  --scene-viewport-bg: #000000;
+  --scene-overlay-gradient: radial-gradient(circle at 50% 50%, transparent 60%, rgba(0, 0, 0, 0.35) 100%);
+}

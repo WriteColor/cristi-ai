@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { sceneManager } from '../services/sceneManager.js';
+import { WpeSceneCanvas } from '../modules/scenes/wpe/WpeSceneCanvas.jsx';
 
 export function BackgroundScene() {
   const [sceneState, setSceneState] = useState(sceneManager.getScene());
@@ -138,11 +139,9 @@ export function BackgroundScene() {
             title="Wallpaper Engine Web Scene"
           />
         ) : (
-          <img
+          <WpeSceneCanvas
             key={customUrl}
-            src={customUrl}
-            alt="Wallpaper Engine Scene"
-            className="scene-media-element scene-media-contain scene-image-element"
+            imageUrl={customUrl}
           />
         )}
         <div className="scene-ambient-overlay" />
