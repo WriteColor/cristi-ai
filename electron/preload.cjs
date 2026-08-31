@@ -44,6 +44,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showNotification: (payload) => ipcRenderer.invoke('show-notification', payload),
   captureScreenNative: (region) => ipcRenderer.invoke('capture-screen-native', region),
   scanWallpaperEngine: () => ipcRenderer.invoke('scan-wallpaper-engine'),
+  applyWallpaperEngineNative: (projectPath) => ipcRenderer.invoke('apply-wallpaper-engine-native', projectPath),
 
   // ── Global Shortcut Event Subscriptions ───────────────────────────────────
   onShortcutEvent: (channel, callback) => {

@@ -1,8 +1,8 @@
 /**
  * Cristi AI - Wallpaper Engine WebGL Shader Engine
  * High-performance GPU shader pipeline for executing animated Wallpaper Engine effects
- * (foliage sway, water flow, water waves, ripple, character breathing, light shafts, fireflies)
- * Runs at native 60-120+ FPS with zero CPU overhead.
+ * (fireflies, light shafts, atmospheric glowing spores, ambient breathing)
+ * Runs at native 60-120+ FPS with zero CPU overhead, pin-sharp 100% crystal clear quality.
  */
 
 export class WpeShaderEngine {
@@ -18,12 +18,12 @@ export class WpeShaderEngine {
 
     this.programs = new Map();
     this.textures = new Map();
-    this.layers = [];
     this.particles = [];
     this.startTime = performance.now();
     this.animationFrameId = null;
     this.isRunning = false;
     this.quadBuffer = null;
+    this.sourceImage = null;
 
     this.initQuad();
     this.initDefaultShaders();
@@ -31,6 +31,7 @@ export class WpeShaderEngine {
 
   initQuad() {
     const gl = this.gl;
+    // Standard normalized screen quad
     const vertices = new Float32Array([
       -1, -1,  0, 0,
        1, -1,  1, 0,
@@ -79,56 +80,63 @@ export class WpeShaderEngine {
   }
 
   initDefaultShaders() {
-    // ── Universal Base Vertex Shader ───────────────────────────────────────────
+    // ── 1. Base Pristine Quad Vertex Shader with Cover UV Calculation ──────────
     const baseVert = `
       precision highp float;
       attribute vec2 a_Position;
       attribute vec2 a_TexCoord;
       varying vec2 v_TexCoord;
+      uniform vec2 u_Resolution;
+      uniform vec2 u_ImageResolution;
 
       void main() {
-        v_TexCoord = a_TexCoord;
+        // Calculate aspect-ratio cover UVs so image is never stretched or distorted
+        vec2 screenRatio = u_Resolution;
+        vec2 imgRatio = u_ImageResolution;
+        
+        float sAspect = screenRatio.x / screenRatio.y;
+        float iAspect = imgRatio.x / imgRatio.y;
+
+        vec2 uv = a_TexCoord;
+        if (sAspect > iAspect) {
+          // Screen is wider than image: crop top/bottom symmetrically
+          float scale = sAspect / iAspect;
+          uv.y = (uv.y - 0.5) / scale + 0.5;
+        } else {
+          // Screen is taller than image: crop left/right symmetrically
+          float scale = iAspect / sAspect;
+          uv.x = (uv.x - 0.5) / scale + 0.5;
+        }
+
+        v_TexCoord = uv;
         gl_Position = vec4(a_Position, 0.0, 1.0);
       }
     `;
 
-    // ── 1. Foliage Sway & Character Breathing Composite Shader ─────────────────
-    const foliageFrag = `
+    // ── 2. Pristine HD Composite Fragment Shader (Zero Distortion) ─────────────
+    const baseFrag = `
       precision highp float;
       varying vec2 v_TexCoord;
       uniform sampler2D u_MainTexture;
       uniform float u_Time;
-      uniform vec2 u_Resolution;
-      uniform float u_SwayStrength;
-      uniform float u_SwaySpeed;
-      uniform float u_WaterFlow;
 
       void main() {
         vec2 uv = v_TexCoord;
-        
-        // Organic wind sway for grass, hair, flowers, character clothing
-        float windX = sin(u_Time * (u_SwaySpeed * 0.8) + uv.y * 5.0) * (u_SwayStrength * 0.008) * (1.0 - uv.y * 0.5);
-        float windY = cos(u_Time * (u_SwaySpeed * 0.6) + uv.x * 4.0) * (u_SwayStrength * 0.004) * (1.0 - uv.y * 0.5);
+        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+          discard;
+        }
 
-        // Water wave shimmer on bottom half (lake/reflections)
-        float isWater = smoothstep(0.7, 0.35, uv.y);
-        float waterDistort = sin(uv.y * 40.0 + u_Time * 2.5) * 0.003 * isWater * u_WaterFlow;
-        float waterDistortX = cos(uv.x * 30.0 + u_Time * 1.8) * 0.002 * isWater * u_WaterFlow;
+        vec4 color = texture2D(u_MainTexture, uv);
 
-        vec2 finalUV = uv + vec2(windX + waterDistortX, windY + waterDistort);
-
-        // Subtle ambient atmospheric glow / sun shaft pulse
-        vec4 color = texture2D(u_MainTexture, finalUV);
-        
-        // Soft sun rays gradient on top-left
-        float sunRays = smoothstep(0.0, 1.0, 1.0 - length(uv - vec2(0.15, 0.95))) * 0.08 * (1.0 + 0.15 * sin(u_Time * 0.8));
-        color.rgb += vec3(0.9, 0.95, 1.0) * sunRays;
+        // Subtle atmospheric god-ray pulse on top corner (100% natural, non-distorting)
+        float sunRays = smoothstep(0.0, 1.2, 1.0 - length(uv - vec2(0.1, 0.9))) * 0.04 * (1.0 + 0.2 * sin(u_Time * 0.7));
+        color.rgb += vec3(1.0, 0.98, 0.9) * sunRays;
 
         gl_FragColor = color;
       }
     `;
 
-    // ── 2. Cinematic Particles & Fireflies Shader ──────────────────────────────
+    // ── 3. Cinematic Atmospheric Floating Spores & Fireflies ───────────────────
     const particleVert = `
       precision highp float;
       attribute vec2 a_Position;
@@ -152,11 +160,11 @@ export class WpeShaderEngine {
         float dist = length(coord);
         if (dist > 0.5) discard;
         float glow = smoothstep(0.5, 0.0, dist);
-        gl_FragColor = vec4(0.85, 1.0, 0.75, v_Alpha * glow);
+        gl_FragColor = vec4(0.85, 1.0, 0.8, v_Alpha * glow * 0.8);
       }
     `;
 
-    this.createProgram('foliage', baseVert, foliageFrag);
+    this.createProgram('base', baseVert, baseFrag);
     this.createProgram('particle', particleVert, particleFrag);
   }
 
@@ -164,8 +172,12 @@ export class WpeShaderEngine {
     const gl = this.gl;
     if (!gl) return null;
 
+    this.sourceImage = sourceImage;
     const texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
+
+    // FLIP Y axis so DOM images are right-side up in WebGL coordinates!
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -183,10 +195,10 @@ export class WpeShaderEngine {
       this.particles.push({
         x: Math.random() * 2 - 1,
         y: Math.random() * 2 - 1,
-        speedX: (Math.random() - 0.5) * 0.002,
-        speedY: (Math.random() * 0.003) + 0.001,
-        size: Math.random() * 12 + 6,
-        baseAlpha: Math.random() * 0.6 + 0.2,
+        speedX: (Math.random() - 0.5) * 0.0015,
+        speedY: (Math.random() * 0.002) + 0.0008,
+        size: Math.random() * 10 + 5,
+        baseAlpha: Math.random() * 0.5 + 0.2,
         freq: Math.random() * 2 + 1,
         phase: Math.random() * Math.PI * 2
       });
@@ -231,14 +243,14 @@ export class WpeShaderEngine {
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    // ── Pass 1: Render Foliage Sway & Water Flow Animated Layer ────────────────
-    const foliageProg = this.programs.get('foliage');
-    if (foliageProg) {
-      gl.useProgram(foliageProg);
+    // ── Pass 1: Render Pristine Full-HD Scene Quad (Cover aspect ratio) ─────────
+    const baseProg = this.programs.get('base');
+    if (baseProg) {
+      gl.useProgram(baseProg);
 
       gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
-      const aPos = gl.getAttribLocation(foliageProg, 'a_Position');
-      const aTex = gl.getAttribLocation(foliageProg, 'a_TexCoord');
+      const aPos = gl.getAttribLocation(baseProg, 'a_Position');
+      const aTex = gl.getAttribLocation(baseProg, 'a_TexCoord');
 
       gl.enableVertexAttribArray(aPos);
       gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 16, 0);
@@ -248,13 +260,14 @@ export class WpeShaderEngine {
 
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.textures.get('main'));
-      gl.uniform1i(gl.getUniformLocation(foliageProg, 'u_MainTexture'), 0);
+      gl.uniform1i(gl.getUniformLocation(baseProg, 'u_MainTexture'), 0);
 
-      gl.uniform1f(gl.getUniformLocation(foliageProg, 'u_Time'), currentTime);
-      gl.uniform2f(gl.getUniformLocation(foliageProg, 'u_Resolution'), this.canvas.width, this.canvas.height);
-      gl.uniform1f(gl.getUniformLocation(foliageProg, 'u_SwayStrength'), 1.25);
-      gl.uniform1f(gl.getUniformLocation(foliageProg, 'u_SwaySpeed'), 1.0);
-      gl.uniform1f(gl.getUniformLocation(foliageProg, 'u_WaterFlow'), 1.0);
+      gl.uniform1f(gl.getUniformLocation(baseProg, 'u_Time'), currentTime);
+      gl.uniform2f(gl.getUniformLocation(baseProg, 'u_Resolution'), this.canvas.width, this.canvas.height);
+
+      const imgWidth = this.sourceImage ? this.sourceImage.naturalWidth || this.sourceImage.width : 1920;
+      const imgHeight = this.sourceImage ? this.sourceImage.naturalHeight || this.sourceImage.height : 1080;
+      gl.uniform2f(gl.getUniformLocation(baseProg, 'u_ImageResolution'), imgWidth, imgHeight);
 
       gl.drawArrays(gl.TRIANGLES, 0, 6);
     }

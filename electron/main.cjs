@@ -404,6 +404,20 @@ ipcMain.handle('scan-wallpaper-engine', async () => {
   return results;
 });
 
+// ── Native Wallpaper Engine CLI Bridge ──────────────────────────────────────
+ipcMain.handle('apply-wallpaper-engine-native', async (event, projectPath) => {
+  const wpeExe = 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\wallpaper_engine\\wallpaper64.exe';
+  if (fs.existsSync(wpeExe) && projectPath) {
+    try {
+      exec(`"${wpeExe}" -control openWallpaper -file "${projectPath}" -playAudio false`);
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  }
+  return { success: false, error: 'Wallpaper Engine executable not found' };
+});
+
 // ── Global Shortcuts Registration ───────────────────────────────────────────
 function registerGlobalShortcuts() {
   try {
