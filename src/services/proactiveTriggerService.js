@@ -61,33 +61,14 @@ export class ProactiveTriggerService {
         return false;
       },
       action: ({ period }) => {
-        const greetings = {
-          morning: {
-            title: '☀️ ¡Buenos días!',
-            message: 'Que tengas un día productivo y lleno de energía. Cristi está aquí para acompañarte.',
-            emotion: 'happy'
-          },
-          afternoon: {
-            title: '🌤️ Buenas tardes',
-            message: 'Recuerda mantener el ritmo y tomarte un respiro si lo necesitas.',
-            emotion: 'relaxed'
-          },
-          evening: {
-            title: '🌙 Buenas noches',
-            message: 'Has trabajado duro hoy. Cristi cuidará de todo mientras descansas.',
-            emotion: 'love'
-          },
-          night: {
-            title: '🌌 Madrugada tranquila',
-            message: 'Es tarde... no te desveles demasiado, tu descanso es importante.',
-            emotion: 'yandere'
-          }
+        // Adjust avatar subtle idle pose without disturbing the user with emotional toasts
+        const poses = {
+          morning: 'happy',
+          afternoon: 'relaxed',
+          evening: 'relaxed',
+          night: 'thinking'
         };
-
-        const g = greetings[period] || greetings.afternoon;
-        toastService.emotion(g.title, g.message);
-        soundFxService.playNotification();
-        contextualEmotionOrchestrator.triggerEmotion(g.emotion, 'proactive_time_of_day');
+        contextualEmotionOrchestrator.triggerEmotion(poses[period] || 'idle', 'proactive_time_of_day');
       }
     });
 
@@ -104,14 +85,13 @@ export class ProactiveTriggerService {
         return false;
       },
       action: () => {
-        toastService.info('💧 Pausa de Hidratación', 'Llevas 45 min activo. Toma un vaso de agua y estira la espalda.');
+        toastService.info('Recordatorio Ergonómico', '45 minutos de uso continuo de pantalla.');
         soundFxService.playNotification();
-        contextualEmotionOrchestrator.triggerEmotion('blush', 'proactive_ergonomics');
         eventBus.emit(EVENTS.WIDGET_TRIGGERED, {
           id: 'widget_hydration',
           type: 'reminder',
-          title: 'Hidratación & Postura',
-          message: 'Pausa recomendada: bebe un poco de agua.',
+          title: 'Recordatorio Ergonómico',
+          message: 'Pausa de 45m: se recomienda estirar o hidratarse.',
           iconName: 'Sparkles',
           color: '#38bdf8'
         });
@@ -210,15 +190,15 @@ export class ProactiveTriggerService {
       sessionsCompleted: this.focusTimer.sessionsCompleted
     };
 
-    toastService.success('🎯 Sesión de Enfoque Iniciada', `Modo trabajo activo por ${minutes} minutos. ¡Cristi cuidará tu concentración!`);
+    toastService.info('Temporizador de Enfoque', `Sesión de concentración iniciada (${minutes}m).`);
     soundFxService.playConnect();
     contextualEmotionOrchestrator.triggerEmotion('gamer', 'focus_start');
 
     eventBus.emit(EVENTS.WIDGET_TRIGGERED, {
       id: 'widget_focus_timer',
       type: 'timer',
-      title: 'Sesión de Enfoque',
-      message: `${minutes}m de concentración activa.`,
+      title: 'Temporizador de Enfoque',
+      message: `${minutes}m de trabajo activo.`,
       iconName: 'Clock',
       color: '#a855f7'
     });
@@ -234,13 +214,13 @@ export class ProactiveTriggerService {
       this.focusTimer.durationMinutes = 5;
       this.focusTimer.remainingSeconds = 5 * 60;
 
-      toastService.success('🎉 ¡Objetivo de Enfoque Cumplido!', 'Excelente trabajo. Tienes 5 minutos de descanso bien merecido.');
+      toastService.info('Temporizador de Enfoque', 'Ciclo de trabajo completado. Inicio de pausa de 5 min.');
       soundFxService.playNotification();
       contextualEmotionOrchestrator.triggerEmotion('happy', 'focus_complete');
     } else {
       this.focusTimer.active = false;
       this.focusTimer.mode = 'work';
-      toastService.info('☕ Descanso Finalizado', '¿Listo para otra sesión de enfoque o prefieres continuar libremente?');
+      toastService.info('Temporizador de Enfoque', 'Pausa finalizada.');
       soundFxService.playNotification();
     }
   }
@@ -251,7 +231,7 @@ export class ProactiveTriggerService {
   stopFocusSession() {
     this.focusTimer.active = false;
     eventBus.emit(EVENTS.WIDGET_DISMISSED, { id: 'widget_focus_timer' });
-    toastService.info('Sesión de Enfoque Cancelada');
+    toastService.info('Temporizador de Enfoque', 'Sesión detenida.');
   }
 
   /**

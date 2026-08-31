@@ -23,11 +23,14 @@ import {
   Terminal,
   Coffee,
   Download,
-  Upload
+  Upload,
+  Image as ImageIcon
 } from 'lucide-react';
 import { GEMINI_MODELS, DEFAULT_MODEL_ID } from '../config/models.js';
 import { GEMINI_STANDARD_VOICES } from '../config/voices.js';
+import { BACKGROUND_SCENES } from '../config/scenes.js';
 import { live2dModelRegistry } from '../services/live2d/index.js';
+import { sceneManager } from '../services/sceneManager.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';
 import { soundFxService } from '../services/soundFxService.js';
 import { configManager } from '../services/configManager.js';
@@ -99,12 +102,21 @@ export function SettingsModal({
   const [voiceName, setVoiceName] = useState(config.voiceName || 'Aoede');
   const [temperature, setTemperature] = useState(config.temperature ?? 0.75);
   const [systemPrompt, setSystemPrompt] = useState(config.systemPrompt || '');
+  const [sceneId, setSceneId] = useState(sceneManager.getScene().sceneId);
+  const [customSceneUrl, setCustomSceneUrl] = useState(sceneManager.getScene().customUrl);
 
   const textareaRef = useRef(null);
   const modalRef = useRef(null);
   const fileInputRef = useRef(null);
 
   const { interactiveProps } = useClickThrough();
+
+  useEffect(() => {
+    return sceneManager.onSceneChange((s) => {
+      setSceneId(s.sceneId);
+      setCustomSceneUrl(s.customUrl);
+    });
+  }, []);
 
   // Play Sound FX on open
   useEffect(() => {
@@ -217,6 +229,7 @@ export function SettingsModal({
   const navItems = [
     { id: 'model', label: 'Modelo & API', icon: Zap, subtitle: 'Motor de IA y credenciales' },
     { id: 'avatar', label: 'Avatar Live2D', icon: Smile, subtitle: 'Catálogo de 8 modelos y capacidades' },
+    { id: 'scene', label: 'Fondo & Escenas', icon: ImageIcon, subtitle: 'Escritorio transparente o cinemático' },
     { id: 'voice', label: 'Voz de Cristi', icon: Mic2, subtitle: `${GEMINI_STANDARD_VOICES.length} timbres vocales de Gemini` },
     { id: 'persona', label: 'Personalidad', icon: User, subtitle: 'Temperatura y prompt dinámico' },
   ];
@@ -483,6 +496,71 @@ export function SettingsModal({
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* TAB: SCENE & BACKGROUNDS */}
+            {activeTab === 'scene' && (
+              <div className="sm-tab-pane">
+                <div className="sm-section-header">
+                  <h3 className="sm-section-title">Atmósfera y Escenas de Fondo</h3>
+                  <p className="sm-section-desc">
+                    Alterna entre el modo transparente de escritorio (Desktop Mate) y escenarios cinemáticos o fondos personalizados de alta definición.
+                  </p>
+                </div>
+
+                <div className="sm-avatar-grid">
+                  {BACKGROUND_SCENES.map((scene) => {
+                    const isSelected = sceneId === scene.id;
+                    return (
+                      <div
+                        key={scene.id}
+                        onClick={() => {
+                          soundFxService.playClick();
+                          setSceneId(scene.id);
+                          sceneManager.setScene(scene.id, customSceneUrl);
+                        }}
+                        className={`sm-avatar-card ${isSelected ? 'selected' : ''}`}
+                      >
+                        <div className="sm-avatar-card-header">
+                          <div className="sm-avatar-card-title-group">
+                            <span className="sm-avatar-card-name">{scene.name}</span>
+                            <span className="sm-badge sm-badge-tag sm-badge-small">{scene.category.toUpperCase()}</span>
+                          </div>
+                          <div className="sm-model-radio">
+                            {isSelected ? (
+                              <div className="sm-radio-selected" />
+                            ) : (
+                              <div className="sm-radio-empty" />
+                            )}
+                          </div>
+                        </div>
+                        <p className="sm-avatar-card-desc">{scene.description}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {sceneId === 'custom_wallpaper' && (
+                  <div className="sm-field-group" style={{ marginTop: '16px' }}>
+                    <label className="sm-field-label">
+                      <ImageIcon size={14} className="sm-label-icon" />
+                      <span>URL o Ruta Local de Imagen / Video (MP4, WebM)</span>
+                    </label>
+                    <div className="sm-input-wrapper">
+                      <input
+                        type="text"
+                        className="sm-input"
+                        placeholder="https://ejemplo.com/fondo-cyberpunk.mp4"
+                        value={customSceneUrl}
+                        onChange={(e) => {
+                          setCustomSceneUrl(e.target.value);
+                          sceneManager.setScene('custom_wallpaper', e.target.value);
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

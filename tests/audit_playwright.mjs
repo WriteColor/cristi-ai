@@ -61,35 +61,66 @@ async function runAudit() {
     const hudDock = await page.$('.hud-dock');
     console.log(`  ✓ Tactical Floating HUD presente: ${!!hudDock}`);
 
-    // 3. Test Context Menu Trigger
-    console.log('\n[3/6] Probando disparo y renderizado del Menú Contextual...');
+    // 3. Test Minimalist Context Menu Trigger & Single-Accordion Behavior
+    console.log('\n[3/6] Probando Menú Contextual Minimalista y Single-Accordion...');
     await page.mouse.click(600, 400, { button: 'right' });
     await page.waitForTimeout(600);
-    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'playwright_02_context_menu.png') });
 
-    // 4. Test Settings Modal via App Event
-    console.log('\n[4/6] Probando apertura y pestañas del Modal de Ajustes...');
+    const contextMenu = await page.$('.custom-context-menu-minimal');
+    console.log(`  ✓ Menú contextual minimalista detectado: ${!!contextMenu}`);
+    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'playwright_02_context_menu_minimal.png') });
+
+    // Test clicking Category 1: Personaje
+    const avatarCatBtn = await page.$('.ctx-mini-category-btn:has-text("Personaje")');
+    if (avatarCatBtn) {
+      await avatarCatBtn.click();
+      await page.waitForTimeout(300);
+      const isAvatarOpen = await page.$eval('.ctx-mini-category:has-text("Personaje")', (el) => el.classList.contains('open'));
+      console.log(`  ✓ Acordeón "Personaje" desplegado: ${isAvatarOpen}`);
+    }
+
+    // Test clicking Category 2: Fondo & Escena (Should auto-collapse Personaje!)
+    const sceneCatBtn = await page.$('.ctx-mini-category-btn:has-text("Fondo & Escena")');
+    if (sceneCatBtn) {
+      await sceneCatBtn.click();
+      await page.waitForTimeout(300);
+      const isAvatarOpenAfter = await page.$eval('.ctx-mini-category:has-text("Personaje")', (el) => el.classList.contains('open'));
+      const isSceneOpen = await page.$eval('.ctx-mini-category:has-text("Fondo & Escena")', (el) => el.classList.contains('open'));
+      console.log(`  ✓ Auto-colapso verificado: Personaje abierto=${isAvatarOpenAfter}, Escena abierta=${isSceneOpen}`);
+      await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'playwright_02_accordion_switch.png') });
+    }
+
+    // 4. Test Background Scene Switching
+    console.log('\n[4/6] Probando activación de Escenas Cinemáticas...');
     await page.evaluate(() => {
-      // Disparar apertura de ajustes mediante evento o teclado
-      window.dispatchEvent(new CustomEvent('open-settings'));
+      // Switch to cyber_loft scene
+      const sceneSelect = document.querySelector('.ctx-drawer-select');
+      if (sceneSelect) {
+        sceneSelect.value = 'cyber_loft';
+        sceneSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
     });
     await page.waitForTimeout(600);
+    const hasSceneViewport = await page.$('.scene-viewport');
+    console.log(`  ✓ Escena cinemática renderizada: ${!!hasSceneViewport}`);
+    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'playwright_04_cinematic_scene.png') });
 
-    // Open via clicking settings button if visible or evaluate
-    const settingsOpened = await page.evaluate(() => {
+    // Close context menu with Escape
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(400);
+
+    // 5. Test Settings Modal Tabs
+    console.log('\n[5/6] Probando apertura y pestañas del Modal de Ajustes...');
+    await page.evaluate(() => {
       const btn = document.querySelector('button[title*="Ajustes"], button[title*="Configuración"], .hud-control-btn');
-      if (btn) {
-        btn.click();
-        return true;
-      }
-      return false;
+      if (btn) btn.click();
     });
-
     await page.waitForTimeout(600);
     await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'playwright_03_settings.png') });
 
-    // 5. Test Live2D Model Registry & Switching
-    console.log('\n[5/6] Verificando catálogo de avatares en runtime (__cristiAvatar)...');
+    // Close modal
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(400);
     const runtimeAvatar = await page.evaluate(() => {
       return {
         hasAvatar: !!window.__cristiAvatar,

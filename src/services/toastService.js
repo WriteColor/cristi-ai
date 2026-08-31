@@ -94,16 +94,6 @@ export class ToastService {
     return this.show({ title, description, type: 'error', duration: 6000, ...options });
   }
 
-  emotion(emotionName, description, options = {}) {
-    return this.show({
-      title: `Emoción: ${emotionName.toUpperCase()}`,
-      description: description || 'Avatar Live2D sincronizado',
-      type: 'emotion',
-      badge: 'LIVE2D',
-      ...options
-    });
-  }
-
   tool(toolName, description, options = {}) {
     return this.show({
       title: `Ejecutando: ${toolName}`,

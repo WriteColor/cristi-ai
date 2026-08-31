@@ -25,6 +25,7 @@ export { ModelManager, modelManager } from './modelManager.js';
 export { ConfigManager, configManager } from './configManager.js';
 export { SoundFxService, soundFxService } from './soundFxService.js';
 export { ProactiveTriggerService, proactiveTriggerService } from './proactiveTriggerService.js';
+export { SceneManager, sceneManager } from './sceneManager.js';
 export { logger } from './logger.js';
 
 

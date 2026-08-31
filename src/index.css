@@ -4175,3 +4175,424 @@ html, body, #root {
   cursor: pointer;
 }
 .thresh-btn-save:hover { box-shadow: 0 0 12px rgba(168, 85, 247, 0.4); }
+
+/* ==========================================================================
+   21. ULTRA-MINIMALIST CONTEXT MENU (TACTICAL SINGLE-ACCORDION)
+   ========================================================================== */
+
+.custom-context-menu-minimal {
+  position: fixed;
+  z-index: 10000;
+  width: 220px;
+  background: rgba(9, 10, 18, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8), 0 0 25px rgba(168, 85, 247, 0.18);
+  border-radius: 4px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  user-select: none;
+  animation: ctx-mini-appear 0.16s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes ctx-mini-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.ctx-mini-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px 6px 8px;
+  border-bottom: 1px dotted rgba(255, 255, 255, 0.08);
+  margin-bottom: 2px;
+}
+
+.ctx-mini-title {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--text-primary);
+}
+
+.ctx-mini-badge {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--neon-purple);
+  background: rgba(168, 85, 247, 0.12);
+  padding: 2px 6px;
+  border-radius: 2px;
+  border: 1px dotted rgba(168, 85, 247, 0.3);
+}
+
+.ctx-mini-category {
+  display: flex;
+  flex-direction: column;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.ctx-mini-category.open {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(168, 85, 247, 0.25);
+}
+
+.ctx-mini-category-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.15s ease;
+}
+
+.ctx-mini-category-btn:hover {
+  color: #ffffff;
+  background: rgba(168, 85, 247, 0.12);
+}
+
+.ctx-mini-category-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ctx-icon {
+  color: var(--neon-purple);
+}
+
+.ctx-mini-drawer {
+  padding: 4px 6px 8px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px dotted rgba(255, 255, 255, 0.06);
+  animation: ctx-drawer-open 0.15s ease-out forwards;
+}
+
+@keyframes ctx-drawer-open {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.ctx-drawer-select-row {
+  position: relative;
+  width: 100%;
+}
+
+.ctx-drawer-select {
+  width: 100%;
+  appearance: none;
+  background: rgba(12, 14, 24, 0.9);
+  border: 1px dotted rgba(255, 255, 255, 0.15);
+  color: #f8fafc;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  padding: 4px 22px 4px 6px;
+  border-radius: 2px;
+  cursor: pointer;
+  outline: none;
+}
+.ctx-drawer-select:focus {
+  border-color: var(--neon-purple);
+}
+
+.ctx-select-icon {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.ctx-chips-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.ctx-chip-btn {
+  padding: 3px 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dotted rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  text-align: center;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.15s ease;
+}
+
+.ctx-chip-btn:hover {
+  background: rgba(168, 85, 247, 0.2);
+  border-color: rgba(168, 85, 247, 0.4);
+  color: #ffffff;
+}
+
+.ctx-chip-btn.active {
+  background: rgba(168, 85, 247, 0.35);
+  border-color: var(--neon-purple);
+  color: #f8fafc;
+  font-weight: 700;
+}
+
+.ctx-actions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ctx-action-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dotted rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ctx-action-item:hover {
+  background: rgba(168, 85, 247, 0.18);
+  border-color: rgba(168, 85, 247, 0.35);
+  color: #ffffff;
+}
+
+.ctx-mini-footer {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding-top: 4px;
+  border-top: 1px dotted rgba(255, 255, 255, 0.08);
+  margin-top: 2px;
+}
+
+.ctx-footer-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 2px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dotted rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ctx-footer-action:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.ctx-footer-danger:hover {
+  background: rgba(244, 63, 94, 0.25);
+  border-color: rgba(244, 63, 94, 0.5);
+  color: #fda4af;
+}
+
+/* ==========================================================================
+   22. CINEMATIC BACKGROUND SCENES & ATMOSPHERES (ZERO-OVERHEAD GPU)
+   ========================================================================== */
+
+.scene-viewport {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+  contain: strict;
+}
+
+.scene-ambient-overlay {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, transparent 40%, rgba(2, 4, 10, 0.65) 100%);
+  pointer-events: none;
+}
+
+/* Custom Media Scene */
+.custom-scene-active .scene-media-element,
+.custom-scene-active .scene-custom-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background-size: cover;
+  background-position: center;
+}
+
+/* Matrix Canvas Scene */
+.scene-matrix-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Cyberpunk Loft Scene */
+.scene-cyber_loft {
+  background: radial-gradient(circle at 75% 20%, #1e113a 0%, #080614 60%, #030208 100%);
+}
+
+.scene-loft-container {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(10, 10, 26, 0.8) 0%, rgba(5, 5, 15, 0.95) 100%);
+}
+
+.scene-skyline-silhouette {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  height: 45%;
+  background: linear-gradient(0deg, #020205 60%, transparent 100%);
+  opacity: 0.9;
+}
+
+.scene-neon-window-glow {
+  position: absolute;
+  top: 15%;
+  right: 10%;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.25) 0%, transparent 70%);
+  filter: blur(50px);
+  animation: neon-glow-pulse 6s ease-in-out infinite alternate;
+}
+
+@keyframes neon-glow-pulse {
+  from { opacity: 0.6; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1.08); }
+}
+
+/* Synthwave Grid Scene */
+.scene-neon_grid {
+  background: linear-gradient(180deg, #080014 0%, #20003b 55%, #05000a 100%);
+}
+
+.scene-synthwave-sun {
+  position: absolute;
+  bottom: 35%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 280px;
+  height: 280px;
+  background: linear-gradient(180deg, #ff007f 0%, #ffaa00 100%);
+  border-radius: 50%;
+  box-shadow: 0 0 80px rgba(255, 0, 127, 0.6);
+  opacity: 0.85;
+}
+
+.scene-synthwave-horizon {
+  position: absolute;
+  bottom: 35%;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #00ffff 50%, transparent);
+  box-shadow: 0 0 15px #00ffff;
+}
+
+.scene-synthwave-grid {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  height: 35%;
+  background:
+    linear-gradient(rgba(0, 255, 255, 0.2) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 255, 0.2) 1px, transparent 1px);
+  background-size: 40px 40px;
+  transform: perspective(300px) rotateX(60deg);
+  transform-origin: top center;
+}
+
+/* Deep Nebula Scene */
+.scene-deep_nebula {
+  background: radial-gradient(circle at 50% 50%, #0c0824 0%, #03020a 70%, #000000 100%);
+}
+
+.scene-nebula-glow-1 {
+  position: absolute;
+  top: 20%;
+  left: 15%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.2) 0%, transparent 65%);
+  filter: blur(60px);
+  animation: nebula-drift 12s ease-in-out infinite alternate;
+}
+
+.scene-nebula-glow-2 {
+  position: absolute;
+  bottom: 20%;
+  right: 15%;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.18) 0%, transparent 65%);
+  filter: blur(70px);
+  animation: nebula-drift 16s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes nebula-drift {
+  from { transform: translate(0, 0); }
+  to { transform: translate(30px, -20px); }
+}
+
+/* Zen Temple Scene */
+.scene-zen_temple {
+  background: linear-gradient(180deg, #1b0a1d 0%, #3b142d 45%, #120311 100%);
+}
+
+.scene-sunset-gradient {
+  position: absolute;
+  bottom: 25%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, rgba(251, 146, 60, 0.5) 0%, transparent 70%);
+  filter: blur(40px);
+}
+

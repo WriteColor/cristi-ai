@@ -14,7 +14,8 @@ import {
   LockScreenWidget,
   LockScreenSandbox,
   VoiceEnrollmentModal,
-  SpeakerDiagnosticsHUD
+  SpeakerDiagnosticsHUD,
+  BackgroundScene
 } from './components/index.js';
 import {
   eventBus,
@@ -1006,6 +1007,9 @@ export function App() {
           </button>
         </div>
       )}
+
+      {/* Atmospheric Background Scene & Themes */}
+      <BackgroundScene />
 
       {/* 1. Live2D Character Canvas */}
       <Live2DCanvas
