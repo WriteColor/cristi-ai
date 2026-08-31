@@ -203,6 +203,35 @@ export class SoundFxService {
       osc.stop(now + 0.14);
     } catch (_) {}
   }
+
+  /** Proactive notification / reminder chime (dual harmonic glass bell) */
+  playNotification() {
+    if (!this.isEnabled) return;
+    this.init();
+    if (!this.audioCtx) return;
+
+    try {
+      const now = this.audioCtx.currentTime;
+      const freqs = [880, 1318.5]; // A5 + E6 crystal interval
+
+      freqs.forEach((freq) => {
+        const osc = this.audioCtx.createOscillator();
+        const gain = this.audioCtx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
+
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+
+        osc.start(now);
+        osc.stop(now + 0.3);
+      });
+    } catch (_) {}
+  }
 }
 
 export const soundFxService = new SoundFxService();

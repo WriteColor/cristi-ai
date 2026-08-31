@@ -24,6 +24,7 @@ export { SpeakerRecognitionService, speakerRecognitionService } from './audio/Sp
 export { ModelManager, modelManager } from './modelManager.js';
 export { ConfigManager, configManager } from './configManager.js';
 export { SoundFxService, soundFxService } from './soundFxService.js';
+export { ProactiveTriggerService, proactiveTriggerService } from './proactiveTriggerService.js';
 export { logger } from './logger.js';
 
 

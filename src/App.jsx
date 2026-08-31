@@ -36,6 +36,7 @@ import {
   lockScreenService,
   speakerRecognitionService,
   modelManager,
+  proactiveTriggerService,
   toast,
   toastService,
   logger
@@ -212,9 +213,11 @@ export function App() {
 
   useEffect(() => {
     const onActivity = () => {
+      proactiveTriggerService.recordUserActivity();
       if (!isZenMode) resetInactivityTimer();
     };
     const onKeyDown = (e) => {
+      proactiveTriggerService.recordUserActivity();
       if (e.key === 'Escape') {
         setIsSettingsOpen(false);
         setIsVoiceEnrollmentOpen(false);
@@ -237,11 +240,15 @@ export function App() {
     window.addEventListener('keydown', onKeyDown);
     resetInactivityTimer();
 
+    // Start Proactive Autonomous Trigger Engine
+    proactiveTriggerService.start();
+
     return () => {
       window.removeEventListener('mousemove', onActivity);
       window.removeEventListener('mousedown', onActivity);
       window.removeEventListener('keydown', onKeyDown);
       if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
+      proactiveTriggerService.stop();
     };
   }, [resetInactivityTimer]);
 

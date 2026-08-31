@@ -48,12 +48,16 @@ runSuite('UI/UX Obsidian & Sound FX', 'node tests/test_ui_ux_zen_and_soundfx.mjs
 console.log('\n[4/7] Ejecutando suite de Audio DSP, AudioWorklet y Biometría Vocal...');
 runSuite('Audio DSP & Speaker Biometrics', 'node tests/test_audio_and_speaker_biometrics.mjs');
 
-// 5. Suite de Arquitectura Electron y Contratos IPC
-console.log('\n[5/7] Ejecutando verificación de Arquitectura Electron y Limpieza...');
+// 5. Suite de Motor Proactivo y Triggers Autónomos
+console.log('\n[5/8] Ejecutando suite de Motor Proactivo y Triggers Autónomos...');
+runSuite('Proactive Trigger Engine', 'node tests/test_proactive_trigger_engine.mjs');
+
+// 6. Suite de Arquitectura Electron y Contratos IPC
+console.log('\n[6/8] Ejecutando verificación de Arquitectura Electron y Limpieza...');
 runSuite('Electron Architecture & IPC', 'node tests/test_electron_architecture.mjs');
 
-// 6. Verificación de Persistencia y Copias de Seguridad
-console.log('\n[6/7] Verificando ConfigManager y copias de seguridad...');
+// 7. Verificación de Persistencia y Copias de Seguridad
+console.log('\n[7/8] Verificando ConfigManager y copias de seguridad...');
 const initialConfig = {
   apiKey: 'AIzaSy_MasterTestKey',
   modelId: 'gemini-2.0-flash-exp',
@@ -76,8 +80,8 @@ if (!importResult.success || importResult.config.apiKey !== 'AIzaSy_MasterTestKe
 results.push({ name: 'Config Persistence & Backup', status: 'PASS', duration: '12ms', details: 'Export/Import validado' });
 console.log('  ✅ [PASS] Config Persistence & Backup (12ms)');
 
-// 7. Verificación de Integridad de Modelos Live2D en Disco
-console.log('\n[7/7] Verificando catálogo oficial de 8 modelos Live2D en disco...');
+// 8. Verificación de Integridad de Modelos Live2D en Disco
+console.log('\n[8/8] Verificando catálogo oficial de 8 modelos Live2D en disco...');
 const models = live2dModelRegistry.getAllModels();
 let allFound = true;
 models.forEach((m) => {
