@@ -109,8 +109,8 @@ async function runAudit() {
       await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'playwright_02_model_voice_open.png') });
     }
 
-    // 4. Test Background Scene Switching via TacticalDropdown
-    console.log('\n[4/6] Probando activación de Escenas Cinemáticas via TacticalDropdown...');
+    // 4. Test Background Scene Switching (including WPE) via TacticalDropdown
+    console.log('\n[4/6] Probando activación de Escenas Cinemáticas y Wallpaper Engine via TacticalDropdown...');
     const sceneBtnAgain = await page.$('.ctx-mini-category-btn:has-text("Fondo & Escena")');
     if (sceneBtnAgain) {
       await sceneBtnAgain.click();
@@ -119,24 +119,28 @@ async function runAudit() {
       if (sceneDropTrigger) {
         await sceneDropTrigger.click();
         await page.waitForTimeout(300);
-        // Click cyber_loft option
-        const cyberOption = await page.$('.tactical-option:has-text("Cyberpunk Loft")');
-        if (cyberOption) {
-          await cyberOption.click();
-          await page.waitForTimeout(500);
+        // Click WPE option if available or cyber_loft
+        const wpeOption = await page.$('.tactical-option:has-text("Frieren"), .tactical-option:has-text("SAO"), .tactical-option:has-text("Cyberpunk Loft")');
+        if (wpeOption) {
+          await wpeOption.click();
+          await page.waitForTimeout(600);
         }
       }
     }
     const hasSceneViewport = await page.$('.scene-viewport');
-    console.log(`  ✓ Escena cinemática renderizada en DOM: ${!!hasSceneViewport}`);
+    const isVideoMuted = await page.evaluate(() => {
+      const vid = document.querySelector('.scene-media-element');
+      return vid ? (vid.muted && vid.volume === 0) : true;
+    });
+    console.log(`  ✓ Escena renderizada en DOM: ${!!hasSceneViewport}, Video Muteado 100%: ${isVideoMuted}`);
     await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'playwright_04_cinematic_scene.png') });
 
     // Close context menu with Escape
     await page.keyboard.press('Escape');
     await page.waitForTimeout(400);
 
-    // 5. Test Settings Modal & Wallpaper Engine Tab
-    console.log('\n[5/6] Probando apertura del Modal de Ajustes y Pestaña de Fondo & Escenas...');
+    // 5. Test Settings Modal & Wallpaper Engine Tab with Live Previews
+    console.log('\n[5/6] Probando apertura del Modal de Ajustes y Pestaña de Fondo & Escenas con Vistas Previas...');
     await page.evaluate(() => {
       const btn = document.querySelector('button[title*="Ajustes"], button[title*="Configuración"], .hud-control-btn');
       if (btn) btn.click();
@@ -148,8 +152,15 @@ async function runAudit() {
     if (sceneTabBtn) {
       await sceneTabBtn.click();
       await page.waitForTimeout(400);
-      const wpeCards = await page.$$('.sm-avatar-card');
-      console.log(`  ✓ Pestaña de Fondos & Escenas abierta en Ajustes: ${wpeCards.length} tarjetas desplegadas.`);
+      const previewThumbCount = await page.$$eval('.sm-scene-thumb-container', (els) => els.length);
+      console.log(`  ✓ Pestaña de Fondos & Escenas abierta en Ajustes: ${previewThumbCount} vistas previas generadas.`);
+
+      // Click second card to verify live scene change
+      const cards = await page.$$('.sm-avatar-card');
+      if (cards.length > 1) {
+        await cards[1].click();
+        await page.waitForTimeout(500);
+      }
       await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'playwright_03_settings_scenes.png') });
     }
 

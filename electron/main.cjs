@@ -281,17 +281,42 @@ ipcMain.handle('scan-wallpaper-engine', async () => {
           if (fs.existsSync(projectJson)) {
             try {
               const data = JSON.parse(await fs.promises.readFile(projectJson, 'utf8'));
-              const mainFile = data.file ? path.join(fullPath, data.file) : null;
-              const previewFile = data.preview ? path.join(fullPath, data.preview) : null;
+              let mainFile = data.file ? path.join(fullPath, data.file) : null;
+              let previewFile = data.preview ? path.join(fullPath, data.preview) : null;
+              let finalType = data.type ? data.type.toLowerCase() : 'video';
+
+              const files = await fs.promises.readdir(fullPath);
+              const videoMatch = files.find(f => /\.(mp4|webm|mkv|mov)$/i.test(f));
+              const htmlMatch = files.find(f => /\.(html|htm)$/i.test(f));
+              const imageMatch = files.find(f => /\.(gif|png|jpg|jpeg|webp)$/i.test(f));
+
+              if (videoMatch) {
+                mainFile = path.join(fullPath, videoMatch);
+                finalType = 'video';
+              } else if (htmlMatch) {
+                mainFile = path.join(fullPath, htmlMatch);
+                finalType = 'web';
+              } else if (!mainFile || mainFile.endsWith('.json') || mainFile.endsWith('.pkg')) {
+                if (previewFile && fs.existsSync(previewFile)) {
+                  mainFile = previewFile;
+                } else if (imageMatch) {
+                  mainFile = path.join(fullPath, imageMatch);
+                }
+                finalType = mainFile && /\.gif$/i.test(mainFile) ? 'animated' : 'image';
+              }
+
+              if (previewFile && !fs.existsSync(previewFile) && imageMatch) {
+                previewFile = path.join(fullPath, imageMatch);
+              }
 
               results.push({
                 id: `wpe_${itemDir.name}`,
                 workshopId: itemDir.name,
                 name: data.title || `Wallpaper ${itemDir.name}`,
                 category: 'wallpaper_engine',
-                type: data.type ? data.type.toLowerCase() : 'video',
-                mainPath: mainFile ? `file:///${mainFile.replace(/\\/g, '/')}` : null,
-                previewPath: previewFile ? `file:///${previewFile.replace(/\\/g, '/')}` : null,
+                type: finalType,
+                mainPath: mainFile ? `/__wpe_media?path=${encodeURIComponent(mainFile)}` : null,
+                previewPath: previewFile ? `/__wpe_media?path=${encodeURIComponent(previewFile)}` : (mainFile ? `/__wpe_media?path=${encodeURIComponent(mainFile)}` : null),
                 description: data.description || `Wallpaper Engine Workshop (#${itemDir.name})`
               });
             } catch (_) {}
@@ -318,16 +343,37 @@ ipcMain.handle('scan-wallpaper-engine', async () => {
             if (fs.existsSync(projectJson)) {
               try {
                 const data = JSON.parse(await fs.promises.readFile(projectJson, 'utf8'));
-                const mainFile = data.file ? path.join(fullPath, data.file) : null;
-                const previewFile = data.preview ? path.join(fullPath, data.preview) : null;
+                let mainFile = data.file ? path.join(fullPath, data.file) : null;
+                let previewFile = data.preview ? path.join(fullPath, data.preview) : null;
+                let finalType = data.type ? data.type.toLowerCase() : 'scene';
+
+                const files = await fs.promises.readdir(fullPath);
+                const videoMatch = files.find(f => /\.(mp4|webm|mkv|mov)$/i.test(f));
+                const htmlMatch = files.find(f => /\.(html|htm)$/i.test(f));
+                const imageMatch = files.find(f => /\.(gif|png|jpg|jpeg|webp)$/i.test(f));
+
+                if (videoMatch) {
+                  mainFile = path.join(fullPath, videoMatch);
+                  finalType = 'video';
+                } else if (htmlMatch) {
+                  mainFile = path.join(fullPath, htmlMatch);
+                  finalType = 'web';
+                } else if (!mainFile || mainFile.endsWith('.json') || mainFile.endsWith('.pkg')) {
+                  if (previewFile && fs.existsSync(previewFile)) {
+                    mainFile = previewFile;
+                  } else if (imageMatch) {
+                    mainFile = path.join(fullPath, imageMatch);
+                  }
+                  finalType = mainFile && /\.gif$/i.test(mainFile) ? 'animated' : 'image';
+                }
 
                 results.push({
                   id: `wpe_local_${itemDir.name}`,
                   name: data.title || itemDir.name,
                   category: 'wallpaper_engine',
-                  type: data.type ? data.type.toLowerCase() : 'scene',
-                  mainPath: mainFile ? `file:///${mainFile.replace(/\\/g, '/')}` : null,
-                  previewPath: previewFile ? `file:///${previewFile.replace(/\\/g, '/')}` : null,
+                  type: finalType,
+                  mainPath: mainFile ? `/__wpe_media?path=${encodeURIComponent(mainFile)}` : null,
+                  previewPath: previewFile ? `/__wpe_media?path=${encodeURIComponent(previewFile)}` : (mainFile ? `/__wpe_media?path=${encodeURIComponent(mainFile)}` : null),
                   description: data.description || `Wallpaper Engine Oficial (${itemDir.name})`
                 });
               } catch (_) {}

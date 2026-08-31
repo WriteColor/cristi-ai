@@ -20,10 +20,12 @@ export class SceneManager {
 
     // Auto-scan Wallpaper Engine once in background
     wallpaperEngineService.autoScanOnce().then(() => {
+      this.syncActiveWpe();
       this.notify();
     });
 
     wallpaperEngineService.subscribe(() => {
+      this.syncActiveWpe();
       this.notify();
     });
   }
@@ -47,17 +49,28 @@ export class SceneManager {
     return '';
   }
 
+  syncActiveWpe() {
+    if (this.currentSceneId && this.currentSceneId.startsWith('wpe_')) {
+      const wpeItem = wallpaperEngineService.getWallpapers().find(w => w.id === this.currentSceneId);
+      if (wpeItem && wpeItem.mainPath) {
+        this.customSceneUrl = wpeItem.mainPath;
+      }
+    }
+  }
+
   getScene() {
-    const isWpe = this.currentSceneId.startsWith('wpe_');
+    const isWpe = this.currentSceneId ? this.currentSceneId.startsWith('wpe_') : false;
     let customUrl = this.customSceneUrl;
     let sceneType = 'procedural';
 
     if (isWpe) {
       const wpeItem = wallpaperEngineService.getWallpapers().find(w => w.id === this.currentSceneId);
-      if (wpeItem && wpeItem.mainPath) {
-        customUrl = wpeItem.mainPath;
+      if (wpeItem) {
+        customUrl = wpeItem.mainPath || this.customSceneUrl;
         sceneType = wpeItem.type || 'video';
       }
+    } else if (this.currentSceneId === 'custom_wallpaper') {
+      sceneType = 'custom';
     }
 
     return {
@@ -72,12 +85,12 @@ export class SceneManager {
   getAvailableScenes() {
     const wpeScenes = wallpaperEngineService.getWallpapers().map(w => ({
       id: w.id,
-      name: `[WPE] ${w.name}`,
+      name: w.name,
       category: 'wallpaper_engine',
       type: w.type || 'video',
       mainPath: w.mainPath,
       previewPath: w.previewPath,
-      description: w.description || 'Fondo importado desde Wallpaper Engine'
+      description: w.description || 'Fondo importado desde Wallpaper Engine Workshop'
     }));
 
     return [...BACKGROUND_SCENES, ...wpeScenes];
@@ -92,23 +105,26 @@ export class SceneManager {
     }
 
     this.currentSceneId = sceneId;
-    if (customUrl !== undefined) {
+
+    if (matched && matched.category === 'wallpaper_engine') {
+      this.customSceneUrl = matched.mainPath || customUrl || '';
+    } else if (customUrl !== undefined && customUrl !== '') {
       this.customSceneUrl = customUrl;
+    } else if (sceneId !== 'custom_wallpaper') {
+      this.customSceneUrl = '';
     }
 
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem(STORAGE_KEY_SCENE, sceneId);
-        if (customUrl !== undefined) {
-          localStorage.setItem(STORAGE_KEY_CUSTOM_URL, this.customSceneUrl);
-        }
+        localStorage.setItem(STORAGE_KEY_CUSTOM_URL, this.customSceneUrl);
       }
     } catch (err) {
       logger.warn('SCENE', `Error guardando escena: ${err.message}`);
     }
 
     this.notify();
-    logger.info('SCENE', `Escena de fondo cambiada a: ${sceneId}`);
+    logger.info('SCENE', `Escena de fondo cambiada a: ${sceneId} (${this.customSceneUrl})`);
     return true;
   }
 

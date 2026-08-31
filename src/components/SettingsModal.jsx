@@ -580,22 +580,48 @@ export function SettingsModal({
                           }}
                           className={`sm-avatar-card ${isSelected ? 'selected' : ''}`}
                         >
-                          {/* Optional WPE Thumbnail Banner */}
-                          {scene.previewPath && (
-                            <div
-                              className="sm-scene-card-preview"
-                              style={{
-                                width: '100%',
-                                height: '80px',
-                                borderRadius: '3px',
-                                marginBottom: '8px',
-                                backgroundImage: `url(${scene.previewPath})`,
-                                backgroundSize: 'cover',
-                                backgroundPosition: 'center',
-                                border: '1px dotted rgba(255,255,255,0.1)'
-                              }}
-                            />
-                          )}
+                          {/* Rich Dynamic Scene Preview Thumbnail */}
+                          <div className="sm-scene-thumb-container">
+                            {isWpe ? (
+                              scene.type === 'video' && scene.mainPath ? (
+                                <>
+                                  <video
+                                    src={scene.mainPath}
+                                    poster={scene.previewPath || undefined}
+                                    autoPlay
+                                    loop
+                                    muted
+                                    playsInline
+                                    className="sm-scene-video-thumb"
+                                  />
+                                  <div className="sm-scene-thumb-badge video">
+                                    <Sparkles size={8} /> VIDEO
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div
+                                    className="sm-scene-img-thumb"
+                                    style={{ backgroundImage: `url(${scene.previewPath || scene.mainPath})` }}
+                                  />
+                                  <div className={`sm-scene-thumb-badge ${scene.type === 'animated' ? 'animated' : ''}`}>
+                                    {scene.type === 'animated' ? '✨ GIF' : '🖼️ WPE'}
+                                  </div>
+                                </>
+                              )
+                            ) : (
+                              <div className={`sm-scene-preview-${scene.id}`}>
+                                {scene.id === 'transparent' && <span>Escritorio Nativo</span>}
+                                {scene.id === 'matrix_rain' && <span>0101010101010101010101010101010101010101010101010101</span>}
+                                {scene.id === 'custom_wallpaper' && (
+                                  <>
+                                    <ImageIcon size={18} />
+                                    <span>Fondo Personalizado</span>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
 
                           <div className="sm-avatar-card-header">
                             <div className="sm-avatar-card-title-group">

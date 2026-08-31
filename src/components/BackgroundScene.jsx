@@ -94,8 +94,8 @@ export function BackgroundScene() {
 
   // ── Wallpaper Engine & Custom Media ───────────────────────────────────────
   if ((sceneState.isWpe || sceneId === 'custom_wallpaper') && customUrl) {
-    const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(customUrl) || sceneState.sceneType === 'video';
-    const isWeb = /\.(html|htm)$/i.test(customUrl) || sceneState.sceneType === 'web';
+    const isVideo = (/\.(mp4|webm|ogg|mov|mkv)/i.test(customUrl) || sceneState.sceneType === 'video') && !/\.(gif|png|jpg|jpeg|webp)/i.test(customUrl);
+    const isWeb = /\.(html|htm)/i.test(customUrl) || sceneState.sceneType === 'web';
 
     return (
       <div className="scene-viewport custom-scene-active">
@@ -106,6 +106,13 @@ export function BackgroundScene() {
             loop
             muted
             playsInline
+            ref={(el) => {
+              if (el) {
+                el.muted = true;
+                el.volume = 0;
+                el.play().catch(() => {});
+              }
+            }}
             className="scene-media-element"
           />
         ) : isWeb ? (
@@ -118,7 +125,15 @@ export function BackgroundScene() {
         ) : (
           <div
             className="scene-custom-image"
-            style={{ backgroundImage: `url(${customUrl})` }}
+            style={{
+              backgroundImage: `url(${customUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              width: '100vw',
+              height: '100vh',
+              position: 'absolute',
+              inset: 0
+            }}
           />
         )}
         <div className="scene-ambient-overlay" />

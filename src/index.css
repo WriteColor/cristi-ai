@@ -4829,4 +4829,221 @@ html, body, #root {
   to { transform: rotate(360deg); }
 }
 
+/* ==========================================================================
+   24. SCENE THUMBNAIL & DYNAMIC PREVIEWS (SETTINGS & CARDS)
+   ========================================================================== */
+
+.sm-scene-thumb-container {
+  width: 100%;
+  height: 90px;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 8px;
+  background: #090a12;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.6);
+  transition: all 0.2s ease;
+}
+
+.sm-avatar-card:hover .sm-scene-thumb-container {
+  border-color: var(--neon-purple);
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.3), inset 0 0 10px rgba(0, 0, 0, 0.4);
+}
+
+.sm-scene-video-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.sm-scene-img-thumb {
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transition: transform 0.3s ease;
+}
+
+.sm-avatar-card:hover .sm-scene-img-thumb {
+  transform: scale(1.04);
+}
+
+.sm-scene-thumb-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  font-weight: 700;
+  padding: 2px 5px;
+  background: rgba(10, 12, 22, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  color: #ffffff;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.sm-scene-thumb-badge.video {
+  border-color: #38bdf8;
+  color: #7dd3fc;
+}
+
+.sm-scene-thumb-badge.animated {
+  border-color: #a855f7;
+  color: #d8b4fe;
+}
+
+/* Procedural Mini Previews */
+.sm-scene-preview-transparent {
+  width: 100%;
+  height: 100%;
+  background-color: #0d0f1a;
+  background-image: 
+    linear-gradient(45deg, rgba(255,255,255,0.04) 25%, transparent 25%), 
+    linear-gradient(-45deg, rgba(255,255,255,0.04) 25%, transparent 25%), 
+    linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.04) 75%), 
+    linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.04) 75%);
+  background-size: 14px 14px;
+  background-position: 0 0, 0 7px, 7px -7px, -7px 0px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+}
+
+.sm-scene-preview-cyber_loft {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, #05060f 0%, #150d2a 60%, #03040a 100%);
+  position: relative;
+  overflow: hidden;
+}
+.sm-scene-preview-cyber_loft::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 45%;
+  background: repeating-linear-gradient(90deg, #020205 0px, #020205 12px, transparent 12px, transparent 16px);
+  border-top: 1px solid rgba(168, 85, 247, 0.4);
+}
+.sm-scene-preview-cyber_loft::after {
+  content: '';
+  position: absolute;
+  top: 15%;
+  right: 20%;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.5) 0%, transparent 70%);
+}
+
+.sm-scene-preview-neon_grid {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, #0c0017 0%, #2b043d 50%, #0c0017 100%);
+  position: relative;
+  overflow: hidden;
+}
+.sm-scene-preview-neon_grid::before {
+  content: '';
+  position: absolute;
+  top: 15%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #facc15 0%, #ec4899 100%);
+  box-shadow: 0 0 15px #ec4899;
+}
+.sm-scene-preview-neon_grid::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40%;
+  background: repeating-linear-gradient(0deg, rgba(236, 72, 153, 0.4) 0px, rgba(236, 72, 153, 0.4) 1px, transparent 1px, transparent 8px),
+              repeating-linear-gradient(90deg, rgba(56, 189, 248, 0.4) 0px, rgba(56, 189, 248, 0.4) 1px, transparent 1px, transparent 12px);
+}
+
+.sm-scene-preview-deep_nebula {
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 30% 40%, #2e1065 0%, #030712 70%);
+  position: relative;
+  overflow: hidden;
+}
+.sm-scene-preview-deep_nebula::before {
+  content: '';
+  position: absolute;
+  top: 20%;
+  right: 20%;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.4) 0%, transparent 65%);
+  filter: blur(8px);
+}
+
+.sm-scene-preview-zen_temple {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, #1b0a1d 0%, #4a1537 50%, #120311 100%);
+  position: relative;
+  overflow: hidden;
+}
+.sm-scene-preview-zen_temple::before {
+  content: '';
+  position: absolute;
+  bottom: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(251, 146, 60, 0.8) 0%, transparent 70%);
+}
+
+.sm-scene-preview-matrix_rain {
+  width: 100%;
+  height: 100%;
+  background: #020b05;
+  position: relative;
+  overflow: hidden;
+  font-family: monospace;
+  font-size: 8px;
+  color: #00ff66;
+  padding: 4px;
+  line-height: 9px;
+  letter-spacing: 2px;
+  text-shadow: 0 0 4px #00ff66;
+  opacity: 0.85;
+}
+
+.sm-scene-preview-custom_wallpaper {
+  width: 100%;
+  height: 100%;
+  background: #0f172a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #94a3b8;
+  font-size: 0.65rem;
+}
+
+
 
