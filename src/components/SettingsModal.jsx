@@ -102,6 +102,7 @@ export function SettingsModal({
 
   const textareaRef = useRef(null);
   const modalRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const { interactiveProps } = useClickThrough();
 
@@ -163,8 +164,6 @@ export function SettingsModal({
 
   const allLive2dModels = live2dModelRegistry.getAllModels();
   const activeLive2dModel = live2dModelRegistry.getModel(live2dModelId);
-
-  const fileInputRef = useRef(null);
 
   const handleExportConfig = () => {
     soundFxService.playClick();

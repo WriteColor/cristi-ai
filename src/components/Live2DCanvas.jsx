@@ -4,6 +4,7 @@ import React, {
 } from 'react';
 import * as PIXI from 'pixi.js';
 import { Live2DModel } from 'pixi-live2d-display/cubism4';
+import { Sparkles } from 'lucide-react';
 import { logger } from '../services/logger.js';
 import { eventBus, EVENTS } from '../services/eventBus.js';
 import { live2dModelRegistry, Live2DAdapter, Live2DController, contextualEmotionOrchestrator } from '../services/live2d/index.js';

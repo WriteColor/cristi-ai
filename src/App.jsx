@@ -34,6 +34,7 @@ import {
   contextualEmotionOrchestrator,
   electronBridge,
   lockScreenService,
+  clickThroughService,
   speakerRecognitionService,
   modelManager,
   proactiveTriggerService,

@@ -125,6 +125,11 @@ export class VisionDetectionService {
     this.isLoading = true;
 
     try {
+      // Ensure TensorFlow.js backend is fully initialized
+      try {
+        await tf.ready();
+      } catch (_) {}
+
       const modelPath = '/models';
 
       await Promise.all([
