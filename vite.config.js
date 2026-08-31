@@ -9,6 +9,7 @@ function getMimeType(filePath) {
     '.mp4': 'video/mp4',
     '.webm': 'video/webm',
     '.mkv': 'video/mp4',
+    '.mov': 'video/quicktime',
     '.jpg': 'image/jpeg',
     '.jpeg': 'image/jpeg',
     '.png': 'image/png',
@@ -63,20 +64,30 @@ function wpeMediaPlugin() {
                     const data = JSON.parse(await fs.promises.readFile(projectJson, 'utf8'));
                     let mainFile = data.file ? path.join(fullPath, data.file) : null;
                     let previewFile = data.preview ? path.join(fullPath, data.preview) : null;
+                    let finalType = data.type ? data.type.toLowerCase() : 'video';
 
-                    // Fallback to searching video/image if main file is a package or json
-                    if (!mainFile || mainFile.endsWith('.json') || mainFile.endsWith('.pkg')) {
-                      const files = await fs.promises.readdir(fullPath);
-                      const videoMatch = files.find(f => /\.(mp4|webm|mkv)$/i.test(f));
-                      const imageMatch = files.find(f => /\.(gif|png|jpg|jpeg|webp)$/i.test(f));
-                      if (videoMatch) {
-                        mainFile = path.join(fullPath, videoMatch);
-                        data.type = 'video';
-                      } else if (previewFile) {
+                    const files = await fs.promises.readdir(fullPath);
+                    const videoMatch = files.find(f => /\.(mp4|webm|mkv|mov)$/i.test(f));
+                    const htmlMatch = files.find(f => /\.(html|htm)$/i.test(f));
+                    const imageMatch = files.find(f => /\.(gif|png|jpg|jpeg|webp)$/i.test(f));
+
+                    if (videoMatch) {
+                      mainFile = path.join(fullPath, videoMatch);
+                      finalType = 'video';
+                    } else if (htmlMatch) {
+                      mainFile = path.join(fullPath, htmlMatch);
+                      finalType = 'web';
+                    } else if (!mainFile || mainFile.endsWith('.json') || mainFile.endsWith('.pkg')) {
+                      if (previewFile && fs.existsSync(previewFile)) {
                         mainFile = previewFile;
                       } else if (imageMatch) {
                         mainFile = path.join(fullPath, imageMatch);
                       }
+                      finalType = mainFile && /\.gif$/i.test(mainFile) ? 'animated' : 'image';
+                    }
+
+                    if (previewFile && !fs.existsSync(previewFile) && imageMatch) {
+                      previewFile = path.join(fullPath, imageMatch);
                     }
 
                     results.push({
@@ -84,9 +95,9 @@ function wpeMediaPlugin() {
                       workshopId: itemDir.name,
                       name: data.title || `Wallpaper ${itemDir.name}`,
                       category: 'wallpaper_engine',
-                      type: data.type ? data.type.toLowerCase() : 'video',
+                      type: finalType,
                       mainPath: mainFile ? `/__wpe_media?path=${encodeURIComponent(mainFile)}` : null,
-                      previewPath: previewFile ? `/__wpe_media?path=${encodeURIComponent(previewFile)}` : null,
+                      previewPath: previewFile ? `/__wpe_media?path=${encodeURIComponent(previewFile)}` : (mainFile ? `/__wpe_media?path=${encodeURIComponent(mainFile)}` : null),
                       rawPath: mainFile,
                       description: data.description || `Wallpaper Engine Workshop (#${itemDir.name})`
                     });
@@ -106,10 +117,23 @@ function wpeMediaPlugin() {
       server.middlewares.use('/__wpe_media', (req, res) => {
         try {
           const urlObj = new URL(req.url, 'http://localhost');
-          const filePath = urlObj.searchParams.get('path');
-          if (!filePath || !fs.existsSync(filePath)) {
+          let filePath = urlObj.searchParams.get('path');
+          if (!filePath) {
+            res.statusCode = 400;
+            return res.end('No path provided');
+          }
+
+          // Recursively unwrap any nested /__wpe_media?path= prefixes
+          while (filePath.startsWith('/__wpe_media?path=')) {
+            filePath = decodeURIComponent(filePath.replace('/__wpe_media?path=', ''));
+          }
+
+          filePath = filePath.replace(/^file:\/\/\//, '');
+          filePath = path.normalize(filePath);
+
+          if (!fs.existsSync(filePath)) {
             res.statusCode = 404;
-            return res.end('Archivo no encontrado');
+            return res.end(`Archivo no encontrado: ${filePath}`);
           }
 
           const stat = fs.statSync(filePath);
@@ -119,8 +143,9 @@ function wpeMediaPlugin() {
 
           res.setHeader('Access-Control-Allow-Origin', '*');
           res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-          res.setHeader('Access-Control-Allow-Headers', 'Range');
+          res.setHeader('Access-Control-Allow-Headers', 'Range, Content-Type');
           res.setHeader('Accept-Ranges', 'bytes');
+          res.setHeader('Cache-Control', 'public, max-age=86400');
 
           if (range) {
             const parts = range.replace(/bytes=/, '').split('-');

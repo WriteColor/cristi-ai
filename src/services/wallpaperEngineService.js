@@ -4,11 +4,10 @@
  * directly to the Cristi background engine with zero overhead.
  */
 
-import { electronBridge } from './desktop/ElectronBridge.js';
 import { logger } from './logger.js';
 import { eventBus, EVENTS } from './eventBus.js';
 
-const STORAGE_KEY_WPE_CACHE = 'cristi_ai_wpe_cache_v1';
+const STORAGE_KEY_WPE_CACHE = 'cristi_ai_wpe_cache_v2'; // Bump version to clear any stale cache
 
 export class WallpaperEngineService {
   constructor() {
@@ -18,12 +17,44 @@ export class WallpaperEngineService {
     this.listeners = new Set();
   }
 
+  normalizeItem(item) {
+    if (!item) return null;
+    let mainPath = item.mainPath || '';
+    let previewPath = item.previewPath || '';
+
+    // Unwrap any double-encoded or file:/// URLs
+    if (mainPath) {
+      while (mainPath.startsWith('/__wpe_media?path=')) {
+        mainPath = decodeURIComponent(mainPath.replace('/__wpe_media?path=', ''));
+      }
+      mainPath = mainPath.replace(/^file:\/\/\//, '');
+      mainPath = `/__wpe_media?path=${encodeURIComponent(mainPath)}`;
+    }
+
+    if (previewPath) {
+      while (previewPath.startsWith('/__wpe_media?path=')) {
+        previewPath = decodeURIComponent(previewPath.replace('/__wpe_media?path=', ''));
+      }
+      previewPath = previewPath.replace(/^file:\/\/\//, '');
+      previewPath = `/__wpe_media?path=${encodeURIComponent(previewPath)}`;
+    }
+
+    return {
+      ...item,
+      mainPath,
+      previewPath: previewPath || mainPath
+    };
+  }
+
   loadCachedWallpapers() {
     try {
       if (typeof localStorage !== 'undefined') {
         const cached = localStorage.getItem(STORAGE_KEY_WPE_CACHE);
         if (cached) {
-          return JSON.parse(cached);
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.map(this.normalizeItem.bind(this));
+          }
         }
       }
     } catch (_) {}
@@ -73,7 +104,7 @@ export class WallpaperEngineService {
       try {
         await this.scan();
       } catch (_) {}
-    }, 1500);
+    }, 1000);
   }
 
   /**
@@ -91,11 +122,7 @@ export class WallpaperEngineService {
         try {
           const rawResults = await window.electronAPI.scanWallpaperEngine();
           if (Array.isArray(rawResults) && rawResults.length > 0) {
-            results = rawResults.map(item => ({
-              ...item,
-              mainPath: item.mainPath ? `/__wpe_media?path=${encodeURIComponent(item.mainPath.replace(/^file:\/\/\//, ''))}` : item.mainPath,
-              previewPath: item.previewPath ? `/__wpe_media?path=${encodeURIComponent(item.previewPath.replace(/^file:\/\/\//, ''))}` : item.previewPath
-            }));
+            results = rawResults.map(this.normalizeItem.bind(this));
           }
         } catch (_) {}
       }
@@ -107,7 +134,7 @@ export class WallpaperEngineService {
           if (response.ok) {
             const data = await response.json();
             if (Array.isArray(data) && data.length > 0) {
-              results = data;
+              results = data.map(this.normalizeItem.bind(this));
             }
           }
         } catch (_) {}
@@ -116,7 +143,7 @@ export class WallpaperEngineService {
       if (results.length > 0) {
         this.wallpapers = results;
         this.saveCachedWallpapers(results);
-        logger.info('SCENE', `Wallpaper Engine detectado: ${results.length} fondos indexados.`);
+        logger.info('SCENE', `Wallpaper Engine sincronizado: ${results.length} fondos listos.`);
         this.notify();
         eventBus.emit(EVENTS.WPE_WALLPAPERS_UPDATED, results);
         return results;

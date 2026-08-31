@@ -600,9 +600,11 @@ export function SettingsModal({
                                 </>
                               ) : (
                                 <>
-                                  <div
+                                  <img
+                                    src={scene.previewPath || scene.mainPath}
+                                    alt={scene.name}
                                     className="sm-scene-img-thumb"
-                                    style={{ backgroundImage: `url(${scene.previewPath || scene.mainPath})` }}
+                                    loading="lazy"
                                   />
                                   <div className={`sm-scene-thumb-badge ${scene.type === 'animated' ? 'animated' : ''}`}>
                                     {scene.type === 'animated' ? '✨ GIF' : '🖼️ WPE'}

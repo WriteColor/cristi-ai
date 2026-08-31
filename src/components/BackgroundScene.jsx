@@ -101,6 +101,7 @@ export function BackgroundScene() {
       <div className="scene-viewport custom-scene-active">
         {isVideo ? (
           <video
+            key={customUrl}
             src={customUrl}
             autoPlay
             loop
@@ -117,23 +118,18 @@ export function BackgroundScene() {
           />
         ) : isWeb ? (
           <iframe
+            key={customUrl}
             src={customUrl}
             className="scene-iframe-element"
             sandbox="allow-scripts allow-same-origin"
             title="Wallpaper Engine Web Scene"
           />
         ) : (
-          <div
-            className="scene-custom-image"
-            style={{
-              backgroundImage: `url(${customUrl})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              width: '100vw',
-              height: '100vh',
-              position: 'absolute',
-              inset: 0
-            }}
+          <img
+            key={customUrl}
+            src={customUrl}
+            alt="Wallpaper Engine Scene"
+            className="scene-media-element scene-image-element"
           />
         )}
         <div className="scene-ambient-overlay" />
