@@ -7,7 +7,7 @@
 import { logger } from './logger.js';
 import { eventBus, EVENTS } from './eventBus.js';
 
-const STORAGE_KEY_WPE_CACHE = 'cristi_ai_wpe_cache_v2'; // Bump version to clear any stale cache
+const STORAGE_KEY_WPE_CACHE = 'cristi_ai_wpe_cache_v3'; // Bump version to clear any stale cache
 
 export class WallpaperEngineService {
   constructor() {

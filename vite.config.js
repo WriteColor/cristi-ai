@@ -2,6 +2,10 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const { resolveHdMediaFromPkg } = require('./server/wpePkgExtractor.cjs');
 
 function getMimeType(filePath) {
   const ext = path.extname(filePath).toLowerCase();
@@ -13,6 +17,7 @@ function getMimeType(filePath) {
     '.jpg': 'image/jpeg',
     '.jpeg': 'image/jpeg',
     '.png': 'image/png',
+    '.bmp': 'image/bmp',
     '.gif': 'image/gif',
     '.webp': 'image/webp',
     '.html': 'text/html',
@@ -69,7 +74,8 @@ function wpeMediaPlugin() {
                     const files = await fs.promises.readdir(fullPath);
                     const videoMatch = files.find(f => /\.(mp4|webm|mkv|mov)$/i.test(f));
                     const htmlMatch = files.find(f => /\.(html|htm)$/i.test(f));
-                    const imageMatch = files.find(f => /\.(gif|png|jpg|jpeg|webp)$/i.test(f));
+                    const pkgMatch = files.find(f => /\.pkg$/i.test(f));
+                    const imageMatch = files.find(f => /\.(png|jpg|jpeg|webp)$/i.test(f));
 
                     if (videoMatch) {
                       mainFile = path.join(fullPath, videoMatch);
@@ -77,17 +83,25 @@ function wpeMediaPlugin() {
                     } else if (htmlMatch) {
                       mainFile = path.join(fullPath, htmlMatch);
                       finalType = 'web';
-                    } else if (!mainFile || mainFile.endsWith('.json') || mainFile.endsWith('.pkg')) {
-                      if (previewFile && fs.existsSync(previewFile)) {
+                    } else if (pkgMatch) {
+                      // Extract or resolve the true full-resolution 1080p/4K texture from scene.pkg
+                      const hdFile = resolveHdMediaFromPkg(path.join(fullPath, pkgMatch));
+                      if (hdFile && fs.existsSync(hdFile)) {
+                        mainFile = hdFile;
+                      } else if (previewFile && fs.existsSync(previewFile)) {
                         mainFile = previewFile;
-                      } else if (imageMatch) {
-                        mainFile = path.join(fullPath, imageMatch);
                       }
-                      finalType = mainFile && /\.gif$/i.test(mainFile) ? 'animated' : 'image';
+                      finalType = 'image';
+                    } else if (imageMatch) {
+                      mainFile = path.join(fullPath, imageMatch);
+                      finalType = 'image';
+                    } else if (previewFile && fs.existsSync(previewFile)) {
+                      mainFile = previewFile;
+                      finalType = previewFile.endsWith('.gif') ? 'animated' : 'image';
                     }
 
-                    if (previewFile && !fs.existsSync(previewFile) && imageMatch) {
-                      previewFile = path.join(fullPath, imageMatch);
+                    if (previewFile && !fs.existsSync(previewFile)) {
+                      previewFile = mainFile;
                     }
 
                     results.push({
@@ -130,6 +144,14 @@ function wpeMediaPlugin() {
 
           filePath = filePath.replace(/^file:\/\/\//, '');
           filePath = path.normalize(filePath);
+
+          // If a scene.pkg was requested directly, resolve to high-res extracted texture
+          if (filePath.endsWith('.pkg')) {
+            const hdFile = resolveHdMediaFromPkg(filePath);
+            if (hdFile && fs.existsSync(hdFile)) {
+              filePath = hdFile;
+            }
+          }
 
           if (!fs.existsSync(filePath)) {
             res.statusCode = 404;

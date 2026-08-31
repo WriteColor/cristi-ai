@@ -296,7 +296,8 @@ ipcMain.handle('scan-wallpaper-engine', async () => {
               const files = await fs.promises.readdir(fullPath);
               const videoMatch = files.find(f => /\.(mp4|webm|mkv|mov)$/i.test(f));
               const htmlMatch = files.find(f => /\.(html|htm)$/i.test(f));
-              const imageMatch = files.find(f => /\.(gif|png|jpg|jpeg|webp)$/i.test(f));
+              const pkgMatch = files.find(f => /\.pkg$/i.test(f));
+              const imageMatch = files.find(f => /\.(png|jpg|jpeg|webp)$/i.test(f));
 
               if (videoMatch) {
                 mainFile = path.join(fullPath, videoMatch);
@@ -304,17 +305,25 @@ ipcMain.handle('scan-wallpaper-engine', async () => {
               } else if (htmlMatch) {
                 mainFile = path.join(fullPath, htmlMatch);
                 finalType = 'web';
-              } else if (!mainFile || mainFile.endsWith('.json') || mainFile.endsWith('.pkg')) {
-                if (previewFile && fs.existsSync(previewFile)) {
+              } else if (pkgMatch) {
+                const { resolveHdMediaFromPkg } = require('../server/wpePkgExtractor.cjs');
+                const hdFile = resolveHdMediaFromPkg(path.join(fullPath, pkgMatch));
+                if (hdFile && fs.existsSync(hdFile)) {
+                  mainFile = hdFile;
+                } else if (previewFile && fs.existsSync(previewFile)) {
                   mainFile = previewFile;
-                } else if (imageMatch) {
-                  mainFile = path.join(fullPath, imageMatch);
                 }
-                finalType = mainFile && /\.gif$/i.test(mainFile) ? 'animated' : 'image';
+                finalType = 'image';
+              } else if (imageMatch) {
+                mainFile = path.join(fullPath, imageMatch);
+                finalType = 'image';
+              } else if (previewFile && fs.existsSync(previewFile)) {
+                mainFile = previewFile;
+                finalType = previewFile.endsWith('.gif') ? 'animated' : 'image';
               }
 
-              if (previewFile && !fs.existsSync(previewFile) && imageMatch) {
-                previewFile = path.join(fullPath, imageMatch);
+              if (previewFile && !fs.existsSync(previewFile)) {
+                previewFile = mainFile;
               }
 
               results.push({
