@@ -99,6 +99,19 @@ export function BackgroundScene() {
 
     return (
       <div className="scene-viewport custom-scene-active">
+        {/* Dynamic Ambient Aura Backdrop (Fills widescreen margins with matching soft ambient glow) */}
+        {!isWeb && (
+          <div
+            className="scene-ambient-backdrop"
+            style={{
+              backgroundImage: `url("${customUrl}")`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }}
+          />
+        )}
+
+        {/* Main Media - Perfectly fitted to screen aspect ratio without stretching or pixelation */}
         {isVideo ? (
           <video
             key={customUrl}
@@ -114,7 +127,7 @@ export function BackgroundScene() {
                 el.play().catch(() => {});
               }
             }}
-            className="scene-media-element"
+            className="scene-media-element scene-media-contain"
           />
         ) : isWeb ? (
           <iframe
@@ -129,7 +142,7 @@ export function BackgroundScene() {
             key={customUrl}
             src={customUrl}
             alt="Wallpaper Engine Scene"
-            className="scene-media-element scene-image-element"
+            className="scene-media-element scene-media-contain scene-image-element"
           />
         )}
         <div className="scene-ambient-overlay" />

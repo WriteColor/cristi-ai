@@ -5,8 +5,16 @@ const path = require('path');
 const fs = require('fs');
 const { exec } = require('child_process');
 
-// Disable GPU compositing quirks that can break transparency on Windows
-app.commandLine.appendSwitch('disable-gpu-compositing');
+// Hardware GPU Acceleration & 120+ FPS Video Decoding Support
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('enable-native-gpu-memory-buffers');
+app.commandLine.appendSwitch('enable-accelerated-video-decode');
+app.commandLine.appendSwitch('enable-accelerated-2d-canvas');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('disable-frame-rate-limit');
+app.commandLine.appendSwitch('max-active-webgl-contexts', '32');
+app.commandLine.appendSwitch('high-dpi-support', '1');
 
 let mainWindow = null;
 let tray = null;
