@@ -92,9 +92,11 @@ export function BackgroundScene() {
     return null;
   }
 
-  // ── Custom Media (Image or Video) ─────────────────────────────────────────
-  if (sceneId === 'custom_wallpaper' && customUrl) {
-    const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(customUrl);
+  // ── Wallpaper Engine & Custom Media ───────────────────────────────────────
+  if ((sceneState.isWpe || sceneId === 'custom_wallpaper') && customUrl) {
+    const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(customUrl) || sceneState.sceneType === 'video';
+    const isWeb = /\.(html|htm)$/i.test(customUrl) || sceneState.sceneType === 'web';
+
     return (
       <div className="scene-viewport custom-scene-active">
         {isVideo ? (
@@ -105,6 +107,13 @@ export function BackgroundScene() {
             muted
             playsInline
             className="scene-media-element"
+          />
+        ) : isWeb ? (
+          <iframe
+            src={customUrl}
+            className="scene-iframe-element"
+            sandbox="allow-scripts allow-same-origin"
+            title="Wallpaper Engine Web Scene"
           />
         ) : (
           <div

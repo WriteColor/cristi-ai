@@ -19,3 +19,4 @@ export { LockScreenSandbox } from './LockScreenSandbox.jsx';
 export { VoiceEnrollmentModal } from './VoiceEnrollmentModal.jsx';
 export { SpeakerDiagnosticsHUD } from './SpeakerDiagnosticsHUD.jsx';
 export { BackgroundScene } from './BackgroundScene.jsx';
+export { TacticalDropdown } from './TacticalDropdown.jsx';

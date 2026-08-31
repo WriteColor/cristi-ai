@@ -245,6 +245,102 @@ ipcMain.handle('capture-screen-native', async (event, region = null) => {
   });
 });
 
+// ── Wallpaper Engine Native Auto-Scanner (Zero-Cost Async) ───────────────────
+ipcMain.handle('scan-wallpaper-engine', async () => {
+  const drives = ['C:', 'D:', 'E:', 'F:', 'G:', 'H:'];
+  const possibleRoots = [];
+
+  for (const d of drives) {
+    possibleRoots.push(
+      path.join(d, 'Program Files (x86)', 'Steam', 'steamapps'),
+      path.join(d, 'Program Files', 'Steam', 'steamapps'),
+      path.join(d, 'SteamLibrary', 'steamapps'),
+      path.join(d, 'Steam', 'steamapps'),
+      path.join(d, 'Games', 'SteamLibrary', 'steamapps')
+    );
+  }
+
+  const results = [];
+  const visited = new Set();
+
+  for (const steamRoot of possibleRoots) {
+    try {
+      if (!fs.existsSync(steamRoot)) continue;
+
+      // 1. Workshop Items (Steam AppID: 431960)
+      const workshopDir = path.join(steamRoot, 'workshop', 'content', '431960');
+      if (fs.existsSync(workshopDir)) {
+        const itemDirs = await fs.promises.readdir(workshopDir, { withFileTypes: true });
+        for (const itemDir of itemDirs) {
+          if (!itemDir.isDirectory()) continue;
+          const fullPath = path.join(workshopDir, itemDir.name);
+          if (visited.has(fullPath)) continue;
+          visited.add(fullPath);
+
+          const projectJson = path.join(fullPath, 'project.json');
+          if (fs.existsSync(projectJson)) {
+            try {
+              const data = JSON.parse(await fs.promises.readFile(projectJson, 'utf8'));
+              const mainFile = data.file ? path.join(fullPath, data.file) : null;
+              const previewFile = data.preview ? path.join(fullPath, data.preview) : null;
+
+              results.push({
+                id: `wpe_${itemDir.name}`,
+                workshopId: itemDir.name,
+                name: data.title || `Wallpaper ${itemDir.name}`,
+                category: 'wallpaper_engine',
+                type: data.type ? data.type.toLowerCase() : 'video',
+                mainPath: mainFile ? `file:///${mainFile.replace(/\\/g, '/')}` : null,
+                previewPath: previewFile ? `file:///${previewFile.replace(/\\/g, '/')}` : null,
+                description: data.description || `Wallpaper Engine Workshop (#${itemDir.name})`
+              });
+            } catch (_) {}
+          }
+        }
+      }
+
+      // 2. Default Built-in Projects & My Projects
+      const localRoots = [
+        path.join(steamRoot, 'common', 'wallpaper_engine', 'projects', 'defaultprojects'),
+        path.join(steamRoot, 'common', 'wallpaper_engine', 'projects', 'myprojects')
+      ];
+
+      for (const locRoot of localRoots) {
+        if (fs.existsSync(locRoot)) {
+          const itemDirs = await fs.promises.readdir(locRoot, { withFileTypes: true });
+          for (const itemDir of itemDirs) {
+            if (!itemDir.isDirectory()) continue;
+            const fullPath = path.join(locRoot, itemDir.name);
+            if (visited.has(fullPath)) continue;
+            visited.add(fullPath);
+
+            const projectJson = path.join(fullPath, 'project.json');
+            if (fs.existsSync(projectJson)) {
+              try {
+                const data = JSON.parse(await fs.promises.readFile(projectJson, 'utf8'));
+                const mainFile = data.file ? path.join(fullPath, data.file) : null;
+                const previewFile = data.preview ? path.join(fullPath, data.preview) : null;
+
+                results.push({
+                  id: `wpe_local_${itemDir.name}`,
+                  name: data.title || itemDir.name,
+                  category: 'wallpaper_engine',
+                  type: data.type ? data.type.toLowerCase() : 'scene',
+                  mainPath: mainFile ? `file:///${mainFile.replace(/\\/g, '/')}` : null,
+                  previewPath: previewFile ? `file:///${previewFile.replace(/\\/g, '/')}` : null,
+                  description: data.description || `Wallpaper Engine Oficial (${itemDir.name})`
+                });
+              } catch (_) {}
+            }
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  return results;
+});
+
 // ── Global Shortcuts Registration ───────────────────────────────────────────
 function registerGlobalShortcuts() {
   try {

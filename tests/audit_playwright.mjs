@@ -90,28 +90,41 @@ async function runAudit() {
       await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'playwright_02_accordion_switch.png') });
     }
 
-    // Test clicking Category 3: Modelo & Voz (Should auto-collapse Fondo & Escena and render models select)
+    // Test clicking Category 3: Modelo & Voz (Should auto-collapse Fondo & Escena and render tactical dropdowns)
     const aiCatBtn = await page.$('.ctx-mini-category-btn:has-text("Modelo & Voz")');
     if (aiCatBtn) {
       await aiCatBtn.click();
       await page.waitForTimeout(300);
       const isSceneOpenAfter = await page.$eval('.ctx-mini-category:has-text("Fondo & Escena")', (el) => el.classList.contains('open'));
       const isAiOpen = await page.$eval('.ctx-mini-category:has-text("Modelo & Voz")', (el) => el.classList.contains('open'));
-      const modelsCount = await page.$$eval('.ctx-mini-category:has-text("Modelo & Voz") select option', (opts) => opts.length);
-      console.log(`  ✓ Acordeón "Modelo & Voz" desplegado sin errores: abierto=${isAiOpen}, opciones detectadas=${modelsCount}`);
+      
+      // Open the Tactical AI Model dropdown
+      const aiDropTrigger = await page.$('.ctx-mini-category:has-text("Modelo & Voz") .tactical-dropdown-trigger');
+      if (aiDropTrigger) {
+        await aiDropTrigger.click();
+        await page.waitForTimeout(300);
+      }
+      const optionsCount = await page.$$eval('.tactical-option', (opts) => opts.length);
+      console.log(`  ✓ Acordeón "Modelo & Voz" y TacticalDropdown abierto: abierto=${isAiOpen}, opciones desplegadas=${optionsCount}`);
       await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'playwright_02_model_voice_open.png') });
     }
 
-    // 4. Test Background Scene Switching via Context Menu
-    console.log('\n[4/6] Probando activación de Escenas Cinemáticas...');
+    // 4. Test Background Scene Switching via TacticalDropdown
+    console.log('\n[4/6] Probando activación de Escenas Cinemáticas via TacticalDropdown...');
     const sceneBtnAgain = await page.$('.ctx-mini-category-btn:has-text("Fondo & Escena")');
     if (sceneBtnAgain) {
       await sceneBtnAgain.click();
       await page.waitForTimeout(300);
-      const sceneSelect = await page.$('.ctx-mini-category:has-text("Fondo & Escena") select');
-      if (sceneSelect) {
-        await sceneSelect.selectOption('cyber_loft');
-        await page.waitForTimeout(500);
+      const sceneDropTrigger = await page.$('.ctx-mini-category:has-text("Fondo & Escena") .tactical-dropdown-trigger');
+      if (sceneDropTrigger) {
+        await sceneDropTrigger.click();
+        await page.waitForTimeout(300);
+        // Click cyber_loft option
+        const cyberOption = await page.$('.tactical-option:has-text("Cyberpunk Loft")');
+        if (cyberOption) {
+          await cyberOption.click();
+          await page.waitForTimeout(500);
+        }
       }
     }
     const hasSceneViewport = await page.$('.scene-viewport');

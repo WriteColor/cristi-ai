@@ -4596,3 +4596,237 @@ html, body, #root {
   filter: blur(40px);
 }
 
+.scene-iframe-element {
+  position: absolute;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  border: none;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   23. TACTICAL OBSIDIAN DROPDOWNS (CYBERPUNK GLASS SELECTION)
+   ========================================================================== */
+
+.tactical-dropdown-container {
+  position: relative;
+  width: 100%;
+  user-select: none;
+}
+
+.tactical-dropdown-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  background: rgba(14, 16, 26, 0.92);
+  border: 1px dotted rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  padding: 5px 8px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.15s ease;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.tactical-dropdown-trigger:hover,
+.tactical-dropdown-container.open .tactical-dropdown-trigger {
+  background: rgba(22, 24, 40, 0.95);
+  border-color: var(--neon-purple);
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.25), inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.tactical-dropdown-label-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tactical-dropdown-icon {
+  color: var(--neon-purple);
+  flex-shrink: 0;
+}
+
+.tactical-dropdown-text {
+  font-weight: 600;
+  color: #f1f5f9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tactical-chevron {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tactical-chevron.rotate {
+  transform: rotate(180deg);
+  color: var(--neon-purple);
+}
+
+.tactical-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 10020;
+  background: rgba(9, 10, 18, 0.98);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.9), 0 0 20px rgba(168, 85, 247, 0.2);
+  border-radius: 3px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 3px 0;
+  animation: tactical-drop-appear 0.14s ease-out forwards;
+}
+
+@keyframes tactical-drop-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tactical-dropdown-menu::-webkit-scrollbar {
+  width: 3px;
+}
+.tactical-dropdown-menu::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.4);
+}
+.tactical-dropdown-menu::-webkit-scrollbar-thumb {
+  background: var(--neon-purple);
+  border-radius: 2px;
+}
+
+.tactical-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  cursor: pointer;
+  border-bottom: 1px dotted rgba(255, 255, 255, 0.03);
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.tactical-option:hover {
+  background: rgba(168, 85, 247, 0.16);
+}
+
+.tactical-option.selected {
+  background: rgba(168, 85, 247, 0.26);
+  border-left: 2px solid var(--neon-purple);
+}
+
+.tactical-option-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.tactical-option-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+}
+
+.tactical-option.selected .tactical-option-dot {
+  background: var(--neon-purple);
+  box-shadow: 0 0 6px var(--neon-purple);
+}
+
+.tactical-option-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tactical-option-title {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #f8fafc;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tactical-option-sub {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tactical-option-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: 6px;
+}
+
+.tactical-option-badge {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 700;
+  padding: 1px 4px;
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px dotted rgba(168, 85, 247, 0.4);
+  color: #d8b4fe;
+  border-radius: 2px;
+}
+
+.tactical-option-badge.mini {
+  font-size: 0.54rem;
+  padding: 0 3px;
+}
+
+.tactical-check {
+  color: var(--neon-purple);
+}
+
+.wpe-rescan-btn {
+  width: 100%;
+  justify-content: center;
+  margin-top: 4px;
+  background: rgba(168, 85, 247, 0.1);
+  border-color: rgba(168, 85, 247, 0.3);
+  color: #e9d5ff;
+}
+
+.wpe-rescan-btn:hover {
+  background: rgba(168, 85, 247, 0.25);
+  color: #ffffff;
+}
+
+.spin {
+  animation: spin-anim 1s linear infinite;
+}
+
+@keyframes spin-anim {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+

@@ -14,16 +14,19 @@ import {
   ShieldCheck,
   Eye,
   Sliders,
-  Image as ImageIcon
+  Image as ImageIcon,
+  RotateCw
 } from 'lucide-react';
 import { live2dModelRegistry } from '../services/live2d/index.js';
-import { GEMINI_MODELS } from '../config/models.js';
+import { GEMINI_MODELS, GEMINI_MODELS_LIST } from '../config/models.js';
 import { GEMINI_STANDARD_VOICES } from '../config/voices.js';
 import { BACKGROUND_SCENES } from '../config/scenes.js';
 import { sceneManager } from '../services/sceneManager.js';
+import { wallpaperEngineService } from '../services/wallpaperEngineService.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';
 import { electronBridge } from '../services/desktop/ElectronBridge.js';
 import { soundFxService } from '../services/soundFxService.js';
+import { TacticalDropdown } from './TacticalDropdown.jsx';
 
 export function ContextMenu({
   isOpen,
@@ -55,7 +58,9 @@ export function ContextMenu({
   const menuRef = useRef(null);
   const [activeSection, setActiveSection] = useState(null); // 'avatar' | 'scene' | 'ai' | 'tools' | 'system'
   const [activeScene, setActiveScene] = useState(sceneManager.getScene().sceneId);
+  const [availableScenes, setAvailableScenes] = useState(sceneManager.getAvailableScenes());
   const [currentActiveExpr, setCurrentActiveExpr] = useState(null);
+  const [isScanningWpe, setIsScanningWpe] = useState(false);
 
   const posX = coords?.x ?? position?.x ?? 60;
   const posY = coords?.y ?? position?.y ?? 60;
@@ -63,7 +68,10 @@ export function ContextMenu({
   const { interactiveProps } = useClickThrough();
 
   useEffect(() => {
-    return sceneManager.onSceneChange((s) => setActiveScene(s.sceneId));
+    return sceneManager.onSceneChange((s) => {
+      setActiveScene(s.sceneId);
+      setAvailableScenes(sceneManager.getAvailableScenes());
+    });
   }, []);
 
   // Collapse section and play sound on open
@@ -149,11 +157,53 @@ export function ContextMenu({
     }
   };
 
+  const handleRescanWallpaperEngine = async (e) => {
+    e.stopPropagation();
+    soundFxService.playClick();
+    setIsScanningWpe(true);
+    await wallpaperEngineService.scan();
+    setAvailableScenes(sceneManager.getAvailableScenes());
+    setIsScanningWpe(false);
+  };
+
   const handleCloseApp = () => {
     soundFxService.playClick();
     onClose();
     electronBridge.quitApp();
   };
+
+  // Prepare options for TacticalDropdowns
+  const modelOptions = allLive2dModels.map((m) => ({
+    value: m.id,
+    label: m.name,
+    badge: m.badge || '2D',
+    subtitle: m.theme
+  }));
+
+  const sceneOptions = availableScenes.map((s) => ({
+    value: s.id,
+    label: s.name,
+    badge: s.category === 'wallpaper_engine' ? 'WPE' : s.category?.toUpperCase(),
+    subtitle: s.description
+  }));
+
+  const aiModelsList = Array.isArray(GEMINI_MODELS_LIST) && GEMINI_MODELS_LIST.length > 0
+    ? GEMINI_MODELS_LIST
+    : Object.values(GEMINI_MODELS || {});
+
+  const aiModelOptions = aiModelsList.map((m) => ({
+    value: m.id,
+    label: m.displayName || m.name || m.id,
+    badge: m.badge || 'IA',
+    subtitle: m.description
+  }));
+
+  const voiceOptions = GEMINI_STANDARD_VOICES.map((v) => ({
+    value: v.name,
+    label: v.name,
+    badge: v.gender || '24kHz',
+    subtitle: v.trait
+  }));
 
   return (
     <div
@@ -193,24 +243,14 @@ export function ContextMenu({
 
         {activeSection === 'avatar' && (
           <div className="ctx-mini-drawer">
-            {/* Model Selector Dropdown */}
-            <div className="ctx-drawer-select-row">
-              <select
-                className="ctx-drawer-select"
-                value={activeModelId}
-                onChange={(e) => {
-                  soundFxService.playClick();
-                  if (onSwitchLive2DModel) onSwitchLive2DModel(e.target.value);
-                }}
-              >
-                {allLive2dModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={11} className="ctx-select-icon" />
-            </div>
+            {/* Tactical Model Selector Dropdown */}
+            <TacticalDropdown
+              options={modelOptions}
+              value={activeModelId}
+              onChange={(val) => onSwitchLive2DModel?.(val)}
+              placeholder="Elegir personaje..."
+              icon={Smile}
+            />
 
             {/* Quick Expressions Chips */}
             {activeModel?.expressions && activeModel.expressions.length > 0 && (
@@ -247,24 +287,27 @@ export function ContextMenu({
 
         {activeSection === 'scene' && (
           <div className="ctx-mini-drawer">
-            <div className="ctx-drawer-select-row">
-              <select
-                className="ctx-drawer-select"
-                value={activeScene}
-                onChange={(e) => {
-                  soundFxService.playClick();
-                  sceneManager.setScene(e.target.value);
-                  setActiveScene(e.target.value);
-                }}
-              >
-                {BACKGROUND_SCENES.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={11} className="ctx-select-icon" />
-            </div>
+            {/* Tactical Scene Selector Dropdown */}
+            <TacticalDropdown
+              options={sceneOptions}
+              value={activeScene}
+              onChange={(val) => {
+                sceneManager.setScene(val);
+                setActiveScene(val);
+              }}
+              placeholder="Elegir escena..."
+              icon={ImageIcon}
+            />
+
+            <button
+              type="button"
+              className="ctx-action-item wpe-rescan-btn"
+              onClick={handleRescanWallpaperEngine}
+              disabled={isScanningWpe}
+            >
+              <RotateCw size={11} className={isScanningWpe ? 'spin' : ''} />
+              <span>{isScanningWpe ? 'Escaneando Steam...' : 'Escanear Wallpaper Engine'}</span>
+            </button>
           </div>
         )}
       </div>
@@ -285,41 +328,23 @@ export function ContextMenu({
 
         {activeSection === 'ai' && (
           <div className="ctx-mini-drawer">
-            <div className="ctx-drawer-select-row">
-              <select
-                className="ctx-drawer-select"
-                value={activeAiModelId}
-                onChange={(e) => {
-                  soundFxService.playClick();
-                  if (onSwitchAiModel) onSwitchAiModel(e.target.value);
-                }}
-              >
-                {(Array.isArray(GEMINI_MODELS) ? GEMINI_MODELS : Object.values(GEMINI_MODELS || {})).map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.displayName || m.name || m.id}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={11} className="ctx-select-icon" />
-            </div>
+            {/* Tactical AI Model Selector */}
+            <TacticalDropdown
+              options={aiModelOptions}
+              value={activeAiModelId}
+              onChange={(val) => onSwitchAiModel?.(val)}
+              placeholder="Elegir modelo IA..."
+              icon={Zap}
+            />
 
-            <div className="ctx-drawer-select-row" style={{ marginTop: '5px' }}>
-              <select
-                className="ctx-drawer-select"
-                value={activeVoiceName}
-                onChange={(e) => {
-                  soundFxService.playClick();
-                  if (onSwitchVoice) onSwitchVoice(e.target.value);
-                }}
-              >
-                {GEMINI_STANDARD_VOICES.map((v) => (
-                  <option key={v.name} value={v.name}>
-                    {v.name} {v.gender ? `(${v.gender})` : ''}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={11} className="ctx-select-icon" />
-            </div>
+            {/* Tactical Voice Selector */}
+            <TacticalDropdown
+              options={voiceOptions}
+              value={activeVoiceName}
+              onChange={(val) => onSwitchVoice?.(val)}
+              placeholder="Elegir voz..."
+              icon={Volume2}
+            />
           </div>
         )}
       </div>
