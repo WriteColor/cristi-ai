@@ -27,7 +27,7 @@ class LockScreenService {
       }
     });
 
-    logger.info('LockScreenService initialized');
+    logger.info('SYSTEM', 'Servicio de Bloqueo de Pantalla inicializado');
   }
 
   /**

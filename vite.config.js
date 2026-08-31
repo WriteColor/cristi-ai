@@ -32,7 +32,8 @@ function terminalLoggerPlugin() {
             else if (level === 'warn') prefix = '\x1b[33m[WARN]\x1b[0m';
             else if (level === 'voice') prefix = '\x1b[36m[VOICE]\x1b[0m';
 
-            const payloadStr = data ? ` => ${JSON.stringify(data)}` : '';
+            const hasValidData = data && typeof data === 'object' && Object.keys(data).length > 0;
+            const payloadStr = hasValidData ? ` \x1b[90m=> ${JSON.stringify(data)}\x1b[0m` : '';
             console.log(`${chalkTime} ${prefix} ${chalkTag} ${message}${payloadStr}`);
           } catch (e) {}
           res.statusCode = 200;

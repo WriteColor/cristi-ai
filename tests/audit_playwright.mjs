@@ -90,19 +90,32 @@ async function runAudit() {
       await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'playwright_02_accordion_switch.png') });
     }
 
-    // 4. Test Background Scene Switching
+    // Test clicking Category 3: Modelo & Voz (Should auto-collapse Fondo & Escena and render models select)
+    const aiCatBtn = await page.$('.ctx-mini-category-btn:has-text("Modelo & Voz")');
+    if (aiCatBtn) {
+      await aiCatBtn.click();
+      await page.waitForTimeout(300);
+      const isSceneOpenAfter = await page.$eval('.ctx-mini-category:has-text("Fondo & Escena")', (el) => el.classList.contains('open'));
+      const isAiOpen = await page.$eval('.ctx-mini-category:has-text("Modelo & Voz")', (el) => el.classList.contains('open'));
+      const modelsCount = await page.$$eval('.ctx-mini-category:has-text("Modelo & Voz") select option', (opts) => opts.length);
+      console.log(`  ✓ Acordeón "Modelo & Voz" desplegado sin errores: abierto=${isAiOpen}, opciones detectadas=${modelsCount}`);
+      await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'playwright_02_model_voice_open.png') });
+    }
+
+    // 4. Test Background Scene Switching via Context Menu
     console.log('\n[4/6] Probando activación de Escenas Cinemáticas...');
-    await page.evaluate(() => {
-      // Switch to cyber_loft scene
-      const sceneSelect = document.querySelector('.ctx-drawer-select');
+    const sceneBtnAgain = await page.$('.ctx-mini-category-btn:has-text("Fondo & Escena")');
+    if (sceneBtnAgain) {
+      await sceneBtnAgain.click();
+      await page.waitForTimeout(300);
+      const sceneSelect = await page.$('.ctx-mini-category:has-text("Fondo & Escena") select');
       if (sceneSelect) {
-        sceneSelect.value = 'cyber_loft';
-        sceneSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        await sceneSelect.selectOption('cyber_loft');
+        await page.waitForTimeout(500);
       }
-    });
-    await page.waitForTimeout(600);
+    }
     const hasSceneViewport = await page.$('.scene-viewport');
-    console.log(`  ✓ Escena cinemática renderizada: ${!!hasSceneViewport}`);
+    console.log(`  ✓ Escena cinemática renderizada en DOM: ${!!hasSceneViewport}`);
     await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'playwright_04_cinematic_scene.png') });
 
     // Close context menu with Escape

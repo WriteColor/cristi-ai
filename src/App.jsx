@@ -371,9 +371,6 @@ export function App() {
       }
     }
 
-    // Enable virtual sensors & game integration hooks
-    externalDeviceManager.enableVirtualSensors();
-
     // Audit and verify AI models integrity on launch
     modelManager.auditAllModels().catch((e) => console.warn('ModelManager audit error:', e));
 

@@ -294,9 +294,9 @@ export function ContextMenu({
                   if (onSwitchAiModel) onSwitchAiModel(e.target.value);
                 }}
               >
-                {GEMINI_MODELS.map((m) => (
+                {(Array.isArray(GEMINI_MODELS) ? GEMINI_MODELS : Object.values(GEMINI_MODELS || {})).map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.name}
+                    {m.displayName || m.name || m.id}
                   </option>
                 ))}
               </select>
@@ -313,8 +313,8 @@ export function ContextMenu({
                 }}
               >
                 {GEMINI_STANDARD_VOICES.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name} ({v.tone})
+                  <option key={v.name} value={v.name}>
+                    {v.name} {v.gender ? `(${v.gender})` : ''}
                   </option>
                 ))}
               </select>
