@@ -21,11 +21,17 @@ import {
   Heart,
   Gamepad2,
   Terminal,
-  Coffee
+  Coffee,
+  Download,
+  Upload
 } from 'lucide-react';
 import { GEMINI_MODELS, DEFAULT_MODEL_ID } from '../config/models';
 import { GEMINI_STANDARD_VOICES } from '../config/voices';
 import { live2dModelRegistry } from '../services/live2d';
+import { useClickThrough } from '../hooks/useClickThrough';
+import { soundFxService } from '../services/soundFxService';
+import { configManager } from '../services/configManager';
+import { toastService } from '../services/toastService';
 
 /**
  * Predefined System Prompt Presets for Quick Persona Switching
@@ -95,6 +101,54 @@ export function SettingsModal({
   const [systemPrompt, setSystemPrompt] = useState(config.systemPrompt || '');
 
   const textareaRef = useRef(null);
+  const modalRef = useRef(null);
+
+  const { interactiveProps } = useClickThrough();
+
+  // Play Sound FX on open
+  useEffect(() => {
+    if (isOpen) {
+      soundFxService.playMenuOpen();
+    }
+  }, [isOpen]);
+
+  // Focus Trap & Escape key listener
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        soundFxService.playClick();
+        onClose();
+        return;
+      }
+
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusable = modalRef.current.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            last.focus();
+            e.preventDefault();
+          }
+        } else {
+          if (document.activeElement === last) {
+            first.focus();
+            e.preventDefault();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   // Dynamic Auto-Adjust Height for Textarea
   useEffect(() => {
@@ -110,7 +164,46 @@ export function SettingsModal({
   const allLive2dModels = live2dModelRegistry.getAllModels();
   const activeLive2dModel = live2dModelRegistry.getModel(live2dModelId);
 
+  const fileInputRef = useRef(null);
+
+  const handleExportConfig = () => {
+    soundFxService.playClick();
+    const jsonStr = configManager.exportConfigJSON();
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cristi-config-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toastService.success('Configuración exportada exitosamente.');
+  };
+
+  const handleImportFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = configManager.importConfigJSON(event.target.result);
+      if (result.success) {
+        setApiKey(result.config.apiKey || '');
+        setModelId(result.config.modelId || DEFAULT_MODEL_ID);
+        setLive2dModelId(result.config.live2dModelId || 'yanderegirl');
+        setVoiceName(result.config.voiceName || 'Aoede');
+        setTemperature(result.config.temperature ?? 0.75);
+        setSystemPrompt(result.config.systemPrompt || '');
+        onSaveConfig(result.config);
+        toastService.success('Configuración importada y aplicada exitosamente.');
+      } else {
+        toastService.error(`Error al importar: ${result.error}`);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   const handleSave = () => {
+    soundFxService.playClick();
     onSaveConfig({
       apiKey: apiKey.trim(),
       modelId,
@@ -125,16 +218,28 @@ export function SettingsModal({
   const navItems = [
     { id: 'model', label: 'Modelo & API', icon: Zap, subtitle: 'Motor de IA y credenciales' },
     { id: 'avatar', label: 'Avatar Live2D', icon: Smile, subtitle: 'Catálogo de 8 modelos y capacidades' },
-    { id: 'voice', label: 'Voz de Cristi', icon: Mic2, subtitle: '30 timbres vocales de Gemini' },
+    { id: 'voice', label: 'Voz de Cristi', icon: Mic2, subtitle: `${GEMINI_STANDARD_VOICES.length} timbres vocales de Gemini` },
     { id: 'persona', label: 'Personalidad', icon: User, subtitle: 'Temperatura y prompt dinámico' },
   ];
 
   return (
     <div
       className="sm-backdrop"
-      onClick={(e) => e.target.classList.contains('sm-backdrop') && onClose()}
+      {...interactiveProps}
+      onClick={(e) => {
+        if (e.target.classList.contains('sm-backdrop')) {
+          soundFxService.playClick();
+          onClose();
+        }
+      }}
     >
-      <div className="sm-card" role="dialog" aria-modal="true" aria-labelledby="sm-modal-title">
+      <div ref={modalRef} className="sm-card" role="dialog" aria-modal="true" aria-labelledby="sm-modal-title">
+        {/* Futuristic Corner Crosshairs */}
+        <span className="hud-corner hud-corner-tl" />
+        <span className="hud-corner hud-corner-tr" />
+        <span className="hud-corner hud-corner-bl" />
+        <span className="hud-corner hud-corner-br" />
+
         {/* Top Header Strip */}
         <header className="sm-header">
           <div className="sm-header-title-group">
@@ -260,8 +365,12 @@ export function SettingsModal({
                   </label>
 
                   <div className="sm-model-grid">
-                    {GEMINI_MODELS.map((m) => {
+                    {(Array.isArray(GEMINI_MODELS) ? GEMINI_MODELS : Object.values(GEMINI_MODELS || {})).map((m) => {
                       const isSelected = modelId === m.id;
+                      const displayName = m.displayName || m.name || m.id;
+                      const badgeText = m.badge || m.tag || 'Live API';
+                      const voicesCount = m.voiceCount || m.voicesSupported || 30;
+                      const protocolText = m.version ? `${m.version} WebSocket` : (m.bidiProtocol || 'v1beta Live WebSocket');
                       return (
                         <div
                           key={m.id}
@@ -270,13 +379,11 @@ export function SettingsModal({
                         >
                           <div className="sm-model-card-header">
                             <div className="sm-model-info-row">
-                              <span className="sm-model-name">{m.name}</span>
-                              <span className="sm-badge sm-badge-tag">{m.tag}</span>
-                              {m.isLivePreview && (
-                                <span className="sm-badge sm-badge-live">
-                                  <Sparkles size={10} /> Live WebSocket
-                                </span>
-                              )}
+                              <span className="sm-model-name">{displayName}</span>
+                              <span className="sm-badge sm-badge-tag">{badgeText}</span>
+                              <span className="sm-badge sm-badge-live">
+                                <Sparkles size={10} /> Live WebSocket
+                              </span>
                             </div>
                             <div className="sm-model-radio">
                               {isSelected ? (
@@ -289,10 +396,10 @@ export function SettingsModal({
                           <p className="sm-model-desc">{m.description}</p>
                           <div className="sm-model-meta-row">
                             <span className="sm-meta-item">
-                              <strong>Voces:</strong> {m.voicesSupported}
+                              <strong>Voces:</strong> {voicesCount}
                             </span>
                             <span className="sm-meta-item">
-                              <strong>Protocolo:</strong> {m.bidiProtocol}
+                              <strong>Protocolo:</strong> {protocolText}
                             </span>
                           </div>
                         </div>
@@ -386,7 +493,7 @@ export function SettingsModal({
                 <div className="sm-section-header">
                   <h3 className="sm-section-title">Timbre y Voz de Cristi</h3>
                   <p className="sm-section-desc">
-                    Selecciona entre las 30 voces neuronales de alta fidelidad generadas por Gemini Live a 24kHz.
+                    Selecciona entre las {GEMINI_STANDARD_VOICES.length} voces neuronales de alta fidelidad generadas por Gemini Live a 24kHz.
                   </p>
                 </div>
 
@@ -530,13 +637,43 @@ export function SettingsModal({
 
         {/* Footer Actions Strip */}
         <footer className="sm-footer">
-          <button type="button" className="sm-btn sm-btn-secondary" onClick={onClose}>
-            Cancelar
-          </button>
-          <button type="button" className="sm-btn sm-btn-primary" onClick={handleSave}>
-            <Check size={14} />
-            <span>Guardar Cambios</span>
-          </button>
+          <div className="sm-footer-left">
+            <input
+              type="file"
+              ref={fileInputRef}
+              style={{ display: 'none' }}
+              accept=".json"
+              onChange={handleImportFileChange}
+            />
+            <button
+              type="button"
+              className="sm-btn sm-btn-secondary sm-btn-compact"
+              onClick={handleExportConfig}
+              title="Exportar archivo de configuración (.json)"
+            >
+              <Download size={13} />
+              <span>Exportar JSON</span>
+            </button>
+            <button
+              type="button"
+              className="sm-btn sm-btn-secondary sm-btn-compact"
+              onClick={() => fileInputRef.current?.click()}
+              title="Importar archivo de configuración (.json)"
+            >
+              <Upload size={13} />
+              <span>Importar JSON</span>
+            </button>
+          </div>
+
+          <div className="sm-footer-right">
+            <button type="button" className="sm-btn sm-btn-secondary" onClick={onClose}>
+              Cancelar
+            </button>
+            <button type="button" className="sm-btn sm-btn-primary" onClick={handleSave}>
+              <Check size={14} />
+              <span>Guardar Cambios</span>
+            </button>
+          </div>
         </footer>
       </div>
     </div>

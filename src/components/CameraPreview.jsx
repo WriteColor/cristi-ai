@@ -13,6 +13,7 @@ import {
   Zap,
   Sliders
 } from 'lucide-react';
+import { useClickThrough } from '../hooks/useClickThrough';
 
 /**
  * Cristi AI - Sensory Camera Preview with Windows Hello IR support & Multi-Sample Face Enrollment
@@ -92,8 +93,15 @@ export function CameraPreview({
     };
   }
 
+  const { interactiveProps } = useClickThrough();
+
   return (
-    <div className={`camera-pip expanded ${showManager ? 'with-manager' : ''}`}>
+    <div className={`camera-pip expanded ${showManager ? 'with-manager' : ''}`} {...interactiveProps}>
+      <span className="hud-corner hud-corner-tl" />
+      <span className="hud-corner hud-corner-tr" />
+      <span className="hud-corner hud-corner-bl" />
+      <span className="hud-corner hud-corner-br" />
+
       {/* Video Feed */}
       <video ref={videoRef} autoPlay playsInline muted className="camera-video-feed" />
 

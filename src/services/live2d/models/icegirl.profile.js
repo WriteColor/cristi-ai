@@ -112,7 +112,19 @@ export const icegirlProfile = {
     },
     "love": {
         "type": "expression",
+        "name": "爱心眼"
+    },
+    "excited": {
+        "type": "expression",
         "name": "星星眼"
+    },
+    "gamer": {
+        "type": "expression",
+        "name": "手柄"
+    },
+    "smug": {
+        "type": "expression",
+        "name": "←歪嘴"
     }
 }
 };

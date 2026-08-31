@@ -8,7 +8,13 @@ import {
   SettingsModal,
   CameraPreview,
   ScreenRegionOverlay,
-  ScreenRegionPicker
+  ScreenRegionPicker,
+  ToastContainer,
+  DesktopWidgets,
+  LockScreenWidget,
+  LockScreenSandbox,
+  VoiceEnrollmentModal,
+  SpeakerDiagnosticsHUD
 } from './components';
 import {
   eventBus,
@@ -25,6 +31,13 @@ import {
   externalDeviceManager,
   gameIntegrationManager,
   live2dModelRegistry,
+  contextualEmotionOrchestrator,
+  electronBridge,
+  lockScreenService,
+  speakerRecognitionService,
+  modelManager,
+  toast,
+  toastService,
   logger
 } from './services';
 import {
@@ -101,8 +114,9 @@ export function App() {
     }, 4500);
   }, []);
 
-  // --- Visual Sensory Camera & Face Recognition States ---
+  // --- Sensory Camera & Face Recognition States ---
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [showWidgets, setShowWidgets] = useState(true);
   const [availableDevices, setAvailableDevices] = useState([]);
   const [currentDeviceId, setCurrentDeviceId] = useState('');
   const [isIREnhanced, setIsIREnhanced] = useState(false);
@@ -111,8 +125,21 @@ export function App() {
 
   // --- UI & Windows Hello Desktop States ---
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isSolidBackdrop, setIsSolidBackdrop] = useState(true);
+  const [isSolidBackdrop, setIsSolidBackdrop] = useState(() => {
+    try {
+      const saved = localStorage.getItem('cristi_ai_solid_backdrop_v1');
+      if (saved !== null) return saved === 'true';
+      return false; // Default: Transparent Desktop Widget mode
+    } catch {
+      return false;
+    }
+  });
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false);
+  const [isClickThroughEnabled, setIsClickThroughEnabled] = useState(true);
+  const [isLockScreenActive, setIsLockScreenActive] = useState(false);
+  const [isLockSandboxOpen, setIsLockSandboxOpen] = useState(false);
+  const [isVoiceEnrollmentOpen, setIsVoiceEnrollmentOpen] = useState(false);
+  const [speakerDecision, setSpeakerDecision] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
   const [contextMenu, setContextMenu] = useState({ isOpen: false, x: 0, y: 0 });
 
@@ -142,8 +169,12 @@ export function App() {
 
   // Save configuration changes
   const handleSaveConfig = (newConfig) => {
+    const isModelChange = newConfig.live2dModelId !== config.live2dModelId;
+    const isAiChange = newConfig.modelId !== config.modelId;
     setConfig(newConfig);
     localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(newConfig));
+
+    // Configuration saved quietly without spamming the viewport
   };
 
   // Toggle Torso vs Full body framing
@@ -153,32 +184,51 @@ export function App() {
     localStorage.setItem(STORAGE_KEY_VIEWMODE, nextMode);
   };
 
-  // Toggle Zen Mode (hide UI)
+  // Toggle Zen Mode (hide UI completely)
   const handleToggleZenMode = () => {
-    setIsZenMode((prev) => !prev);
-    setIsUiVisible((prev) => !prev);
+    setIsZenMode((prev) => {
+      const next = !prev;
+      setIsUiVisible(!next);
+      setTimeout(() => clickThroughService.syncHitboxes(), 60);
+      return next;
+    });
   };
 
   // --- Zen Mode: Auto-Fade on Inactivity ---
   const resetInactivityTimer = useCallback(() => {
-    if (!isZenMode) {
-      setIsUiVisible(true);
+    if (isZenMode) {
+      setIsUiVisible(false);
+      return;
     }
-    if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
+    setIsUiVisible(true);
+    setTimeout(() => clickThroughService.syncHitboxes(), 60);
 
+    if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
     autoHideTimerRef.current = setTimeout(() => {
       setIsUiVisible(false);
-    }, 4000);
+      setTimeout(() => clickThroughService.syncHitboxes(), 60);
+    }, 5000);
   }, [isZenMode]);
 
   useEffect(() => {
-    const onActivity = () => resetInactivityTimer();
+    const onActivity = () => {
+      if (!isZenMode) resetInactivityTimer();
+    };
     const onKeyDown = (e) => {
-      resetInactivityTimer();
+      if (e.key === 'Escape') {
+        setIsSettingsOpen(false);
+        setIsVoiceEnrollmentOpen(false);
+        setIsLockSandboxOpen(false);
+        setIsRegionPickerOpen(false);
+        setContextMenu({ isOpen: false, x: 0, y: 0 });
+      }
       if (e.key === 'h' || e.key === 'H') {
         if (!e.target.matches('input, textarea')) {
+          e.preventDefault();
           handleToggleZenMode();
         }
+      } else {
+        if (!isZenMode) resetInactivityTimer();
       }
     };
 
@@ -195,11 +245,11 @@ export function App() {
     };
   }, [resetInactivityTimer]);
 
-  // --- Initialize Neutralino Native Desktop environment & System Tray ---
+  // --- Initialize Electron Native Desktop Environment & System Tray ---
   useEffect(() => {
-    if (window.Neutralino) {
+    if (electronBridge.isElectron) {
       try {
-        window.Neutralino.init();
+        setIsAlwaysOnTop(true);
 
         systemTrayRef.current = new SystemTrayService({
           onRestoreWindow: () => {
@@ -213,17 +263,79 @@ export function App() {
           },
           onToggleAlwaysOnTop: () => {
             handleToggleAlwaysOnTop();
+          },
+          onOpenVoiceEnrollment: () => {
+            setIsVoiceEnrollmentOpen(true);
+          },
+          onOpenLockSandbox: () => {
+            setIsLockSandboxOpen(true);
           }
         });
 
         systemTrayRef.current.setupTray();
+
+        // Register Global Shortcut Event Listeners
+        const unsubMuteShortcut = electronBridge.onShortcutEvent('shortcut-toggle-mute', () => {
+          setIsMuted((prev) => {
+            const next = !prev;
+            toastService.info(next ? 'Micrófono silenciado (Ctrl+Shift+M)' : 'Micrófono activado (Ctrl+Shift+M)');
+            return next;
+          });
+        });
+
+        const unsubVisionShortcut = electronBridge.onShortcutEvent('shortcut-capture-screen', async () => {
+          toastService.info('Analizando pantalla activa (Ctrl+Shift+S)...');
+          try {
+            const frame = await electronBridge.captureScreenNative();
+            if (frame && geminiSocketRef.current) {
+              geminiSocketRef.current.sendRealtimeMedia(frame, 'image/jpeg');
+              toastService.success('Captura enviada a Cristi para análisis.');
+            }
+          } catch (e) {
+            toastService.error('Error al capturar pantalla: ' + e.message);
+          }
+        });
+
+        systemTrayRef.current._unsubShortcuts = () => {
+          unsubMuteShortcut();
+          unsubVisionShortcut();
+        };
       } catch (e) {
-        console.log('Neutralino init notice:', e);
+        console.log('Electron init notice:', e);
       }
     }
 
     // Enable virtual sensors & game integration hooks
     externalDeviceManager.enableVirtualSensors();
+
+    // Audit and verify AI models integrity on launch
+    modelManager.auditAllModels().catch((e) => console.warn('ModelManager audit error:', e));
+
+    // Listen to Speaker Recognition telemetry
+    const unsubSpeaker = speakerRecognitionService.onTelemetry((telemetry) => {
+      setSpeakerDecision(telemetry.lastDecision);
+    });
+
+    // Initialize Windows 11 Lock Screen Service
+    lockScreenService.init();
+    const unsubLock = lockScreenService.onStateChange((isLocked) => {
+      setIsLockScreenActive(isLocked);
+    });
+
+    if (typeof window !== 'undefined') {
+      window.__cristiEventBus = eventBus;
+      window.__cristiOpenVoiceEnrollment = () => setIsVoiceEnrollmentOpen(true);
+      window.__cristiModelManager = modelManager;
+      window.__cristiSpeakerService = speakerRecognitionService;
+    }
+
+    return () => {
+      if (systemTrayRef.current?._unsubShortcuts) {
+        systemTrayRef.current._unsubShortcuts();
+      }
+      unsubLock();
+      unsubSpeaker();
+    };
   }, []);
 
   // --- Audio Output Service Setup ---
@@ -361,14 +473,27 @@ export function App() {
     };
   }, []);
 
+  // --- Synchronize Emotion State with Contextual Emotion Orchestrator ---
+  useEffect(() => {
+    const unsub = eventBus.on(EVENTS.EMOTION_CHANGED, (emotion) => {
+      if (emotion) {
+        setCurrentGesture(emotion);
+      }
+    });
+    return unsub;
+  }, []);
+
   // --- Local Companion Tool Executor Setup ---
   useEffect(() => {
     toolExecutorRef.current = new ToolExecutor({
       onGestureTrigger: (gesture, comment) => {
+        contextualEmotionOrchestrator.triggerEmotion(gesture, 'tool_call');
         setCurrentGesture(gesture);
-        setTimeout(() => {
-          setCurrentGesture('idle');
-        }, 5000);
+      },
+      onMotionTrigger: (motionGroup, index) => {
+        if (window.__cristiAvatar?.setMotionByGroup) {
+          window.__cristiAvatar.setMotionByGroup(motionGroup, index);
+        }
       },
       onToolExecutionStart: (name) => {
         setActiveToolName(name);
@@ -499,7 +624,8 @@ export function App() {
     }
 
     if (!config.apiKey || !config.apiKey.trim()) {
-      setErrorMessage('Por favor configura tu Gemini API Key en el menú de Ajustes (⚙).');
+      toastService.warning('Por favor configura tu Gemini API Key en el menú de Ajustes (⚙).');
+      soundFxService.playClick();
       setIsSettingsOpen(true);
       return;
     }
@@ -571,15 +697,40 @@ export function App() {
           setIsConnecting(false);
         },
         onAudioChunk: (base64PCM) => {
+          // If speaker was identified as unauthorized stranger, suppress Cristi audio response
+          if (speakerRecognitionService.hasEnrolledProfile() && speakerRecognitionService.lastDecision?.isOwner === false) {
+            return;
+          }
           if (audioOutRef.current) {
             audioOutRef.current.playAudioChunk(base64PCM);
           }
         },
         onOutputTranscription: (text) => {
+          if (speakerRecognitionService.hasEnrolledProfile() && speakerRecognitionService.lastDecision?.isOwner === false) {
+            return;
+          }
           setSubtitleText(text);
         },
         onInputTranscription: (text) => {
           setUserTranscript(text);
+
+          // Verify speaker identity against enrolled profile
+          if (audioInRef.current) {
+            const recentSamples = audioInRef.current.getRecentAudioSamples(1500);
+            const decision = speakerRecognitionService.verifySpeaker(recentSamples);
+            setSpeakerDecision(decision);
+
+            if (decision.hasProfile && decision.isOwner === false) {
+              logger.warn('SPEAKER', `Intervención de tercero detectada ("${text}"). Silenciando respuesta de Cristi.`);
+              if (audioOutRef.current) {
+                audioOutRef.current.stopImmediate();
+              }
+              setIsSpeaking(false);
+              setSubtitleText('🔇 [Voz no autorizada — Cristi permanece en silencio]');
+              toastService.error('Voz no autorizada detectada. Respuesta bloqueada.');
+              soundFxService.playDisconnect();
+            }
+          }
         },
         onInterrupted: () => {
           if (audioOutRef.current) {
@@ -625,6 +776,8 @@ export function App() {
       openSettings: () => setIsSettingsOpen(true),
       closeSettings: () => setIsSettingsOpen(false),
       eventBus,
+      toast,
+      toastService,
       externalDeviceManager,
       gameIntegrationManager,
       live2dModelRegistry,
@@ -694,28 +847,43 @@ export function App() {
 
   // --- Transparent Backdrop Toggle ---
   const handleToggleBackdrop = () => {
-    setIsSolidBackdrop((prev) => !prev);
+    setIsSolidBackdrop((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('cristi_ai_solid_backdrop_v1', next ? 'true' : 'false');
+      } catch {}
+      return next;
+    });
   };
 
   // --- Always On Top Window Toggle ---
   const handleToggleAlwaysOnTop = () => {
     const nextState = !isAlwaysOnTop;
     setIsAlwaysOnTop(nextState);
-    if (window.Neutralino?.window) {
-      window.Neutralino.window.setAlwaysOnTop(nextState);
-    }
+    electronBridge.setAlwaysOnTop(nextState);
   };
 
   // --- Right-Click Context Menu Handler ---
   const handleModelContextMenu = (e, bounds) => {
     if (e && e.preventDefault) e.preventDefault();
+    if (e && e.stopPropagation) e.stopPropagation();
+    const posX = e?.clientX !== undefined ? e.clientX : (window.innerWidth / 2);
+    const posY = e?.clientY !== undefined ? e.clientY : (window.innerHeight / 2);
     setContextMenu({
       isOpen: true,
-      x: e.clientX,
-      y: e.clientY,
+      x: posX,
+      y: posY,
       modelBounds: bounds || null
     });
   };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.__cristiOpenContextMenu = (x, y) => handleModelContextMenu({ clientX: x || 300, clientY: y || 200 });
+      window.__cristiToggleLockScreen = () => setIsLockScreenActive((prev) => !prev);
+      window.__cristiOpenLockSandbox = () => setIsLockSandboxOpen(true);
+    }
+  }, []);
 
   const handleTriggerRandomGesture = () => {
     const gestures = ['happy', 'blush', 'wink', 'dance', 'yandere', 'mad', 'surprised'];
@@ -754,15 +922,14 @@ export function App() {
   const handleMinimizeToTray = () => {
     if (systemTrayRef.current) {
       systemTrayRef.current.minimizeToTray();
-    } else if (window.Neutralino?.window) {
-      window.Neutralino.window.minimize();
+    } else {
+      electronBridge.minimizeWindow();
     }
   };
 
   return (
     <div
       className={`app-container ${isSolidBackdrop ? 'solid-backdrop' : 'transparent-backdrop'}`}
-      onContextMenu={(e) => e.preventDefault()}
     >
       {/* Global Error Banner Toast */}
       {errorMessage && (
@@ -855,7 +1022,10 @@ export function App() {
         onClose={handleToggleCamera}
       />
 
-      {/* 5. Desktop Right-Click Context Menu */}
+      {/* 5. Tactical Desktop Cyber Widgets */}
+      <DesktopWidgets isVisible={showWidgets && isUiVisible && !isZenMode} />
+
+      {/* 6. Desktop Right-Click Context Menu */}
       <ContextMenu
         position={contextMenu}
         isOpen={contextMenu.isOpen}
@@ -873,19 +1043,56 @@ export function App() {
         isZenMode={isZenMode}
         onToggleZenMode={handleToggleZenMode}
         onMinimizeToTray={handleMinimizeToTray}
+        showWidgets={showWidgets}
+        onToggleWidgets={() => setShowWidgets((prev) => !prev)}
+        isClickThroughEnabled={isClickThroughEnabled}
+        onToggleClickThrough={() => setIsClickThroughEnabled((prev) => !prev)}
+        isLockScreenActive={isLockScreenActive}
+        onToggleLockScreen={() => setIsLockScreenActive((prev) => !prev)}
+        onOpenLockSandbox={() => setIsLockSandboxOpen(true)}
+        onOpenVoiceEnrollment={() => setIsVoiceEnrollmentOpen(true)}
         activeModelId={config.live2dModelId || 'yanderegirl'}
         activeAiModelId={config.modelId}
         onSwitchLive2DModel={(id) => handleSaveConfig({ ...config, live2dModelId: id })}
         onSwitchAiModel={(id) => handleSaveConfig({ ...config, modelId: id })}
       />
 
-      {/* 6. Horizontal Settings Modal */}
+      {/* 7. Live S2S Voice Biometrics & Speaker Recognition Diagnostics HUD */}
+      {isUiVisible && !isZenMode && (
+        <SpeakerDiagnosticsHUD onOpenEnrollment={() => setIsVoiceEnrollmentOpen(true)} />
+      )}
+
+      {/* 8. Specialized Windows 11 Lock Screen Tactical Companion */}
+      <LockScreenWidget
+        isLocked={isLockScreenActive}
+        isListening={isListening}
+        isSpeaking={isSpeaking}
+        activeModelName={live2dModelRegistry.getModel(config.live2dModelId)?.name || 'Cristi AI'}
+      />
+
+      {/* 9. Windows 11 Lock Screen Sandbox Simulator */}
+      <LockScreenSandbox
+        isOpen={isLockSandboxOpen}
+        onClose={() => setIsLockSandboxOpen(false)}
+        activeModelName={live2dModelRegistry.getModel(config.live2dModelId)?.name || 'Cristi AI'}
+      />
+
+      {/* 10. Multi-Sample Voice Enrollment & Biometric Calibration Modal */}
+      <VoiceEnrollmentModal
+        isOpen={isVoiceEnrollmentOpen}
+        onClose={() => setIsVoiceEnrollmentOpen(false)}
+      />
+
+      {/* 11. Horizontal Settings Modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         config={config}
         onSaveConfig={handleSaveConfig}
       />
+
+      {/* 12. Futuristic Minimalist HUD Toast Notifications */}
+      <ToastContainer />
     </div>
   );
 }

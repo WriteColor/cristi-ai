@@ -1,14 +1,15 @@
 /**
  * Cristi AI - Gemini Multimodal Live API WebSocket Client
  * Bi-directional real-time communication for audio, video, text, and tool calls.
- * Includes Session Resumption support (extending sessions beyond 10 mins up to 8h)
+ * Includes Session Resumption support, Exponential Backoff auto-reconnection,
  * and instantaneous Barge-in interruption handling.
  */
 
-import { SYSTEM_PERSONA_PROMPT, DEFAULT_MODEL_ID } from '../config/models';
-import { getLiveToolsConfig } from '../config/tools';
-import { sanitizeVoiceForModel } from '../config/voices';
-import { logger } from './logger';
+import { SYSTEM_PERSONA_PROMPT, DEFAULT_MODEL_ID } from '../config/models.js';
+import { getLiveToolsConfig } from '../config/tools.js';
+import { sanitizeVoiceForModel } from '../config/voices.js';
+import { logger } from './logger.js';
+import { contextualEmotionOrchestrator } from './live2d/ContextualEmotionOrchestrator.js';
 
 export class GeminiLiveSocket {
   constructor({
@@ -50,6 +51,11 @@ export class GeminiLiveSocket {
     this.isConnecting = false;
     this.sessionResumptionHandle = null;
     this.isExplicitDisconnect = false;
+
+    // Resilient Reconnection parameters
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 5;
+    this.reconnectTimer = null;
   }
 
   connect() {
@@ -57,14 +63,14 @@ export class GeminiLiveSocket {
 
     if (!this.apiKey || !this.apiKey.trim()) {
       const err = new Error('No se ha configurado una API Key de Gemini válida. Por favor configúrala en Ajustes (⚙).');
-      logger.error('GEMINI', err.message);
+      logger.warn('GEMINI', err.message);
       this.onError(err);
       return;
     }
 
     this.isConnecting = true;
     this.isExplicitDisconnect = false;
-    logger.info('GEMINI', `Iniciando conexión WebSocket Live con modelo: ${this.modelId}...`);
+    logger.info('GEMINI', `Iniciando conexión WebSocket Live con modelo: ${this.modelId} (Intento #${this.reconnectAttempts + 1})...`);
 
     // Standard Gemini Live Multimodal WebSocket Endpoint
     const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${this.apiKey.trim()}`;
@@ -75,6 +81,7 @@ export class GeminiLiveSocket {
       this.websocket.onopen = () => {
         this.isConnected = true;
         this.isConnecting = false;
+        this.reconnectAttempts = 0;
         logger.info('GEMINI', 'Conexión WebSocket establecida con Google AI Studio.');
         this.sendInitialSetup();
         this.onOpen();
@@ -85,8 +92,7 @@ export class GeminiLiveSocket {
       };
 
       this.websocket.onerror = (error) => {
-        logger.error('GEMINI', 'Error en canal WebSocket de Gemini Live.', error);
-        this.onError(new Error('Error de comunicación en WebSocket de Gemini Live.'));
+        logger.warn('GEMINI', 'Aviso en canal WebSocket de Gemini Live:', error);
       };
 
       this.websocket.onclose = (event) => {
@@ -98,21 +104,26 @@ export class GeminiLiveSocket {
         this.isConnecting = false;
 
         if (this.isExplicitDisconnect) {
-          logger.info('GEMINI', 'Sesión cerrada por el usuario.');
+          logger.info('GEMINI', 'Sesión cerrada explícitamente por el usuario.');
           this.onClose(event);
           return;
         }
 
         logger.warn('GEMINI', `WebSocket cerrado (código ${code}, razón: "${reason || 'desconexión'}", wasClean: ${wasClean})`);
 
-        // If closed with resumption handle available and not an auth error, trigger seamless reconnect
-        if (this.sessionResumptionHandle && code !== 1008 && code !== 4001) {
-          logger.info('GEMINI', 'Reanudando sesión automáticamente mediante Session Resumption (contexto intacto)...');
-          setTimeout(() => {
-            if (!this.isExplicitDisconnect) {
+        // Check if we should attempt Exponential Backoff reconnection
+        const isAuthOrQuotaError = code === 1008 || code === 4001 || code === 4003;
+        if (!isAuthOrQuotaError && this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.reconnectAttempts++;
+          const delay = Math.min(10000, 1000 * Math.pow(1.8, this.reconnectAttempts - 1) + Math.random() * 400);
+          logger.info('GEMINI', `Reconectando automáticamente en ${(delay / 1000).toFixed(1)}s (Intento ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+
+          if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+          this.reconnectTimer = setTimeout(() => {
+            if (!this.isExplicitDisconnect && !this.isConnected) {
               this.connect();
             }
-          }, 600);
+          }, delay);
           return;
         }
 
@@ -125,7 +136,7 @@ export class GeminiLiveSocket {
       };
     } catch (err) {
       this.isConnecting = false;
-      logger.error('GEMINI', 'Fallo al instanciar WebSocket:', err);
+      logger.warn('GEMINI', 'Fallo al instanciar WebSocket:', err);
       this.onError(err);
     }
   }
@@ -163,7 +174,6 @@ export class GeminiLiveSocket {
           parts: [{ text: this.systemPrompt }]
         },
         tools: getLiveToolsConfig(),
-        // Session Resumption: enables extending session beyond 10 minutes up to 8h
         sessionResumption: this.sessionResumptionHandle
           ? { handle: this.sessionResumptionHandle }
           : {}
@@ -175,17 +185,19 @@ export class GeminiLiveSocket {
   }
 
   /**
-   * Send Realtime Audio Chunk (PCM 16kHz Little Endian) via modern non-deprecated schema
+   * Send a chunk of 16kHz PCM audio
    */
-  sendAudioChunk(base64Data) {
+  sendAudioChunk(base64AudioData) {
     if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) return;
 
     const message = {
       realtimeInput: {
-        audio: {
-          mimeType: 'audio/pcm;rate=16000',
-          data: base64Data
-        }
+        mediaChunks: [
+          {
+            mimeType: 'audio/pcm;rate=16000',
+            data: base64AudioData
+          }
+        ]
       }
     };
 
@@ -193,17 +205,19 @@ export class GeminiLiveSocket {
   }
 
   /**
-   * Send Realtime Video Frame (JPEG Base64) via modern non-deprecated schema
+   * Send a video/camera/screen frame (JPEG base64)
    */
-  sendVideoFrame(base64JpegData) {
+  sendVideoFrame(base64JPEGData) {
     if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) return;
 
     const message = {
       realtimeInput: {
-        video: {
-          mimeType: 'image/jpeg',
-          data: base64JpegData
-        }
+        mediaChunks: [
+          {
+            mimeType: 'image/jpeg',
+            data: base64JPEGData
+          }
+        ]
       }
     };
 
@@ -211,19 +225,17 @@ export class GeminiLiveSocket {
   }
 
   /**
-   * Send Client Content / User Speech text transcript directly (Google ASR)
+   * Send a text message turn to Gemini Live
    */
-  sendClientContent(text) {
-    if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN || !text || !text.trim()) return;
-
-    logger.info('ASR', `[Transcripción de Usuario enviada a Gemini]: "${text.trim()}"`);
+  sendTextMessage(text) {
+    if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) return;
 
     const message = {
       clientContent: {
         turns: [
           {
             role: 'user',
-            parts: [{ text: text.trim() }]
+            parts: [{ text }]
           }
         ],
         turnComplete: true
@@ -234,141 +246,112 @@ export class GeminiLiveSocket {
   }
 
   /**
-   * Send Text message / prompt directly
+   * Send tool response back to Gemini Live
    */
-  sendTextMessage(text) {
-    this.sendClientContent(text);
-  }
-
-  /**
-   * Send Tool / Function Call Response back to model
-   */
-  sendToolResponse(functionResponses) {
+  sendToolResponse(responses) {
     if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) return;
 
-    logger.info('TOOL', `Enviando respuesta de herramientas ejecutadas (${functionResponses.length} resultados)`);
+    const formattedResponses = responses.map((r) => ({
+      id: r.id,
+      name: r.name,
+      response: {
+        output: r.output
+      }
+    }));
 
     const message = {
       toolResponse: {
-        functionResponses: functionResponses
+        functionResponses: formattedResponses
       }
     };
 
+    logger.info('GEMINI', 'Enviando respuestas de ejecución de herramientas a Gemini Live:', formattedResponses);
     this.websocket.send(JSON.stringify(message));
   }
 
   /**
-   * Parse and dispatch incoming server messages
+   * Handle incoming WebSocket message payloads from Google AI Studio
    */
   async handleServerMessage(data) {
-    let parsed;
+    let rawText = data;
+    if (data instanceof Blob) {
+      rawText = await data.text();
+    } else if (data instanceof ArrayBuffer) {
+      rawText = new TextDecoder().decode(data);
+    }
+
     try {
-      if (data instanceof Blob) {
-        const text = await data.text();
-        parsed = JSON.parse(text);
-      } else {
-        parsed = JSON.parse(data);
-      }
-    } catch (e) {
-      logger.error('GEMINI', 'Error al parsear mensaje JSON del servidor:', e);
-      return;
-    }
+      const message = JSON.parse(rawText);
 
-    // Check for API Error from server
-    if (parsed.error) {
-      const errMsg = parsed.error.message || `Error ${parsed.error.code || 'desconocido'} de la API de Gemini`;
-      logger.error('GEMINI', `Error reportado por servidor: ${errMsg}`);
-      this.onError(new Error(errMsg));
-      return;
-    }
-
-    // Handle Session Resumption updates (Session extension up to 8h)
-    if (parsed.sessionResumptionUpdate && parsed.sessionResumptionUpdate.newHandle) {
-      this.sessionResumptionHandle = parsed.sessionResumptionUpdate.newHandle;
-      logger.info('GEMINI', 'Token de extensión de sesión (Session Resumption) actualizado.');
-    }
-
-    // Handle GoAway warning (60s before connection time limit)
-    if (parsed.goAway) {
-      logger.warn('GEMINI', 'Aviso goAway recibido (límite de conexión alcanzado) — reconectando automáticamente con Session Resumption...');
-      if (this.websocket) {
-        try { this.websocket.close(1000, 'Session Extension Renewal'); } catch (_) {}
-      }
-      return;
-    }
-
-    // 1. Handle Server Content (Audio parts, Transcripts, Interruptions)
-    if (parsed.serverContent) {
-      const serverContent = parsed.serverContent;
-
-      // User interrupted the model speaking (Barge-in)
-      if (serverContent.interrupted) {
-        logger.warn('AUDIO', '⚡ Interrupción detectada (Barge-in): silenciando audio de Cristi al instante.');
-        this.onInterrupted();
+      // 1. Session Resumption Handle Update
+      if (message.sessionResumptionUpdate && message.sessionResumptionUpdate.handle) {
+        this.sessionResumptionHandle = message.sessionResumptionUpdate.handle;
+        logger.debug('GEMINI', `Session Resumption Handle actualizado: ${this.sessionResumptionHandle.substring(0, 16)}...`);
       }
 
-      // Realtime Audio & Text chunks from Model Turn
-      if (serverContent.modelTurn && serverContent.modelTurn.parts) {
-        for (const part of serverContent.modelTurn.parts) {
-          if (part.inlineData && part.inlineData.data) {
-            this.onAudioChunk(part.inlineData.data);
+      // 2. Server Content (Audio / Text / Interruption)
+      if (message.serverContent) {
+        const { modelTurn, interrupted, turnComplete } = message.serverContent;
+
+        if (interrupted) {
+          logger.info('GEMINI', 'Interrupción por el usuario (Barge-in confirmado por Gemini Live).');
+          this.onInterrupted();
+        }
+
+        if (modelTurn && modelTurn.parts) {
+          for (const part of modelTurn.parts) {
+            // Audio output chunk (PCM 24kHz)
+            if (part.inlineData && part.inlineData.mimeType.startsWith('audio/pcm')) {
+              this.onAudioChunk(part.inlineData.data);
+            }
+
+            // Model text transcript
+            if (part.text) {
+              this.onOutputTranscription(part.text);
+              contextualEmotionOrchestrator.analyzeText(part.text);
+            }
           }
-          if (part.text) {
-            const cleaned = part.text
-              .replace(/\[[a-zA-Z_\s-]+\]/g, '')
-              .replace(/\([a-zA-Z_\s-]+\)/g, '');
-            if (cleaned.trim()) {
-              logger.voice('GEMINI', `[Cristi dice]: "${cleaned.trim()}"`);
-              this.onOutputTranscription(cleaned);
+        }
+
+        if (turnComplete) {
+          this.onTurnComplete();
+        }
+      }
+
+      // 3. User Input Transcription (Speech-to-Text from Gemini)
+      if (message.clientContent && message.clientContent.turns) {
+        for (const turn of message.clientContent.turns) {
+          if (turn.parts) {
+            for (const part of turn.parts) {
+              if (part.text) {
+                this.onInputTranscription(part.text);
+              }
             }
           }
         }
       }
 
-      // Input Transcription (User ASR)
-      if (serverContent.inputTranscription && serverContent.inputTranscription.text) {
-        logger.info('ASR', `[Gemini ASR Nativo]: "${serverContent.inputTranscription.text}"`);
-        this.onInputTranscription(serverContent.inputTranscription.text);
+      // 4. Tool Calls
+      if (message.toolCall && message.toolCall.functionCalls) {
+        logger.info('GEMINI', 'Llamada de herramientas recibida desde Gemini Live:', message.toolCall.functionCalls);
+        this.onToolCall(message.toolCall.functionCalls);
       }
-
-      // Output Transcription (Model ASR / Text)
-      if (serverContent.outputTranscription && serverContent.outputTranscription.text) {
-        const cleaned = serverContent.outputTranscription.text
-          .replace(/\[[a-zA-Z_\s-]+\]/g, '')
-          .replace(/\([a-zA-Z_\s-]+\)/g, '');
-        if (cleaned.trim()) {
-          logger.voice('GEMINI', `[Cristi Transcripción]: "${cleaned.trim()}"`);
-          this.onOutputTranscription(cleaned);
-        }
-      }
-
-      // Turn Complete
-      if (serverContent.turnComplete) {
-        logger.info('GEMINI', 'Turno completado por Cristi.');
-        this.onTurnComplete();
-      }
-    }
-
-    // 2. Handle Tool Calls
-    if (parsed.toolCall && parsed.toolCall.functionCalls) {
-      parsed.toolCall.functionCalls.forEach((fc) => {
-        logger.info('TOOL', `Gemini solicita ejecutar herramienta: "${fc.name}"`, fc.args);
-      });
-      this.onToolCall(parsed.toolCall.functionCalls);
+    } catch (err) {
+      logger.error('GEMINI', 'Error al procesar mensaje del WebSocket de Gemini Live:', err);
     }
   }
 
   disconnect() {
     this.isExplicitDisconnect = true;
-    this.isConnected = false;
-    this.isConnecting = false;
-    this.sessionResumptionHandle = null;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.websocket) {
-      try {
-        this.websocket.close(1000, 'User initiated disconnect');
-      } catch (e) {}
+      this.websocket.close(1000, 'Desconexión solicitada por el usuario');
       this.websocket = null;
     }
-    logger.info('GEMINI', 'Llamada finalizada por el usuario.');
+    this.isConnected = false;
+    this.isConnecting = false;
   }
 }

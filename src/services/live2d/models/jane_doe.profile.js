@@ -87,8 +87,8 @@ export const jane_doeProfile = {
         }
     },
     "surprised": {
-        "type": "fallback",
-        "fallback": "idle"
+        "type": "expression",
+        "name": "星星眼"
     },
     "sad": {
         "type": "expression",
@@ -100,7 +100,7 @@ export const jane_doeProfile = {
     },
     "love": {
         "type": "expression",
-        "name": "星星眼"
+        "name": "爱心眼"
     }
 }
 };

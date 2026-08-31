@@ -1,41 +1,45 @@
 # Dependencies
-node_modules
-.pnpm-store
+node_modules/
+.pnpm-store/
 
-# Production Builds
-dist
-dist-ssr
+# Production Builds & Packaging
+dist/
+dist-ssr/
+release/
+build/
 *.local
 
-# Logs
+# Logs & Diagnostics
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 neutralinojs.log
+*.log
 
-# Environment Variables
+# Environment Variables & Secrets
 .env
 .env*.local
 
-# Neutralino
-bin/
-resources.neu
+# Temporary Test Artifacts & Videos
+tests/screenshots/
+tests/videos/
+*.rar
+*.zip
+*.tar.gz
+scratch_screenshot.png
+.tmp/
+tmp/
 
-# Editor directories
+# Editor & OS Files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
+Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-# Temporary test captures and archives
-tests/screenshots/
-tests/videos/
-*.rar
-*.zip
-scratch_screenshot.png

@@ -2,14 +2,14 @@
  * Live2D Model Profiles Index
  */
 
-import { yanderegirlProfile } from './yanderegirl.profile';
-import { icegirlProfile } from './icegirl.profile';
-import { hiyoriProfile } from './hiyori.profile';
-import { miaraProfile } from './miara.profile';
-import { tokiProfile } from './toki.profile';
-import { ellenProfile } from './ellen.profile';
-import { jane_doeProfile } from './jane_doe.profile';
-import { ruan_meiProfile } from './ruan_mei.profile';
+import { yanderegirlProfile } from './yanderegirl.profile.js';
+import { icegirlProfile } from './icegirl.profile.js';
+import { hiyoriProfile } from './hiyori.profile.js';
+import { miaraProfile } from './miara.profile.js';
+import { tokiProfile } from './toki.profile.js';
+import { ellenProfile } from './ellen.profile.js';
+import { jane_doeProfile } from './jane_doe.profile.js';
+import { ruan_meiProfile } from './ruan_mei.profile.js';
 
 export const ALL_MODEL_PROFILES = [
   yanderegirlProfile,

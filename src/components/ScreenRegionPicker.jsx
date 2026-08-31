@@ -3,6 +3,7 @@
  * A fullscreen drag-to-select overlay for defining Cristi's vision region.
  */
 import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { useClickThrough } from '../hooks/useClickThrough';
 
 export function ScreenRegionPicker({ onRegionSelected, onCancel }) {
   const overlayRef = useRef(null);
@@ -58,12 +59,14 @@ export function ScreenRegionPicker({ onRegionSelected, onCancel }) {
     };
   }, [handleMouseMove, handleMouseUp]);
 
+  const { interactiveProps } = useClickThrough();
   const rect = isDragging ? getRect() : null;
 
   return (
     <div
       ref={overlayRef}
       className="screen-picker-overlay"
+      {...interactiveProps}
       onMouseDown={handleMouseDown}
     >
       {/* Instruction */}

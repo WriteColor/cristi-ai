@@ -5,6 +5,7 @@
  */
 
 import { logger } from './logger.js';
+import { electronBridge } from './desktop/ElectronBridge.js';
 
 export class VirtualTerminalService {
   constructor() {
@@ -46,7 +47,7 @@ export class VirtualTerminalService {
       },
       'C:\\React-Nextjs-Projects\\Cristi AI\\.gitignore': {
         type: 'file',
-        content: 'node_modules\ndist\n.env\nneutralinojs.log\ntests/screenshots/'
+        content: 'node_modules\ndist\nrelease\n.env\ntests/screenshots/'
       },
       'C:\\React-Nextjs-Projects\\Cristi AI\\package.json': {
         type: 'file',
@@ -84,20 +85,20 @@ export class VirtualTerminalService {
   }
 
   /**
-   * Execute command either on real OS (via Neutralino) or in virtual PowerShell environment
+   * Execute command either on real OS (via Electron) or in virtual PowerShell environment
    */
   async executeCommand(command, usePowershell = true) {
     const rawCmd = (command || '').trim();
 
-    // 1. Real execution if Neutralino runtime is active
-    if (typeof window !== 'undefined' && window.Neutralino && window.Neutralino.os) {
+    // 1. Real execution if Electron runtime is active
+    if (electronBridge.isElectron) {
       try {
         const finalCmd = usePowershell
           ? `powershell -NoProfile -Command "${rawCmd.replace(/"/g, '\\"')}"`
           : rawCmd;
 
-        logger.info('TERMINAL-REAL', `Ejecutando en Windows nativo: ${finalCmd}`);
-        const result = await window.Neutralino.os.execCommand(finalCmd);
+        logger.info('TERMINAL-REAL', `Ejecutando en Windows nativo (Electron): ${finalCmd}`);
+        const result = await electronBridge.execCommand(finalCmd);
         return {
           status: 'executed',
           mode: 'real_native',

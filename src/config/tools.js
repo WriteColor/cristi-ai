@@ -9,13 +9,13 @@ export const COMPANION_FUNCTION_DECLARATIONS = [
   // ─────────────────────────────────────────────────────────────────────
   {
     name: 'trigger_companion_gesture',
-    description: 'Activa un gesto, expresión facial o emoción en el avatar de la compañera virtual en pantalla.',
+    description: 'Activa un gesto, expresión facial o emoción en el avatar de la compañera virtual en pantalla adaptándose al modelo Live2D activo.',
     parameters: {
       type: 'OBJECT',
       properties: {
         gesture: {
           type: 'STRING',
-          enum: ['idle', 'happy', 'blush', 'surprised', 'waving', 'thinking', 'wink', 'pout', 'nod', 'dance', 'yandere', 'crazy'],
+          enum: ['idle', 'happy', 'blush', 'love', 'surprised', 'yandere', 'crazy', 'thinking', 'wink', 'pout', 'angry', 'sad', 'smug', 'gamer', 'nod', 'dance', 'relaxed', 'waving'],
           description: 'El gesto o emoción que debe manifestar el avatar.'
         },
         comment: {
@@ -24,6 +24,24 @@ export const COMPANION_FUNCTION_DECLARATIONS = [
         }
       },
       required: ['gesture']
+    }
+  },
+  {
+    name: 'trigger_model_motion',
+    description: 'Dispara una animación o pose de movimiento específica del modelo Live2D activo (ej: saludar, giro, tap en la cabeza, postura idle, pose de encanto).',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        motion_group: {
+          type: 'STRING',
+          description: 'Nombre del grupo de animación (ej: "Idle", "Tap", "Flick", "MeiYan", "HuiShou", "DaiJi").'
+        },
+        index: {
+          type: 'INTEGER',
+          description: 'Índice de la animación dentro del grupo (por defecto 0).'
+        }
+      },
+      required: ['motion_group']
     }
   },
   {
@@ -73,7 +91,7 @@ export const COMPANION_FUNCTION_DECLARATIONS = [
   },
 
   // ─────────────────────────────────────────────────────────────────────
-  // ACCESO TOTAL AL SISTEMA (VIA NEUTRALINO)
+  // ACCESO TOTAL AL SISTEMA (VIA ELECTRON / POWERSHELL NATIVO)
   // ─────────────────────────────────────────────────────────────────────
   {
     name: 'execute_system_command',
@@ -177,6 +195,20 @@ export const COMPANION_FUNCTION_DECLARATIONS = [
         }
       },
       required: ['pid_or_name']
+    }
+  },
+  {
+    name: 'open_file_or_folder',
+    description: 'Abre cualquier archivo local o carpeta del sistema operativo directamente en el Explorador de Windows o con su aplicación predeterminada.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        path: {
+          type: 'STRING',
+          description: 'Ruta absoluta o relativa del archivo o carpeta a abrir (ej: "C:\\Users\\jerem\\Downloads", "C:\\React-Nextjs-Projects").'
+        }
+      },
+      required: ['path']
     }
   },
   {
@@ -329,6 +361,8 @@ export const COMPANION_FUNCTION_DECLARATIONS = [
   }
 ];
 
+export const TOOLS_DEFINITIONS = COMPANION_FUNCTION_DECLARATIONS;
+
 export function getLiveToolsConfig() {
   return [
     {
@@ -336,3 +370,4 @@ export function getLiveToolsConfig() {
     }
   ];
 }
+

@@ -7,6 +7,7 @@ import {
   X,
   Pin,
   Sparkles,
+  Clock,
   User,
   EyeOff,
   Eye,
@@ -21,10 +22,16 @@ import {
   ChevronDown,
   Brain,
   RotateCcw,
-  Play
+  Play,
+  ShieldCheck,
+  Lock as LockIcon
 } from 'lucide-react';
 import { live2dModelRegistry } from '../services/live2d';
 import { GEMINI_MODELS } from '../config/models';
+import { GEMINI_STANDARD_VOICES } from '../config/voices';
+import { useClickThrough } from '../hooks/useClickThrough';
+import { electronBridge } from '../services/desktop/ElectronBridge';
+import { soundFxService } from '../services/soundFxService';
 
 /**
  * Human-friendly metadata dictionary for Live2D expressions
@@ -74,12 +81,17 @@ const EXPRESSION_LABELS = {
   // Semantic emotion actions (para modelos sin .exp3 — Hiyori, Miara, Toki, Ruan Mei)
   'happy':     { label: 'Feliz',        icon: '😊' },
   'blush':     { label: 'Sonrojada',    icon: '😳' },
+  'love':      { label: 'Amor',         icon: '💕' },
   'yandere':   { label: 'Yandere',      icon: '🖤' },
+  'crazy':     { label: 'Locura',       icon: '🤪' },
   'wink':      { label: 'Guiño',        icon: '😉' },
   'surprised': { label: 'Sorprendida',  icon: '😲' },
   'sad':       { label: 'Triste',       icon: '😢' },
   'angry':     { label: 'Enojada',      icon: '😠' },
-  'love':      { label: 'Amor',         icon: '💕' }
+  'smug':      { label: 'Presumida',    icon: '😏' },
+  'thinking':  { label: 'Pensando',     icon: '🤔' },
+  'gamer':     { label: 'Gamer',        icon: '🎮' },
+  'relaxed':   { label: 'Relajada',     icon: '😌' }
 };
 
 /**
@@ -139,12 +151,22 @@ export function ContextMenu({
   isZenMode = false,
   onToggleZenMode,
   onMinimizeToTray,
+  showWidgets = true,
+  onToggleWidgets,
+  isClickThroughEnabled = true,
+  onToggleClickThrough,
+  isLockScreenActive = false,
+  onToggleLockScreen,
+  onOpenLockSandbox,
+  onOpenVoiceEnrollment,
   activeModelId = 'yanderegirl',
   activeAiModelId,
   onSwitchLive2DModel,
   onSwitchAiModel
 }) {
   const menuRef = useRef(null);
+  const { interactiveProps } = useClickThrough();
+
   const [currentActiveExpr, setCurrentActiveExpr] = useState(null);
   const [coords, setCoords] = useState({
     left: position?.x || 100,
@@ -212,22 +234,33 @@ export function ContextMenu({
   }, [isOpen, position, activeModelId]);
 
   useEffect(() => {
+    if (!isOpen) return;
+
     const handleGlobalClick = (e) => {
-      if (isOpen && !e.target.closest('.custom-context-menu')) {
+      if (!e.target.closest('.custom-context-menu')) {
         onClose();
       }
     };
 
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape') {
+        soundFxService.playClick();
         onClose();
       }
     };
 
-    window.addEventListener('click', handleGlobalClick);
+    soundFxService.playMenuOpen();
+
+    const timer = setTimeout(() => {
+      window.addEventListener('click', handleGlobalClick);
+      window.addEventListener('contextmenu', handleGlobalClick);
+    }, 100);
+
     window.addEventListener('keydown', handleKeyDown);
     return () => {
+      clearTimeout(timer);
       window.removeEventListener('click', handleGlobalClick);
+      window.removeEventListener('contextmenu', handleGlobalClick);
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, onClose]);
@@ -235,12 +268,9 @@ export function ContextMenu({
   if (!isOpen) return null;
 
   const handleCloseApp = () => {
+    soundFxService.playClick();
     onClose();
-    if (window.Neutralino?.app) {
-      window.Neutralino.app.exit();
-    } else {
-      window.close();
-    }
+    electronBridge.quitApp();
   };
 
   const handleTriggerCustomExpression = (exprName) => {
@@ -301,11 +331,20 @@ export function ContextMenu({
     <div
       ref={menuRef}
       className={`custom-context-menu placement-${coords.placement}`}
+      {...interactiveProps}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onContextMenu={(e) => e.stopPropagation()}
       style={{
         left: `${coords.left}px`,
         top: `${coords.top}px`
       }}
     >
+      <span className="hud-corner hud-corner-tl" />
+      <span className="hud-corner hud-corner-tr" />
+      <span className="hud-corner hud-corner-bl" />
+      <span className="hud-corner hud-corner-br" />
+
       {/* Header with Active Model Info */}
       <div className="context-menu-header-box">
         <div className="context-menu-header-title">Cristi AI Companion</div>
@@ -477,7 +516,22 @@ export function ContextMenu({
         <Settings size={14} />
         <div className="context-item-info">
           <span>Ajustes Completos</span>
-          <span className="context-item-hint">30 voces, API Key, personalidad</span>
+          <span className="context-item-hint">{GEMINI_STANDARD_VOICES.length} voces, API Key, personalidad</span>
+        </div>
+      </button>
+
+      {/* Voice Biometrics & Enrollment */}
+      <button
+        className="context-menu-item"
+        onClick={() => {
+          if (onOpenVoiceEnrollment) onOpenVoiceEnrollment();
+          onClose();
+        }}
+      >
+        <ShieldCheck size={14} style={{ color: '#a855f7' }} />
+        <div className="context-item-info">
+          <span>Biometría de Voz (Voice ID)</span>
+          <span className="context-item-hint">Enrolamiento multi-muestra S2S</span>
         </div>
       </button>
 
@@ -526,6 +580,21 @@ export function ContextMenu({
         </div>
       </button>
 
+      {/* Desktop Cyber Widgets (Clock / Agenda / Reminders) Toggle */}
+      <button
+        className="context-menu-item"
+        onClick={() => {
+          if (onToggleWidgets) onToggleWidgets();
+          onClose();
+        }}
+      >
+        <Clock size={14} />
+        <div className="context-item-info">
+          <span>{showWidgets ? 'Ocultar Widgets (Reloj/Agenda)' : 'Mostrar Widgets (Reloj/Agenda)'}</span>
+          <span className="context-item-hint">{showWidgets ? 'Widgets visibles' : 'Widgets ocultos'}</span>
+        </div>
+      </button>
+
       {/* Transparent vs Solid backdrop */}
       <button
         className="context-menu-item"
@@ -541,6 +610,21 @@ export function ContextMenu({
         </div>
       </button>
 
+      {/* Native Win32 Click-Through (Clickpassthrough) Toggle */}
+      <button
+        className="context-menu-item"
+        onClick={() => {
+          if (onToggleClickThrough) onToggleClickThrough();
+          onClose();
+        }}
+      >
+        <Sparkles size={14} />
+        <div className="context-item-info">
+          <span>{isClickThroughEnabled ? 'Desactivar Traspaso de Clics' : 'Activar Traspaso de Clics'}</span>
+          <span className="context-item-hint">{isClickThroughEnabled ? 'Clickpassthrough ACTIVO' : 'Clickpassthrough INACTIVO'}</span>
+        </div>
+      </button>
+
       {/* Always on top pin */}
       <button
         className="context-menu-item"
@@ -553,6 +637,36 @@ export function ContextMenu({
         <div className="context-item-info">
           <span>{isAlwaysOnTop ? 'Desfijar de Pantalla' : 'Fijar Siempre Visible'}</span>
           <span className="context-item-hint">{isAlwaysOnTop ? 'Capa normal' : 'Always on Top'}</span>
+        </div>
+      </button>
+
+      {/* Lock Screen Mode Toggle */}
+      <button
+        className="context-menu-item"
+        onClick={() => {
+          if (onToggleLockScreen) onToggleLockScreen();
+          onClose();
+        }}
+      >
+        <LockIcon size={14} />
+        <div className="context-item-info">
+          <span>{isLockScreenActive ? 'Salir de Pantalla de Bloqueo' : 'Modo Pantalla de Bloqueo Win11'}</span>
+          <span className="context-item-hint">{isLockScreenActive ? 'Companion ACTIVO' : 'Companion en segundo plano'}</span>
+        </div>
+      </button>
+
+      {/* Lock Screen Sandbox Simulator */}
+      <button
+        className="context-menu-item"
+        onClick={() => {
+          if (onOpenLockSandbox) onOpenLockSandbox();
+          onClose();
+        }}
+      >
+        <Sparkles size={14} style={{ color: '#38bdf8' }} />
+        <div className="context-item-info">
+          <span>Sandbox Pantalla de Bloqueo</span>
+          <span className="context-item-hint">Simulador Win11 & Toasts</span>
         </div>
       </button>
 

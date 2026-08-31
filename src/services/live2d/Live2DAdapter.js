@@ -16,20 +16,91 @@ export class Live2DAdapter {
     this.currentValues = new Map();
     this.targetValues = new Map();
 
+    // Active Bezier transitions: paramId -> { startVal, targetVal, startTime, durationMs, easing }
+    this.bezierTransitions = new Map();
+
     // Expression state
     this.currentExpression = 'none';
 
     // Lerp speeds for different types of parameters
     this.speeds = {
-      head: 0.18,
-      body: 0.12,
-      eyes: 0.35,
-      eyeballs: 0.22,
-      brows: 0.20,
-      mouth: 0.45,
-      breath: 0.15,
-      custom: 0.20
+      head: 0.20,
+      body: 0.14,
+      eyes: 0.38,
+      eyeballs: 0.24,
+      brows: 0.22,
+      mouth: 0.50,
+      breath: 0.16,
+      physics: 0.35,
+      custom: 0.22
     };
+
+    // Auto-discover and resolve parameters from model if available
+    this.autoDiscoverParameters();
+  }
+
+  /**
+   * Introspects model core and fills missing standard mappings automatically
+   */
+  autoDiscoverParameters() {
+    if (!this.model?.internalModel?.coreModel) return;
+    const coreModel = this.model.internalModel.coreModel;
+    const paramIds = Array.isArray(coreModel._parameterIds) ? coreModel._parameterIds : [];
+
+    const standardPatterns = {
+      head_angle_x: /angle.*x|head.*x/i,
+      head_angle_y: /angle.*y|head.*y/i,
+      head_angle_z: /angle.*z|head.*z/i,
+      body_angle_x: /body.*x/i,
+      body_angle_y: /body.*y/i,
+      body_angle_z: /body.*z/i,
+      eye_l_open: /eye.*l.*open/i,
+      eye_r_open: /eye.*r.*open/i,
+      eye_l_smile: /eye.*l.*smile/i,
+      eye_r_smile: /eye.*r.*smile/i,
+      eye_ball_x: /eye.*ball.*x/i,
+      eye_ball_y: /eye.*ball.*y/i,
+      brow_l_y: /brow.*l.*y/i,
+      brow_r_y: /brow.*r.*y/i,
+      brow_l_angle: /brow.*l.*angle/i,
+      brow_r_angle: /brow.*r.*angle/i,
+      mouth_open_y: /mouth.*open/i,
+      mouth_form: /mouth.*form/i,
+      cheek_blush: /cheek|blush/i,
+      breath: /breath/i
+    };
+
+    for (const [cap, regex] of Object.entries(standardPatterns)) {
+      if (!this.mapping[cap]) {
+        const found = paramIds.find((p) => regex.test(p));
+        if (found) {
+          let min = -30, max = 30, def = 0;
+          if (/eye|mouth|cheek|breath/i.test(cap)) {
+            min = (/eye_ball|mouth_form|brow/i.test(cap)) ? -1 : 0;
+            max = 1;
+          }
+          this.mapping[cap] = { paramId: found, min, max, default: def };
+        }
+      }
+    }
+  }
+
+  /**
+   * Smoothly transitions a parameter to target value using Cubic Bezier ease-in-out
+   * @param {string} paramId 
+   * @param {number} targetValue 
+   * @param {number} durationMs 
+   */
+  setBezierTarget(paramId, targetValue, durationMs = 400) {
+    if (!paramId) return;
+    const current = this.currentValues.get(paramId) ?? 0;
+    this.bezierTransitions.set(paramId, {
+      startVal: current,
+      targetVal: targetValue,
+      startTime: performance.now(),
+      durationMs: Math.max(durationMs, 50)
+    });
+    this.targetValues.set(paramId, targetValue);
   }
 
   /**
@@ -54,6 +125,7 @@ export class Live2DAdapter {
       }
     }
     if (profile) this.profile = profile;
+    this.autoDiscoverParameters();
   }
 
   /**
@@ -247,23 +319,42 @@ export class Live2DAdapter {
       }
     }
 
+    const now = performance.now();
+
     for (const [paramId, targetVal] of this.targetValues.entries()) {
       const currentVal = this.currentValues.get(paramId) || 0;
+      let nextVal;
 
-      // Dynamic speed selection based on parameter prefix/type
-      let speed = this.speeds.custom;
-      const lower = paramId.toLowerCase();
-      if (lower.includes('mouth')) speed = this.speeds.mouth;
-      else if (lower.includes('eyeopen') || lower.includes('eyesmile')) speed = this.speeds.eyes;
-      else if (lower.includes('eyeball')) speed = this.speeds.eyeballs;
-      else if (lower.includes('angle') && !lower.includes('body')) speed = this.speeds.head;
-      else if (lower.includes('body')) speed = this.speeds.body;
-      else if (lower.includes('brow')) speed = this.speeds.brows;
-      else if (lower.includes('breath')) speed = this.speeds.breath;
+      // 1. Check if an active Cubic Bezier transition is running for this parameter
+      const bezier = this.bezierTransitions.get(paramId);
+      if (bezier) {
+        const elapsed = now - bezier.startTime;
+        const t = Math.min(Math.max(elapsed / bezier.durationMs, 0), 1);
+        
+        // Cubic Bezier easeInOut: 3t^2 - 2t^3
+        const ease = t * t * (3 - 2 * t);
+        nextVal = bezier.startVal + (bezier.targetVal - bezier.startVal) * ease;
 
-      // Exponential Lerp
-      const factor = Math.min(speed * deltaTime * 1.5, 1.0);
-      const nextVal = currentVal + (targetVal - currentVal) * factor;
+        if (t >= 1) {
+          this.bezierTransitions.delete(paramId);
+          nextVal = bezier.targetVal;
+        }
+      } else {
+        // 2. Exponential Lerp
+        let speed = this.speeds.custom;
+        const lower = paramId.toLowerCase();
+        if (lower.includes('mouth')) speed = this.speeds.mouth;
+        else if (lower.includes('eyeopen') || lower.includes('eyesmile')) speed = this.speeds.eyes;
+        else if (lower.includes('eyeball')) speed = this.speeds.eyeballs;
+        else if (lower.includes('angle') && !lower.includes('body')) speed = this.speeds.head;
+        else if (lower.includes('body')) speed = this.speeds.body;
+        else if (lower.includes('brow')) speed = this.speeds.brows;
+        else if (lower.includes('breath')) speed = this.speeds.breath;
+        else if (lower.includes('hair') || lower.includes('cloth') || lower.includes('ribbon') || lower.includes('tail')) speed = this.speeds.physics;
+
+        const factor = Math.min(speed * deltaTime * 1.5, 1.0);
+        nextVal = currentVal + (targetVal - currentVal) * factor;
+      }
 
       this.currentValues.set(paramId, nextVal);
 
@@ -278,3 +369,4 @@ export class Live2DAdapter {
     }
   }
 }
+

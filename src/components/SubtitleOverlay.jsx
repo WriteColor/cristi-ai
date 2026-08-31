@@ -18,7 +18,9 @@ export function SubtitleOverlay({ userTranscript }) {
   return (
     <div className="shadcn-user-transcript-wrapper">
       <div className="shadcn-user-transcript-pill">
-        <span className="user-indicator">TÚ</span>
+        <span className="hud-corner hud-corner-tl" />
+        <span className="hud-corner hud-corner-br" />
+        <span className="user-indicator">TÚ // USER</span>
         <span className="user-text">{cleanUser}</span>
       </div>
     </div>

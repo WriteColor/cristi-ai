@@ -1,57 +1,89 @@
-# Cristi AI - Plataforma Universal de Asistente IA de Voz a Voz con Live2D & Gemini Live API
+# Cristi Desktop — Asistente IA Multimodal con Live2D & Gemini Live API
 
-**Cristi AI** es una plataforma de asistente virtual y compañera de IA de escritorio construida sobre **Neutralinojs + Vite + React**, potenciada por **Google Gemini Multimodal Live API** (`gemini-3.1-flash-live-preview` y `gemini-2.5-flash-live-preview`), un motor universal de avatares **Live2D Cubism** multi-modelo con físicas cinéticas, seguimiento del cursor por todo el escritorio y visión sensorial en tiempo real.
+**Cristi Desktop** es una plataforma de asistente virtual y compañera de escritorio de alto rendimiento construida con **Electron + React 19 + Vite 8**, potenciada por **Google Gemini Multimodal Live API** (`gemini-2.5-flash` / `gemini-2.0-flash`), un motor universal de avatares **Live2D Cubism** multi-modelo con físicas cinéticas, seguimiento del cursor por todo el escritorio (*Desktop-Wide Tracking*), verificación biométrica vocal y visión sensorial en tiempo real.
 
 ---
 
-## ✨ Novedades & Capacidades Principales
+## ✨ Características Principales
 
-### 🎭 1. Plataforma Multi-Modelo Live2D Cubism Universal
-El sistema desacopla la lógica de animación e interactividad de cualquier modelo específico, permitiendo cargar e interactuar con **8 avatares Live2D oficiales** de forma dinámica:
-- 🖤 **Cristi Gótica (`yanderegirl`)**: 13 parámetros cinéticos, expresiones Yandere, Mad, Crazy, Scared.
+### 🖥️ 1. Ventana Transparente con Click-Through Selectivo (Estilo Desktop Mate / Your Wife)
+- **Modo Compañera Flotante**: Cristi flota sobre tu escritorio de Windows 11 sin marcos ni barras de título.
+- **Interacción Total con el Sistema Detrás**: Las áreas transparentes del fondo pasan todos los clics directamente a tus ventanas, carpetas y aplicaciones del sistema operativo.
+- **Barra de Tareas 100% Accesible**: Al deslizar el cursor al borde inferior de la pantalla, la barra de tareas de Windows se muestra inmediatamente.
+- **Hook `useClickThrough`**: Los elementos interactivos (el personaje Live2D, menú contextual, modal de ajustes, widgets y botones) reciben interacción total al posar el cursor sobre ellos.
+- **Drag & Scale**: Arrastra a Cristi por la pantalla con arrastre nativo (`setPointerCapture`) y usa la rueda del ratón (`wheel`) sobre el personaje para cambiar su escala suavemente.
+
+### 🎭 2. Motor Universal de Avatares Live2D Cubism
+Soporte multi-modelo dinámico con 8 avatares oficiales y cinemática en tiempo real:
+- 🖤 **Cristi Gótica (`yanderegirl`)**: Expresiones Yandere, Mad, Crazy, Scared con 13 parámetros cinéticos.
 - 👘 **Ice Girl Cheongsam (`icegirl`)**: Traje tradicional, orejas de gato, alas, sonrojo, ojos de corazón y corona.
 - 🌸 **Hiyori (`hiyori`)**: Modelo oficial Cubism Pro con 8 animaciones de movimiento y cinemática completa.
 - 🎀 **Miara (`miara`)**: Modelo oficial Cubism Pro con animaciones idle dinámicas.
-- 🛡️ **Toki (`toki`)**: Modelo oficial de Blue Archive con seguimiento completo de mirada y busto.
-- 🦈 **Ellen Joe (`ellen`)**: Maid tiburón de Zenless Zone Zero (filtrado seguro de marcas de agua `hiddenParts`).
+- 🛡️ **Toki (`toki`)**: Modelo de Blue Archive con seguimiento completo de mirada y busto.
+- 🦈 **Ellen Joe (`ellen`)**: Maid tiburón de Zenless Zone Zero.
 - 🐀 **Jane Doe (`jane_doe`)**: Agente de ZZZ con expresiones faciales y soporte de físicas.
 - 🍵 **Ruan Mei (`ruan_mei`)**: Erudita de Honkai: Star Rail con físicas y gestos refinados.
 
-### 🖥️ 2. Seguimiento del Cursor por Todo el Escritorio (*Desktop-Wide Tracking*)
-Gracias al servicio centralizado [`DesktopCursorTracker`](file:///c:/React-Nextjs-Projects/Cristi%20AI/src/services/desktop/DesktopCursorTracker.js):
-- La mirada y orientación de la cabeza siguen el cursor del usuario **a través de todo el monitor y ventanas externas**, incluso cuando la aplicación está minimizada o fuera de foco.
-- Cálculo angular tridimensional respecto a la posición física del rostro del avatar en pantalla.
-
-### 🎙️ 3. Conexión Directa por WebSockets (Gemini Live API)
-- Streaming bidireccional de baja latencia con el protocolo `BidiGenerateContent`.
+### 🎙️ 3. Conexión WebSocket S2S de Baja Latencia (Gemini Live API)
+- Streaming bidireccional de voz a voz en tiempo real con el protocolo `BidiGenerateContent`.
 - **Audio 24kHz** de alta fidelidad con Lip-Sync orgánico a 60 FPS mediante Web Audio API FFT.
 - Catálogo de **30 voces neuronales** (`Aoede`, `Zephyr`, `Kore`, `Puck`, `Charon`, `Fenrir`, etc.).
-- Soporte para **Barge-in / Interrupción instantánea**: si hablas mientras Cristi responde, el audio se detiene inmediatamente.
+- Soporte para **Barge-in / Interrupción instantánea**: si hablas mientras Cristi responde, el audio se detiene de inmediato.
 
-### 👁️ 4. Visión Sensorial, Reconocimiento Facial & Detección de Objetos
+### 🔐 4. Biometría Vocal & Reconocimiento de Hablante (*Voice ID*)
+- Identificación biométrica del usuario principal mediante análisis espectral y centroides armónicos.
+- Asistente de calibración y enrolamiento de voz multi-muestra (`VoiceEnrollmentModal`).
+- Silenciamiento preventivo automático cuando interviene un tercero no autorizado.
+
+### 👁️ 5. Visión Sensorial, Reconocimiento Facial & Detección de Objetos
 - Integración con `@vladmandic/face-api` (Tiny Face, 68 Landmarks, 128D Descriptor) y `@tensorflow-models/coco-ssd`.
-- Registro biométrico multi-muestra del dueño (con lentes, sin lentes, ángulos de perfil).
-- Detección de celos Yandere cuando un tercero aparece en cámara junto al usuario.
-- Soporte para cámaras Infrarrojas (IR) de Windows Hello.
+- Registro biométrico multi-muestra del dueño.
+- Soporte para cámaras Infrarrojas (IR) de Windows Hello y captura regional de pantalla.
 
-### ⚙️ 5. Modal de Ajustes y Menú Contextual Ultra-Modernos
-- **Modal de Ajustes Ampliado**: Panel Obsidian Glassmorphism con selector de modelos, spotlight con chips de capacidades, selector de 30 voces, slider de temperatura y **área de prompt del sistema autoajustable** con presets rápidos (Yandere, Ellen Joe, Ruan Mei, Hiyori, Hacker, Gamer).
-- **Menú Contextual (Click Derecho)**: Acceso rápido a expresiones en vivo (❤️ Sonrojo, 🌸 Feliz, ⚡ Sorpresa, 😉 Guiño, 💃 Bailar, 🖤 Yandere), encuadre (Torso / Cuerpo Completo), visión y control de ventana.
+### 🛡️ 6. Companion en Pantalla de Bloqueo de Windows 11
+- Notificaciones WinRT en pantalla de bloqueo (`Win + L`) para alarmas y recordatorios generados por Cristi.
+- Simulador sandbox interactivo para pruebas de diseño y visualización.
+
+### ⌨️ 7. Atajos de Teclado Globales (*Global System Shortcuts*)
+- **`Ctrl + Shift + C` (Boss Key / Modo Residente)**: Oculta o muestra a Cristi al instante sobre el escritorio.
+- **`Ctrl + Shift + M` (Silenciar Micrófono)**: Activa o desactiva el micrófono con feedback táctil.
+- **`Ctrl + Shift + S` (Visión Contextual Instantánea)**: Captura la pantalla activa y la envía inmediatamente a Cristi para análisis visual proactivo.
+
+### 💾 8. Persistencia, Copias de Seguridad y Portabilidad
+- Auto-guardado con historial de puntos de restauración en `localStorage`.
+- Exportación e importación de perfiles completos de configuración en formato JSON desde el modal de ajustes.
 
 ---
 
-## 🏛️ Arquitectura del Sistema
+## 🏛️ Estructura del Proyecto
 
 ```
-                         [ Cristi AI Architecture ]
-                                      │
-  ┌───────────────────────────────────┼───────────────────────────────────┐
-  ▼                                   ▼                                   ▼
-[Live2D Engine]             [Gemini Live API]                   [Sensory Vision]
- ├─ Model Registry (8 models) ├─ WebSocket 24kHz Audio Stream     ├─ Face-API 128D Biometrics
- ├─ Live2D Adapter            ├─ 30 Voice Synthesizers            ├─ COCO-SSD Object Detection
- ├─ Organic Controller        ├─ Barge-in Interruption Handler    ├─ IR Camera Enhancer
- └─ DesktopCursorTracker      └─ Function Calling (Tools)         └─ Screen Region Watcher
+Cristi AI/
+├── electron/                   # Núcleo de proceso Electron
+│   ├── main.cjs                # Proceso principal (ventana transparente, IPC, tray, shortcuts)
+│   └── preload.cjs             # ContextBridge seguro hacia el renderer
+├── public/                     # Modelos de IA, pesos y assets estáticos
+│   ├── models/                 # Pesos TensorFlow y Face-API
+│   └── yanderegirl/ ...        # Recursos Live2D de modelos
+├── resources/                  # Iconos multiplataforma (.ico, .png, .svg)
+├── scripts/                    # Utilidades y bootstrappers
+│   ├── generate-icons.cjs      # Generador automatizado de iconos
+│   └── setup-clean-env.cjs     # Preparador de entorno limpio
+├── src/                        # Aplicación React 19 + Vite
+│   ├── components/             # Componentes UI con useClickThrough y accesibilidad
+│   ├── config/                 # Configuraciones de modelos, voces y herramientas
+│   ├── hooks/                  # Hooks React (useClickThrough, etc.)
+│   └── services/               # Servicios (ElectronBridge, Live2D, SoundFx, ConfigManager)
+├── tests/                      # Suites de prueba y verificación E2E
+│   ├── run_all_diagnostics.mjs # Suite maestra de diagnósticos y producción
+│   ├── test_electron_architecture.mjs
+│   ├── test_live2d_physics_and_kinetics.mjs
+│   ├── test_computer_use_and_vision.mjs
+│   ├── test_ui_ux_zen_and_soundfx.mjs
+│   └── test_speaker_recognition.mjs
+├── electron-builder.config.cjs # Configuración de instalador de Windows (NSIS)
+├── package.json
+└── vite.config.js
 ```
 
 ---
@@ -59,50 +91,57 @@ Gracias al servicio centralizado [`DesktopCursorTracker`](file:///c:/React-Nextj
 ## 🚀 Inicio Rápido
 
 ### Requisitos
-- Node.js (v18+)
-- `pnpm` (Nota: en este equipo se utiliza exclusivamente `pnpm`)
+- **Node.js**: v18+ (v24 recomendado)
+- **pnpm**: Gestor de paquetes oficial del proyecto
 
-### 1. Configuración de Credenciales
-Copia `.env.example` a `.env` y configura tu API Key de Google AI Studio:
-```bash
-cp .env.example .env
+### 1. Preparar el Entorno Limpio
+Ejecuta el bootstrapper automatizado que verifica dependencias, modelos de IA e iconos:
+```powershell
+pnpm run setup:env
 ```
 
-### 2. Modo Desarrollo Web (Vite)
-```bash
-pnpm dev
-```
-Accede en tu navegador Brave: `http://localhost:5173/`
-
-### 3. Modo Aplicación de Escritorio Nativa (Neutralinojs)
-```bash
-pnpm app:run
+### 2. Configuración de API Key
+Crea tu archivo `.env` en la raíz del proyecto o configúralo desde el modal de ajustes:
+```env
+VITE_GEMINI_API_KEY=tu_api_key_aqui
 ```
 
-### 4. Compilar Ejecutable Nativo de Producción (~2.7 MB)
-```bash
-pnpm app:build
+### 3. Modo Desarrollo (Vite + Electron)
+Inicia el servidor de desarrollo y el shell transparente de Electron:
+```powershell
+pnpm run app:dev
 ```
-El binario ejecutable sin dependencias externas se generará en:
-`dist/cristi-ai/cristi-ai-win_x64.exe`
+
+### 4. Empaquetar Instalador de Windows (.exe)
+Genera el instalador NSIS standalone de 64 bits para Windows (`Cristi-Desktop-Setup-1.0.0.exe`):
+```powershell
+pnpm run app:build
+```
+El instalador generado se ubicará en el directorio `release/`.
 
 ---
 
-## 🧪 Pruebas Automatizadas con Playwright (Video + Audio)
+## 🧪 Pruebas y Diagnósticos Automatizados
 
-Todas las suites de prueba de Cristi AI se ejecutan con grabación de video HD a 60 FPS y audio habilitado:
-- `tests/playwright/test_universal_pointer_tracking.mjs`: Verifica el seguimiento ocular en los 8 modelos.
-- `tests/playwright/test_desktop_wide_pointer_tracking.mjs`: Comprueba el tracking en los extremos del monitor fuera de la ventana.
-- `tests/playwright/record_e2e_live_demo.mjs`: Demostración integral end-to-end.
+Ejecuta la suite maestra de diagnósticos que valida todos los componentes del sistema:
+```powershell
+pnpm run test:diagnostics
+```
+O ejecuta las suites individuales:
+```powershell
+# Verificar arquitectura de Electron y contratos IPC
+node tests/test_electron_architecture.mjs
 
-Para ejecutar cualquiera de las pruebas:
-```bash
-node tests/playwright/test_desktop_wide_pointer_tracking.mjs
+# Verificar motor físico y cinemática Live2D 2.0
+node tests/test_live2d_physics_and_kinetics.mjs
+
+# Verificar herramientas de uso de computadora y visión
+node tests/test_computer_use_and_vision.mjs
+
+# Verificar UI/UX, Modo Zen y sonidos procedurales
+node tests/test_ui_ux_zen_and_soundfx.mjs
+
+# Verificar biometría de voz y reconocimiento de hablante
+node tests/test_speaker_recognition.mjs
 ```
 
----
-
-## 📚 Documentación Técnica Detallada
-- 📖 [Arquitectura y Flujo de Datos](file:///c:/React-Nextjs-Projects/Cristi%20AI/docs/ARCHITECTURE.md)
-- 🎭 [Catálogo de Modelos Live2D y Mappings](file:///c:/React-Nextjs-Projects/Cristi%20AI/docs/LIVE2D_MODELS.md)
-- 📋 [Plan de Implementación de Modelos](file:///c:/React-Nextjs-Projects/Cristi%20AI/docs/superpowers/plans/2026-08-30-multi-live2d-model-architecture.md)

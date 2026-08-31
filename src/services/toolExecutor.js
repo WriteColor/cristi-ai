@@ -1,9 +1,12 @@
 import { logger } from './logger.js';
 import { virtualTerminal } from './virtualTerminalService.js';
+import { eventBus, EVENTS } from './eventBus.js';
+import { electronBridge } from './desktop/ElectronBridge.js';
 
 export class ToolExecutor {
   constructor({
     onGestureTrigger,
+    onMotionTrigger,
     onAvatarMove,
     onToolExecutionStart,
     onToolExecutionEnd,
@@ -15,6 +18,7 @@ export class ToolExecutor {
     setScreenWatch
   }) {
     this.onGestureTrigger = onGestureTrigger || (() => {});
+    this.onMotionTrigger = onMotionTrigger || (() => {});
     this.onAvatarMove = onAvatarMove || (() => {});
     this.onToolExecutionStart = onToolExecutionStart || (() => {});
     this.onToolExecutionEnd = onToolExecutionEnd || (() => {});
@@ -71,7 +75,19 @@ export class ToolExecutor {
         return {
           status: 'success',
           current_gesture: gesture,
-          message: `Avatar expression updated to ${gesture}.`
+          message: `Avatar expression and dynamic Live2D parameters updated to ${gesture}.`
+        };
+      }
+
+      case 'trigger_model_motion': {
+        const motionGroup = args.motion_group || 'Idle';
+        const index = args.index !== undefined ? Number(args.index) : 0;
+        this.onMotionTrigger(motionGroup, index);
+        return {
+          status: 'success',
+          motion_group: motionGroup,
+          index,
+          message: `Avatar triggered motion group "${motionGroup}"[${index}].`
         };
       }
 
@@ -107,12 +123,94 @@ export class ToolExecutor {
 
       case 'get_weather': {
         const city = args.city || 'Ubicación actual';
-        return {
+        const weatherData = {
           location: city,
           temperature: '22°C',
           condition: 'Soleado y agradable',
           humidity: '45%',
           wind: '12 km/h'
+        };
+        eventBus.emit(EVENTS.WIDGET_TRIGGERED, {
+          id: String(Date.now()),
+          type: 'weather',
+          title: `Clima: ${city}`,
+          content: `${weatherData.temperature} • ${weatherData.condition}`,
+          time: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+          duration: 12000
+        });
+        return weatherData;
+      }
+
+      // ─────────────────────────────────────────────────────────────────
+      // WIDGETS TÁCTICOS DINÁMICOS (CONTROLADOS POR CRISTI AI)
+      // ─────────────────────────────────────────────────────────────────
+      case 'set_reminder': {
+        const title = args.title || 'Recordatorio de Cristi';
+        const time = args.time || new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        const tag = args.tag || 'Cristi';
+        const widgetData = {
+          id: String(Date.now()),
+          type: 'reminder',
+          title,
+          time,
+          tag,
+          done: false,
+          created_at: Date.now()
+        };
+        eventBus.emit(EVENTS.WIDGET_TRIGGERED, widgetData);
+        return {
+          status: 'success',
+          message: `Recordatorio "${title}" creado para las ${time}.`,
+          widget: widgetData
+        };
+      }
+
+      case 'set_alarm': {
+        const time = args.time || '10:00';
+        const label = args.label || 'Alarma';
+        const widgetData = {
+          id: String(Date.now()),
+          type: 'alarm',
+          title: `Alarma: ${label}`,
+          time,
+          tag: 'Alarma',
+          done: false
+        };
+        eventBus.emit(EVENTS.WIDGET_TRIGGERED, widgetData);
+        return {
+          status: 'success',
+          message: `Alarma programada para las ${time} (${label}).`,
+          widget: widgetData
+        };
+      }
+
+      case 'show_tactical_widget': {
+        const type = args.type || 'info';
+        const title = args.title || 'Nota de Cristi';
+        const content = args.content || '';
+        const duration = args.duration || 10000;
+        const widgetData = {
+          id: String(Date.now()),
+          type,
+          title,
+          content,
+          time: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+          duration
+        };
+        eventBus.emit(EVENTS.WIDGET_TRIGGERED, widgetData);
+        return {
+          status: 'success',
+          message: `Widget "${title}" mostrado en pantalla.`,
+          widget: widgetData
+        };
+      }
+
+      case 'dismiss_tactical_widget': {
+        const id = args.id;
+        eventBus.emit(EVENTS.WIDGET_DISMISSED, { id });
+        return {
+          status: 'success',
+          message: `Widget descartado.`
         };
       }
 
@@ -125,15 +223,15 @@ export class ToolExecutor {
         let cpuInfo = 'N/A';
         let memInfo = 'N/A';
 
-        if (window.Neutralino) {
+        if (electronBridge.isElectron) {
           try {
-            const cpuResult = await window.Neutralino.os.execCommand(
+            const cpuResult = await electronBridge.execCommand(
               'powershell -Command "Get-CimInstance Win32_Processor | Select-Object Name,LoadPercentage | ConvertTo-Json"'
             );
-            const memResult = await window.Neutralino.os.execCommand(
+            const memResult = await electronBridge.execCommand(
               'powershell -Command "$mem = Get-CimInstance Win32_OperatingSystem; [PSCustomObject]@{TotalGB=[math]::Round($mem.TotalVisibleMemorySize/1MB,1);FreeGB=[math]::Round($mem.FreePhysicalMemory/1MB,1)} | ConvertTo-Json"'
             );
-            platform = 'Neutralino Desktop';
+            platform = 'Electron Desktop (Cristi Native)';
             cpuInfo = cpuResult.stdOut?.trim() || 'N/A';
             memInfo = memResult.stdOut?.trim() || 'N/A';
           } catch (e) {
@@ -163,9 +261,9 @@ export class ToolExecutor {
 
       case 'read_file': {
         const path = args.path;
-        if (typeof window !== 'undefined' && window.Neutralino) {
+        if (electronBridge.isElectron) {
           try {
-            const content = await window.Neutralino.filesystem.readFile(path);
+            const content = await electronBridge.readFile(path);
             return { status: 'success', path, content: content.substring(0, 8000) };
           } catch (e) {
             return { status: 'error', path, message: e.message };
@@ -176,12 +274,12 @@ export class ToolExecutor {
 
       case 'write_file': {
         const { path, content, append } = args;
-        if (typeof window !== 'undefined' && window.Neutralino) {
+        if (electronBridge.isElectron) {
           try {
             if (append) {
-              await window.Neutralino.filesystem.appendFile(path, content);
+              await electronBridge.appendFile(path, content);
             } else {
-              await window.Neutralino.filesystem.writeFile(path, content);
+              await electronBridge.writeFile(path, content);
             }
             return { status: 'success', path, bytes_written: content.length, append: !!append };
           } catch (e) {
@@ -193,9 +291,9 @@ export class ToolExecutor {
 
       case 'list_directory': {
         const path = args.path || 'C:\\React-Nextjs-Projects\\Cristi AI';
-        if (typeof window !== 'undefined' && window.Neutralino) {
+        if (electronBridge.isElectron) {
           try {
-            const entries = await window.Neutralino.filesystem.readDirectory(path);
+            const entries = await electronBridge.readDirectory(path);
             return {
               status: 'success',
               path,
@@ -213,17 +311,8 @@ export class ToolExecutor {
       }
 
       case 'get_clipboard': {
-        if (typeof window === 'undefined' || !window.Neutralino) {
-          try {
-            if (typeof navigator !== 'undefined' && navigator.clipboard) {
-              const text = await navigator.clipboard.readText();
-              return { status: 'success', content: text };
-            }
-          } catch (e) {}
-          return { status: 'success', content: 'Cristi AI Clipboard: Acceso listo y activo.' };
-        }
         try {
-          const text = await window.Neutralino.clipboard.getAsText();
+          const text = await electronBridge.getClipboardText();
           return { status: 'success', content: text };
         } catch (e) {
           return { status: 'error', message: e.message };
@@ -232,17 +321,8 @@ export class ToolExecutor {
 
       case 'set_clipboard': {
         const text = args.text || '';
-        if (typeof window === 'undefined' || !window.Neutralino) {
-          try {
-            if (typeof navigator !== 'undefined' && navigator.clipboard) {
-              await navigator.clipboard.writeText(text);
-              return { status: 'success', message: 'Texto copiado al portapapeles.' };
-            }
-          } catch (e) {}
-          return { status: 'success', message: 'Texto registrado en portapapeles virtual.', length: text.length };
-        }
         try {
-          await window.Neutralino.clipboard.setAsText(text);
+          await electronBridge.setClipboardText(text);
           return { status: 'success', message: 'Texto copiado al portapapeles.', length: text.length };
         } catch (e) {
           return { status: 'error', message: e.message };
@@ -250,6 +330,18 @@ export class ToolExecutor {
       }
 
       case 'get_running_processes': {
+        if (electronBridge.isElectron) {
+          try {
+            const cmd = 'powershell -NoProfile -Command "Get-Process | Where-Object { $_.MainWindowTitle -or $_.WorkingSet -gt 50MB } | Sort-Object WorkingSet -Descending | Select-Object -First 25 Id, ProcessName, @{Name=\'MemoryMB\';Expression={[math]::Round($_.WorkingSet/1MB,1)}}, MainWindowTitle | ConvertTo-Json"';
+            const res = await electronBridge.execCommand(cmd, { timeout: 8000 });
+            if (res.stdOut) {
+              const processes = JSON.parse(res.stdOut);
+              return { status: 'success', count: Array.isArray(processes) ? processes.length : 1, processes };
+            }
+          } catch (e) {
+            // fallback to basic list
+          }
+        }
         return await virtualTerminal.executeCommand('Get-Process');
       }
 
@@ -259,26 +351,38 @@ export class ToolExecutor {
         const cmd = isNumeric
           ? `Stop-Process -Id ${target} -Force`
           : `Stop-Process -Name '${target}' -Force`;
+        if (electronBridge.isElectron) {
+          const res = await electronBridge.execCommand(`powershell -NoProfile -Command "${cmd}"`, { timeout: 5000 });
+          return { status: res.exitCode === 0 ? 'success' : 'error', message: res.stdOut || res.stdErr || 'Proceso finalizado.' };
+        }
         return await virtualTerminal.executeCommand(cmd);
       }
 
+      case 'open_url':
       case 'open_system_app_or_link': {
         const url = args.url;
         if (!url) return { status: 'failed', message: 'No URL provided.' };
 
-        // Try Neutralino first for real system app launching
-        if (typeof window !== 'undefined' && window.Neutralino) {
-          try {
-            await window.Neutralino.os.open(url);
-            return { status: 'opened', url };
-          } catch (e) {
-            window.open(url, '_blank');
-            return { status: 'opened', url, via: 'browser' };
-          }
+        try {
+          await electronBridge.openExternal(url);
+          return { status: 'opened', url };
+        } catch (e) {
+          window.open(url, '_blank');
+          return { status: 'opened', url, via: 'browser' };
         }
+      }
 
-        window.open(url, '_blank');
-        return { status: 'opened', url };
+      case 'open_file_or_folder': {
+        const path = args.path;
+        if (!path) return { status: 'failed', message: 'No path provided.' };
+        if (electronBridge.isElectron) {
+          const res = await electronBridge.openPath(path);
+          if (res.success) {
+            return { status: 'success', path, message: `Ruta "${path}" abierta en el explorador o aplicación predeterminada.` };
+          }
+          return { status: 'error', path, message: res.error || 'No se pudo abrir la ruta.' };
+        }
+        return { status: 'unsupported', message: 'Abrir carpetas locales requiere modo escritorio Electron.' };
       }
 
       case 'computer_action': {
@@ -288,9 +392,9 @@ export class ToolExecutor {
         switch (action) {
           case 'mouse_click': {
             const [x, y] = coordinate || [0, 0];
-            if (typeof window !== 'undefined' && window.Neutralino) {
+            if (electronBridge.isElectron) {
               try {
-                await window.Neutralino.os.execCommand(
+                await electronBridge.execCommand(
                   `powershell -Command "[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${x}, ${y})"`
                 );
               } catch {}
@@ -304,9 +408,9 @@ export class ToolExecutor {
           }
 
           case 'type_text': {
-            if (typeof window !== 'undefined' && window.Neutralino) {
+            if (electronBridge.isElectron) {
               try {
-                await window.Neutralino.os.execCommand(
+                await electronBridge.execCommand(
                   `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${(text || '').replace(/'/g, "''")}')"`
                 );
               } catch {}
@@ -338,12 +442,19 @@ export class ToolExecutor {
           }
 
           case 'take_screenshot': {
-            const frameData = await this.getScreenCapture('full');
+            let frameData = null;
+            if (electronBridge.isElectron) {
+              frameData = await electronBridge.captureScreenNative();
+            }
+            if (!frameData) {
+              frameData = await this.getScreenCapture('full');
+            }
             return {
               status: 'captured',
               action: 'take_screenshot',
-              message: 'Captura de pantalla realizada.',
-              has_frame: !!frameData
+              message: 'Captura de pantalla realizada con alta fidelidad.',
+              has_frame: !!frameData,
+              frame_data: frameData
             };
           }
 
@@ -357,20 +468,27 @@ export class ToolExecutor {
       }
 
       // ─────────────────────────────────────────────────────────────────
-      // SCREEN CAPTURE
+      // SCREEN CAPTURE & VISION GROUNDING
       // ─────────────────────────────────────────────────────────────────
       case 'capture_screen_snapshot': {
-        const frameData = await this.getScreenCapture(args.region || 'active_region');
+        let frameData = null;
+        if (electronBridge.isElectron) {
+          frameData = await electronBridge.captureScreenNative(args.region);
+        }
+        if (!frameData) {
+          frameData = await this.getScreenCapture(args.region || 'active_region');
+        }
+
         if (!frameData) {
           return {
             status: 'unavailable',
-            message: 'La captura de pantalla no está disponible. El usuario debe activar Screen Watch o conceder permiso de captura primero.'
+            message: 'La captura de pantalla no está disponible en este momento.'
           };
         }
         return {
           status: 'captured',
-          region: args.region || 'active_region',
-          message: 'Frame de pantalla capturado. Analízalo para responder al usuario.',
+          region: args.region || 'full',
+          message: 'Frame de pantalla capturado en tiempo real. Analízalo para responder al usuario.',
           frame_data: frameData
         };
       }

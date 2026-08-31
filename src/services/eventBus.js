@@ -148,5 +148,12 @@ export const EVENTS = {
   // Video Games & Minecraft Integration
   GAME_EVENT: 'game_event',
   GAME_STATE_CHANGED: 'game_state_changed',
-  GAME_ACTION_REQUESTED: 'game_action_requested'
+  GAME_ACTION_REQUESTED: 'game_action_requested',
+
+  // Futuristic HUD Toast Notifications
+  TOAST_TRIGGERED: 'toast_triggered',
+
+  // Dynamic Desktop Tactical Widgets
+  WIDGET_TRIGGERED: 'widget_triggered',
+  WIDGET_DISMISSED: 'widget_dismissed'
 };

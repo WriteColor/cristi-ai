@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Mic,
   MicOff,
@@ -17,9 +17,12 @@ import {
   EyeOff
 } from 'lucide-react';
 import { getModelDisplayName } from '../config/models';
+import { useClickThrough } from '../hooks/useClickThrough';
+import { soundFxService } from '../services/soundFxService';
 
 /**
- * Cristi AI - Minimalist Non-Blocking Floating Dock & Top Bar
+ * Cristi AI - Cyberpunk Tactical HUD Dock & Status Bar
+ * Square/chamfered sharp corners, micro-crosshairs, hairline dotted frames.
  */
 export function FloatingHUD({
   isConnected = false,
@@ -48,92 +51,170 @@ export function FloatingHUD({
   onToggleViewMode,
   onToggleZenMode
 }) {
+  const topBarRef = useRef(null);
+  const dockRef = useRef(null);
+  const [isIdleFade, setIsIdleFade] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+
+  const { interactiveProps } = useClickThrough();
+
+  // Auto-idle Zen Mode: Softly fade HUD after 4.0s of inactivity
+  useEffect(() => {
+    let idleTimer = null;
+
+    const resetIdle = () => {
+      setIsIdleFade(false);
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        if (!isHovered && !isConnecting && !isSpeaking) {
+          setIsIdleFade(true);
+        }
+      }, 4000);
+    };
+
+    window.addEventListener('mousemove', resetIdle, { passive: true });
+    window.addEventListener('pointermove', resetIdle, { passive: true });
+    resetIdle();
+
+    return () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      window.removeEventListener('mousemove', resetIdle);
+      window.removeEventListener('pointermove', resetIdle);
+    };
+  }, [isHovered, isConnecting, isSpeaking]);
+
+
   const modelShortName = getModelDisplayName(modelId);
 
-  let statusColor = 'bg-zinc-500';
-  let statusText = 'En Espera';
-
+  let statusClass = 'hud-status-standby';
   if (isConnecting) {
-    statusColor = 'bg-amber-400 animate-pulse';
-    statusText = 'Conectando...';
+    statusClass = 'hud-status-connecting';
   } else if (isConnected) {
     if (isSpeaking) {
-      statusColor = 'bg-purple-400 shadow-[0_0_12px_#c084fc]';
-      statusText = 'Cristi hablando';
+      statusClass = 'hud-status-speaking';
     } else if (isListening) {
-      statusColor = 'bg-emerald-400 shadow-[0_0_12px_#34d399]';
-      statusText = 'Escuchándote';
+      statusClass = 'hud-status-listening';
     } else {
-      statusColor = 'bg-emerald-500';
-      statusText = 'En Vivo';
+      statusClass = 'hud-status-live';
     }
   }
 
-  const hiddenClass = !isUiVisible ? 'zen-ui-hidden' : '';
+  const hiddenClass = !isUiVisible ? 'zen-ui-hidden' : isIdleFade ? 'hud-idle-faded' : '';
+
+  const handleConnectionClick = () => {
+    if (isConnected) {
+      soundFxService.playDisconnect();
+    } else {
+      soundFxService.playConnect();
+    }
+    onToggleConnection();
+  };
+
+  const handleMuteClick = () => {
+    soundFxService.playMuteToggle(!isMuted);
+    onToggleMute();
+  };
+
+  const handleGenericClick = (callback) => {
+    soundFxService.playClick();
+    callback?.();
+  };
 
   return (
     <>
-      {/* Top Left Minimalist Brand / Status Pill */}
-      <div className={`shadcn-top-bar zen-fadeable-ui ${hiddenClass}`}>
-        <div className="shadcn-status-pill">
-          <span className={`status-dot ${statusColor}`} />
-          <span className="font-semibold text-zinc-100 text-xs tracking-wide">CRISTI AI</span>
-          <span className="text-zinc-500 text-[10px]">|</span>
-          <span className="text-zinc-400 text-xs">{modelShortName}</span>
-          <span className="text-zinc-500 text-[10px]">({voiceName})</span>
+      {/* Top Left Floating Dynamic Badges (Only shown when tool or screen watch is active) */}
+      {(activeToolName || isScreenWatchActive) && (
+        <div
+          ref={topBarRef}
+          className={`hud-top-bar zen-fadeable-ui ${hiddenClass}`}
+          {...interactiveProps}
+          onMouseEnter={(e) => {
+            setIsHovered(true);
+            setIsIdleFade(false);
+            interactiveProps.onMouseEnter?.(e);
+          }}
+          onMouseLeave={(e) => {
+            setIsHovered(false);
+            interactiveProps.onMouseLeave?.(e);
+          }}
+        >
+          {activeToolName && (
+            <div className="hud-tool-badge">
+              <span className="hud-corner hud-corner-tl" />
+              <span className="hud-corner hud-corner-br" />
+              <Sparkles size={11} className="hud-spin-icon" />
+              <span>{activeToolName}</span>
+            </div>
+          )}
+
+          {/* Screen Watch Indicator */}
+          {isScreenWatchActive && (
+            <div className="hud-screen-watch-badge">
+              <span className="hud-corner hud-corner-tl" />
+              <span className="hud-corner hud-corner-br" />
+              <span className="hud-screen-watch-dot" />
+              <Monitor size={11} />
+              <span>VISION_DESKTOP</span>
+            </div>
+          )}
         </div>
+      )}
 
-        {activeToolName && (
-          <div className="shadcn-tool-badge">
-            <Sparkles size={11} className="text-purple-400 animate-spin" />
-            <span>{activeToolName}</span>
-          </div>
-        )}
+      {/* Bottom Floating Tactical Control Dock */}
+      <div
+        className={`hud-bottom-dock-wrapper zen-fadeable-ui ${hiddenClass}`}
+        {...interactiveProps}
+        onMouseEnter={(e) => {
+          setIsHovered(true);
+          setIsIdleFade(false);
+          interactiveProps.onMouseEnter?.(e);
+        }}
+        onMouseLeave={(e) => {
+          setIsHovered(false);
+          interactiveProps.onMouseLeave?.(e);
+        }}
+      >
+        <div ref={dockRef} className="hud-dock">
+          <span className="hud-corner hud-corner-tl" />
+          <span className="hud-corner hud-corner-tr" />
+          <span className="hud-corner hud-corner-bl" />
+          <span className="hud-corner hud-corner-br" />
 
-        {/* Screen Watch Indicator (top bar pill) */}
-        {isScreenWatchActive && (
-          <div className="shadcn-screen-watch-pill">
-            <span className="screen-watch-dot" />
-            <Monitor size={11} />
-            <span>Viendo pantalla</span>
-          </div>
-        )}
-      </div>
-
-      {/* Bottom Floating Minimalist Control Dock */}
-      <div className={`shadcn-bottom-dock-wrapper zen-fadeable-ui ${hiddenClass}`}>
-        <div className="shadcn-dock">
           {/* Main Action: Start / Stop Voice Call */}
           <button
-            className={`shadcn-call-btn ${isConnected ? 'active' : ''}`}
-            onClick={onToggleConnection}
+            type="button"
+            className={`hud-call-btn ${isConnected ? 'active' : ''} ${isConnecting ? 'connecting' : ''}`}
+            onClick={handleConnectionClick}
             disabled={isConnecting}
-            title={isConnected ? 'Terminar Llamada en Vivo' : 'Iniciar Conversación de Voz'}
+            title={isConnected ? 'Terminar Enlace de Voz' : 'Iniciar Enlace Neuronal en Vivo'}
           >
+            <span className="hud-corner hud-corner-tl" />
+            <span className="hud-corner hud-corner-br" />
             {isConnected ? (
               <>
                 <PhoneOff size={15} />
-                <span>Colgar</span>
+                <span>DESCONECTAR</span>
               </>
             ) : isConnecting ? (
               <>
-                <div className="shadcn-spinner-mini" />
-                <span>Conectando...</span>
+                <div className="hud-spinner-mini" />
+                <span>ENLAZANDO...</span>
               </>
             ) : (
               <>
                 <PhoneCall size={15} />
-                <span>Hablar en Vivo</span>
+                <span>HABLAR EN VIVO</span>
               </>
             )}
           </button>
 
-          <div className="shadcn-divider" />
+          <div className="hud-dock-divider" />
 
           {/* Mute Toggle */}
           <button
-            className={`shadcn-icon-btn ${isMuted ? 'text-rose-400 bg-rose-950/30' : ''}`}
-            onClick={onToggleMute}
+            type="button"
+            className={`hud-icon-btn ${isMuted ? 'muted' : ''}`}
+            onClick={handleMuteClick}
             disabled={!isConnected}
             title={isMuted ? 'Activar Micrófono' : 'Silenciar Micrófono'}
           >
@@ -142,17 +223,19 @@ export function FloatingHUD({
 
           {/* Camera Sensor Toggle */}
           <button
-            className={`shadcn-icon-btn ${isCameraActive ? 'active' : ''}`}
-            onClick={onToggleCamera}
-            title={isCameraActive ? 'Desactivar Cámara' : 'Activar Visión por Cámara'}
+            type="button"
+            className={`hud-icon-btn ${isCameraActive ? 'active' : ''}`}
+            onClick={() => handleGenericClick(onToggleCamera)}
+            title={isCameraActive ? 'Desactivar Sensor Cámara' : 'Activar Visión por Cámara'}
           >
             {isCameraActive ? <Video size={16} /> : <VideoOff size={16} />}
           </button>
 
           {/* Screen Watch Toggle */}
           <button
-            className={`shadcn-icon-btn ${isScreenWatchActive ? 'active screen-watch-active' : ''}`}
-            onClick={onToggleScreenWatch}
+            type="button"
+            className={`hud-icon-btn ${isScreenWatchActive ? 'active screen-watch' : ''}`}
+            onClick={() => handleGenericClick(onToggleScreenWatch)}
             title={isScreenWatchActive ? 'Desactivar Vigilancia de Pantalla' : 'Activar Vigilancia de Pantalla (Cristi ve tu escritorio)'}
           >
             {isScreenWatchActive ? <Monitor size={16} /> : <MonitorOff size={16} />}
@@ -160,30 +243,33 @@ export function FloatingHUD({
 
           {/* Region Picker */}
           <button
-            className={`shadcn-icon-btn ${hasScreenRegion ? 'active' : ''}`}
-            onClick={onOpenRegionPicker}
-            title="Definir Área de Visión de Cristi (arrastra para seleccionar)"
+            type="button"
+            className={`hud-icon-btn ${hasScreenRegion ? 'active' : ''}`}
+            onClick={() => handleGenericClick(onOpenRegionPicker)}
+            title="Definir Región de Visión (arrastra para seleccionar)"
           >
             <Crosshair size={16} />
           </button>
 
-          {/* Clear Region Button (only shown when region is set) */}
+          {/* Clear Region Button */}
           {hasScreenRegion && (
             <button
-              className="shadcn-icon-btn text-rose-400"
-              onClick={onClearScreenRegion}
-              title="Limpiar región de visión (pantalla completa)"
+              type="button"
+              className="hud-icon-btn danger"
+              onClick={() => handleGenericClick(onClearScreenRegion)}
+              title="Restablecer a Pantalla Completa"
             >
               <Trash2 size={14} />
             </button>
           )}
 
-          <div className="shadcn-divider" />
+          <div className="hud-dock-divider" />
 
-          {/* Torso vs Full body view framing toggle */}
+          {/* Torso vs Full body framing */}
           <button
-            className={`shadcn-icon-btn ${viewMode === 'torso' ? 'active' : ''}`}
-            onClick={onToggleViewMode}
+            type="button"
+            className={`hud-icon-btn ${viewMode === 'torso' ? 'active' : ''}`}
+            onClick={() => handleGenericClick(onToggleViewMode)}
             title={viewMode === 'torso' ? 'Modo Busto Activo (Clic para ver cuerpo completo)' : 'Modo Cuerpo Completo (Clic para encuadrar torso)'}
           >
             <User size={16} />
@@ -191,17 +277,19 @@ export function FloatingHUD({
 
           {/* Transparent Backdrop (VTuber mode) Toggle */}
           <button
-            className={`shadcn-icon-btn ${!isSolidBackdrop ? 'active' : ''}`}
-            onClick={onToggleBackdrop}
-            title={isSolidBackdrop ? 'Fondo Transparente (Modo VTuber)' : 'Fondo Oscuro'}
+            type="button"
+            className={`hud-icon-btn ${!isSolidBackdrop ? 'active' : ''}`}
+            onClick={() => handleGenericClick(onToggleBackdrop)}
+            title={isSolidBackdrop ? 'Fondo Transparente (Modo VTuber)' : 'Fondo Sólido'}
           >
             <Layers size={16} />
           </button>
 
           {/* Zen Mode / Hide UI Toggle */}
           <button
-            className="shadcn-icon-btn"
-            onClick={onToggleZenMode}
+            type="button"
+            className="hud-icon-btn"
+            onClick={() => handleGenericClick(onToggleZenMode)}
             title="Modo Zen: Ocultar controles (Presiona tecla 'H' para alternar)"
           >
             <EyeOff size={16} />
@@ -209,8 +297,9 @@ export function FloatingHUD({
 
           {/* Settings Modal Toggle */}
           <button
-            className="shadcn-icon-btn"
-            onClick={onOpenSettings}
+            type="button"
+            className="hud-icon-btn"
+            onClick={() => handleGenericClick(onOpenSettings)}
             title="Ajustes (Modelo, Voces, API Key)"
           >
             <Settings size={16} />
@@ -220,3 +309,6 @@ export function FloatingHUD({
     </>
   );
 }
+
+export default FloatingHUD;
+

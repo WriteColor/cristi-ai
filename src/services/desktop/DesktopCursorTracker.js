@@ -5,7 +5,7 @@
  * even when the mouse leaves the browser window or the app is unfocused.
  * 
  * Strategies:
- * 1. Native Neutralino.js Desktop API (window.Neutralino.computer.getCursorPosition).
+ * 1. Electron Native Desktop Events (forward: true allows 60fps continuous mousemove across full screen).
  * 2. Window Screen Coordinate Translation (e.screenX - window.screenX, e.screenY - window.screenY).
  * 3. Global Pointer Capture & Drag Listeners.
  * 4. WebSocket Desktop Companion Stream (ws://127.0.0.1:9090/cursor or native hook).
@@ -35,7 +35,6 @@ export class DesktopCursorTracker {
     this.handlePointerMove = this.handlePointerMove.bind(this);
     this.handleMouseLeave = this.handleMouseLeave.bind(this);
     this.handleWindowBlur = this.handleWindowBlur.bind(this);
-    this.pollNativeDesktopCursor = this.pollNativeDesktopCursor.bind(this);
 
     // Expose global bridge for external desktop companion hooks & Playwright
     if (typeof window !== 'undefined') {
@@ -51,18 +50,13 @@ export class DesktopCursorTracker {
     if (this.isTracking || typeof window === 'undefined') return;
     this.isTracking = true;
 
-    // 1. Listen to all DOM window & document pointer events
+    // 1. Listen to all DOM window & document pointer events (works continuously in Electron with forward:true)
     window.addEventListener('mousemove', this.handleMouseMove, { passive: true, capture: true });
     window.addEventListener('pointermove', this.handlePointerMove, { passive: true, capture: true });
     document.addEventListener('mousemove', this.handleMouseMove, { passive: true, capture: true });
     document.addEventListener('pointermove', this.handlePointerMove, { passive: true, capture: true });
     document.addEventListener('mouseleave', this.handleMouseLeave, { passive: true });
     window.addEventListener('blur', this.handleWindowBlur, { passive: true });
-
-    // 2. If Neutralino desktop runtime is available, start high-frequency OS polling
-    if (window.Neutralino?.computer?.getCursorPosition || window.Neutralino?.os) {
-      this.pollIntervalId = setInterval(this.pollNativeDesktopCursor, 33); // ~30 FPS polling
-    }
   }
 
   /**
@@ -137,28 +131,6 @@ export class DesktopCursorTracker {
     };
 
     this.emitUpdate();
-  }
-
-  /**
-   * Poll native OS cursor via Neutralino API
-   */
-  async pollNativeDesktopCursor() {
-    if (typeof window === 'undefined' || !window.Neutralino) return;
-
-    try {
-      if (window.Neutralino.computer?.getCursorPosition) {
-        const cursor = await window.Neutralino.computer.getCursorPosition();
-        let winPos = { x: 0, y: 0 };
-        if (window.Neutralino.window?.getPosition) {
-          winPos = await window.Neutralino.window.getPosition();
-        }
-
-        const clientX = cursor.x - winPos.x;
-        const clientY = cursor.y - winPos.y;
-
-        this.setGlobalPosition(clientX, clientY, false);
-      }
-    } catch (_) {}
   }
 
   handleMouseMove(e) {

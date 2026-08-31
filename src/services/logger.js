@@ -1,6 +1,6 @@
 /**
- * Cristi AI - Terminal & Diagnostics Logger
- * Bridges frontend logs directly to the user's running terminal (Vite / Neutralino stdout)
+ * Cristi Desktop - Terminal & Diagnostics Logger
+ * Bridges frontend logs directly to the user's running terminal (Vite / Electron stdout)
  * and browser console with timestamped, colorized tags.
  */
 
@@ -56,14 +56,7 @@ class LoggerService {
     // 2. Notify in-app subscribers (UI Debug HUD)
     this.emitToListeners(entry);
 
-    // 3. Forward to Neutralino native terminal if active
-    if (typeof window !== 'undefined' && window.Neutralino && window.Neutralino.debug) {
-      try {
-        window.Neutralino.debug.log(`[${entry.tag}] ${entry.message}`, entry.level === 'error' ? 'ERROR' : 'INFO');
-      } catch (e) {}
-    }
-
-    // 4. Forward to Vite terminal server endpoint (/__log)
+    // 3. Forward to Vite terminal server endpoint (/__log)
     this.sendToTerminal(entry);
   }
 

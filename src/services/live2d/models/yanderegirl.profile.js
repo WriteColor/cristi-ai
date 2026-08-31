@@ -90,8 +90,12 @@ export const yanderegirlProfile = {
         }
     },
     "surprised": {
-        "type": "fallback",
-        "fallback": "idle"
+        "type": "expression",
+        "name": "Scared"
+    },
+    "crazy": {
+        "type": "expression",
+        "name": "Crazy"
     },
     "sad": {
         "type": "parameters",
@@ -106,8 +110,8 @@ export const yanderegirlProfile = {
         "name": "Mad"
     },
     "love": {
-        "type": "fallback",
-        "fallback": "idle"
+        "type": "expression",
+        "name": "Yandere"
     }
 }
 };

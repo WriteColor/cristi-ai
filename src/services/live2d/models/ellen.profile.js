@@ -111,8 +111,16 @@ export const ellenProfile = {
         }
     },
     "love": {
-        "type": "fallback",
-        "fallback": "idle"
+        "type": "expression",
+        "name": "red"
+    },
+    "shy": {
+        "type": "expression",
+        "name": "shou"
+    },
+    "playful": {
+        "type": "expression",
+        "name": "tang"
     }
 }
 };

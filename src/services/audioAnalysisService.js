@@ -4,7 +4,7 @@
  * and speech rhythm impulses to drive organic Live2D avatar behaviors.
  */
 
-import { eventBus, EVENTS } from './eventBus';
+import { eventBus, EVENTS } from './eventBus.js';
 
 export class AudioAnalysisService {
   constructor(audioContext, sourceNode = null) {
@@ -91,18 +91,16 @@ export class AudioAnalysisService {
       sumSquares += normalized * normalized;
     }
     const rawRms = Math.sqrt(sumSquares / this.timeDomainData.length);
-    const volume = Math.min(Math.max(rawRms * 2.8, 0), 1);
+    const volume = Math.min(Math.max(rawRms * 3.2, 0), 1);
 
-    // Exponential smoothing for smooth mouth animation
-    const attack = 0.65;
-    const decay = 0.25;
-    if (volume > this.smoothedVolume) {
-      this.smoothedVolume = this.smoothedVolume + (volume - this.smoothedVolume) * attack;
-    } else {
-      this.smoothedVolume = this.smoothedVolume + (volume - this.smoothedVolume) * decay;
-    }
+    // Dynamic Attack/Decay Envelope for Speech
+    const isAttacking = volume > this.smoothedVolume;
+    const attackRate = 0.72; // Fast crisp opening on voice burst
+    const decayRate = 0.28;  // Inertial smooth close without stutter
+    const filterRate = isAttacking ? attackRate : decayRate;
+    this.smoothedVolume = this.smoothedVolume + (volume - this.smoothedVolume) * filterRate;
 
-    // 2. Multi-band frequency breakdown (Bass / Speech Formants / Treble)
+    // 2. Multi-band frequency breakdown (Multi-Band Formant Decomposition)
     let lowEnergy = 0;
     let midEnergy = 0;
     let highEnergy = 0;
@@ -116,12 +114,12 @@ export class AudioAnalysisService {
       totalFreqEnergy += mag;
       totalWeightedFreq += freq * mag;
 
-      if (freq < 400) {
-        lowEnergy += mag;
-      } else if (freq < 2800) {
-        midEnergy += mag; // Core vowel formant range
-      } else {
-        highEnergy += mag; // Sibilance and bright consonants
+      if (freq >= 80 && freq < 450) {
+        lowEnergy += mag * 1.4; // Fundamental voice harmonics (jaw drop)
+      } else if (freq >= 450 && freq < 2800) {
+        midEnergy += mag;       // Vowel formants F1/F2
+      } else if (freq >= 2800) {
+        highEnergy += mag * 1.2;// Fricatives and sibilance (lip spread)
       }
     }
 
@@ -130,21 +128,26 @@ export class AudioAnalysisService {
     const midBand = midEnergy / Math.max(1, Math.floor(2400 / binWidth));
     const highBand = highEnergy / Math.max(1, binCount - Math.floor(2800 / binWidth));
 
-    // 3. Spectral Centroid for Viseme / Mouth Shape (ParamMouthForm: -1.0 narrow to +1.0 wide/smile)
-    const spectralCentroid = totalFreqEnergy > 0.05 ? totalWeightedFreq / totalFreqEnergy : 1000;
-    // Maps ~800Hz (O/U) to -0.6 and ~2500Hz+ (A/I/E) to +0.8
-    const rawMouthForm = Math.min(Math.max((spectralCentroid - 1400) / 1100, -1), 1);
-    this.smoothedMouthForm = this.smoothedMouthForm + (rawMouthForm - this.smoothedMouthForm) * 0.15;
+    // 3. Spectral Centroid for Viseme Shape (ParamMouthForm: -1.0 rounded 'O/U' to +1.0 wide 'A/E/I')
+    const spectralCentroid = totalFreqEnergy > 0.05 ? totalWeightedFreq / totalFreqEnergy : 1200;
+    const rawMouthForm = Math.min(Math.max((spectralCentroid - 1350) / 1000, -1), 1);
+    this.smoothedMouthForm = this.smoothedMouthForm + (rawMouthForm - this.smoothedMouthForm) * 0.22;
 
-    // 4. Proportional Mouth Opening (non-linear boost for speech clarity)
-    const rawMouthOpen = Math.pow(this.smoothedVolume, 0.75) * 1.35;
-    this.smoothedMouthOpen = Math.min(Math.max(rawMouthOpen, 0), 1);
+    // 4. Proportional Jaw Mouth Opening (combines Low-band resonance with overall RMS volume)
+    const jawEnergy = (lowEnergy * 0.45) + (this.smoothedVolume * 0.55);
+    const rawMouthOpen = Math.min(Math.max(Math.pow(jawEnergy, 0.8) * 1.45, 0), 1.0);
+    this.smoothedMouthOpen = this.smoothedMouthOpen + (rawMouthOpen - this.smoothedMouthOpen) * (isAttacking ? 0.80 : 0.35);
 
-    // 5. Voice Activity Detection (VAD)
+    // 5. Speech activity & rhythmic peak energy detection
+    const isSpeakingNow = this.smoothedVolume > 0.04;
+    const now = performance.now();
     const wasSpeaking = this.isSpeaking;
-    this.isSpeaking = this.smoothedVolume > 0.04;
-    if (this.isSpeaking) {
-      this.lastSpeechActivityTime = Date.now();
+
+    if (isSpeakingNow) {
+      this.lastSpeechActivityTime = now;
+      this.isSpeaking = true;
+    } else if (now - this.lastSpeechActivityTime > 300) {
+      this.isSpeaking = false;
     }
 
     if (!wasSpeaking && this.isSpeaking) {
@@ -153,21 +156,20 @@ export class AudioAnalysisService {
       eventBus.emit(EVENTS.SPEECH_END);
     }
 
-    // 6. Speech Peak / Nod Impulse Detection
-    this.energyHistory.push(this.smoothedVolume);
+    // Detect emphatic speech peaks for head nod triggers
+    this.energyHistory.push(volume);
     if (this.energyHistory.length > this.maxEnergyHistory) {
       this.energyHistory.shift();
     }
-
-    const avgRecentEnergy = this.energyHistory.reduce((a, b) => a + b, 0) / this.energyHistory.length;
-    const isPeak = this.smoothedVolume > 0.35 && (this.smoothedVolume - avgRecentEnergy) > 0.15;
+    const avgEnergy = this.energyHistory.reduce((a, b) => a + b, 0) / this.energyHistory.length;
+    const isPeakEnergy = volume > 0.45 && volume > avgEnergy * 1.6;
 
     return {
       volume: this.smoothedVolume,
       mouthOpen: this.smoothedMouthOpen,
       mouthForm: this.smoothedMouthForm,
       isSpeaking: this.isSpeaking,
-      isPeakEnergy: isPeak,
+      isPeakEnergy,
       spectralCentroid,
       bands: {
         low: lowBand,

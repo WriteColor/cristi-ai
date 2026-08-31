@@ -45,6 +45,7 @@ function terminalLoggerPlugin() {
 
 export default defineConfig({
   plugins: [react(), terminalLoggerPlugin()],
+  base: './',
   server: {
     port: 5173,
     host: 'localhost',

@@ -1,10 +1,11 @@
 /**
- * Cristi AI - Screen Capture Service
- * Manages native OS screen capture (Neutralino/Windows) and getDisplayMedia stream,
+ * Cristi Desktop - Screen Capture Service
+ * Manages native OS screen capture (Electron / PowerShell / Win32) and getDisplayMedia stream,
  * full-screen and regional frame captures, with adaptive FPS throttling per Gemini model.
  */
 
-import { logger } from './logger';
+import { logger } from './logger.js';
+import { electronBridge } from './desktop/ElectronBridge.js';
 
 export class ScreenCaptureService {
   constructor({ onFrame, onError, onStreamReady, onStreamEnd }) {
@@ -29,22 +30,40 @@ export class ScreenCaptureService {
 
   /**
    * Captures the native OS desktop screen directly via Windows PowerShell/.NET.
-   * Works in Neutralino desktop mode without requiring browser stream dialog.
+   * Works in Electron desktop mode without requiring browser stream dialog.
+   * @param {Object} [region] - Optional { x_pct, y_pct, w_pct, h_pct }
    */
-  async captureNativeDesktop() {
-    if (!window.Neutralino) return null;
+  async captureNativeDesktop(region = null) {
+    if (!electronBridge.isElectron) return null;
 
     try {
+      const activeRegion = region || this.region;
+      let cropCalc = `
+        $srcX = 0; $srcY = 0;
+        $srcW = $bounds.Width; $srcH = $bounds.Height;
+      `;
+
+      if (activeRegion) {
+        cropCalc = `
+          $srcX = [Math]::Round(($bounds.Width * ${activeRegion.x_pct || 0}) / 100);
+          $srcY = [Math]::Round(($bounds.Height * ${activeRegion.y_pct || 0}) / 100);
+          $srcW = [Math]::Max(100, [Math]::Round(($bounds.Width * ${activeRegion.w_pct || 100}) / 100));
+          $srcH = [Math]::Max(100, [Math]::Round(($bounds.Height * ${activeRegion.h_pct || 100}) / 100));
+        `;
+      }
+
       const psScript = `
 Add-Type -AssemblyName System.Windows.Forms,System.Drawing;
 $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds;
-$bmp = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height;
+${cropCalc}
+$bmp = New-Object System.Drawing.Bitmap $srcW, $srcH;
 $g = [System.Drawing.Graphics]::FromImage($bmp);
-$g.CopyFromScreen(0, 0, 0, 0, $bmp.Size);
-$targetW = [Math]::Min(960, $bounds.Width);
-$targetH = [Math]::Round(($bounds.Height / $bounds.Width) * $targetW);
+$g.CopyFromScreen($srcX, $srcY, 0, 0, $bmp.Size);
+$targetW = [Math]::Min(960, $srcW);
+$targetH = [Math]::Round(($srcH / $srcW) * $targetW);
 $scaled = New-Object System.Drawing.Bitmap $targetW, $targetH;
 $sg = [System.Drawing.Graphics]::FromImage($scaled);
+$sg.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic;
 $sg.DrawImage($bmp, 0, 0, $targetW, $targetH);
 $ms = New-Object System.IO.MemoryStream;
 $scaled.Save($ms, [System.Drawing.Imaging.ImageFormat]::Jpeg);
@@ -52,7 +71,7 @@ $scaled.Save($ms, [System.Drawing.Imaging.ImageFormat]::Jpeg);
 $g.Dispose(); $sg.Dispose(); $bmp.Dispose(); $scaled.Dispose(); $ms.Dispose();
       `.replace(/\r?\n/g, ' ');
 
-      const res = await window.Neutralino.os.execCommand(`powershell -NoProfile -Command "${psScript}"`);
+      const res = await electronBridge.execCommand(`powershell -NoProfile -Command "${psScript}"`, { timeout: 6000 });
       const base64 = res.stdOut?.trim();
       if (base64 && base64.length > 500) {
         return base64;
@@ -178,8 +197,8 @@ $g.Dispose(); $sg.Dispose(); $bmp.Dispose(); $scaled.Dispose(); $ms.Dispose();
 
     const ok = await this.requestCapture();
     if (!ok) {
-      // In Neutralino, continuous capture can also work via native desktop loop
-      if (window.Neutralino) {
+      // In Electron, continuous capture can also work via native desktop loop
+      if (electronBridge.isElectron) {
         this.isCapturing = true;
         this.fps = fps;
         const intervalMs = Math.round(1000 / fps);

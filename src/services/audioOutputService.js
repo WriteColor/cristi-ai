@@ -1,13 +1,13 @@
 /**
- * Cristi AI - Audio Output Service
+ * Cristi AI - Audio Output Service (Jitter-Buffered PCM Audio Output)
  * Decodes 24,000 Hz 16-bit PCM base64 chunks from Gemini Live API,
- * schedules smooth continuous playback via Web Audio API,
+ * schedules smooth continuous playback with jitter buffering via Web Audio API,
  * analyzes live frequencies for Avatar Lip-Sync & visualizer,
- * and handles instantaneous cancellation on user interruption.
+ * and handles instantaneous cancellation on user interruption (Barge-in).
  */
 
-import { eventBus, EVENTS } from './eventBus';
-import { AudioAnalysisService } from './audioAnalysisService';
+import { eventBus, EVENTS } from './eventBus.js';
+import { AudioAnalysisService } from './audioAnalysisService.js';
 
 export class AudioOutputService {
   constructor({ onAudioStart, onAudioEnd, onLipSyncUpdate, onVolumeChange } = {}) {
@@ -24,6 +24,9 @@ export class AudioOutputService {
     this.nextScheduleTime = 0;
     this.activeSources = [];
     this.sampleRate = 24000; // Gemini Live audio output is 24kHz
+
+    // Jitter buffer lead-time (~35ms) to prevent audio underrun
+    this.jitterLeadTime = 0.035;
 
     // Forward analysis events to constructor callbacks
     this.unsubscribeAnalysis = eventBus.on(EVENTS.AUDIO_ANALYSIS, (metrics) => {
@@ -96,7 +99,8 @@ export class AudioOutputService {
 
     const currentTime = this.audioContext.currentTime;
     if (this.nextScheduleTime < currentTime) {
-      this.nextScheduleTime = currentTime;
+      // Apply jitter lead time on sequence start to prevent underrun
+      this.nextScheduleTime = currentTime + this.jitterLeadTime;
     }
 
     source.start(this.nextScheduleTime);

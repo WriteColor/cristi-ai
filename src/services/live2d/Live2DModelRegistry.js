@@ -4,7 +4,7 @@
  * without coupling the core AI or animation logic to specific parameter IDs.
  */
 
-import { ALL_MODEL_PROFILES, MODEL_PROFILES_MAP } from './models';
+import { ALL_MODEL_PROFILES, MODEL_PROFILES_MAP } from './models/index.js';
 
 export class Live2DModelRegistry {
   constructor() {
@@ -76,32 +76,58 @@ export class Live2DModelRegistry {
   }
 
   /**
-   * Resolve a high-level semantic action (e.g. 'happy', 'blush', 'wink', 'yandere')
-   * to model-specific parameter targets or expression names
+   * Resolve a high-level semantic action (e.g. 'happy', 'blush', 'wink', 'yandere', 'love', 'surprised', 'thinking', 'smug', 'gamer')
+   * to model-specific expression names, motion groups, or parameter target combinations.
+   * Supports multi-lingual synonyms (Spanish, English, Chinese Live2D naming conventions).
    * @param {string} modelId 
    * @param {string} actionName 
-   * @returns {Object} { type: 'expression'|'parameters'|'fallback', name?: string, targets?: Object }
+   * @returns {Object} { type: 'expression'|'parameters'|'fallback', name?: string, motion?: Object, targets?: Object }
    */
   resolveSemanticAction(modelId, actionName) {
     const model = this.getModel(modelId);
     if (!model) return { type: 'fallback', fallback: 'idle' };
 
-    // 1. Check model's pre-configured semantic action map
-    if (model.semanticActions && model.semanticActions[actionName]) {
-      return model.semanticActions[actionName];
+    const normalizedAction = (actionName || 'idle').toLowerCase().trim();
+
+    // 1. Check model's pre-configured semantic action map first
+    if (model.semanticActions && model.semanticActions[normalizedAction]) {
+      return model.semanticActions[normalizedAction];
     }
 
-    // 2. Dynamic expression fuzzy match
-    const expressions = model.capabilities?.customExpressions || model.expressions || [];
-    const normalizedAction = actionName.toLowerCase();
-    
-    for (const exp of expressions) {
-      if (exp.toLowerCase().includes(normalizedAction)) {
-        return { type: 'expression', name: exp };
+    // 2. Multi-lingual semantic synonym dictionary (ES, EN, CN Live2D expression keys)
+    const SYNONYM_MAP = {
+      love: ['爱心眼', 'love', 'amor', 'enamorada', 'corazon', 'corazón', 'teamo', 'red', 'yandere', 'shou'],
+      happy: ['happy', 'feliz', 'alegre', 'contenta', 'smile', 'sonrisa', 'meiyan', 'red'],
+      blush: ['脸红', 'blush', 'sonrojo', 'sonrojada', 'pena', 'vergüenza', 'verguenza', 'shy', 'tímida', 'timida', 'flustered', 'red', 'shou'],
+      yandere: ['yandere', '脸黑', 'black', 'crazy', 'celosa', 'posesiva', 'obsesion', 'obsesión', 'dark', '血', 'mad'],
+      crazy: ['crazy', 'loca', 'demente', 'yandere', 'black', '脸黑'],
+      surprised: ['shock', '惊讶', '惊诧', 'surprised', 'sorprendida', 'asombrada', 'impactada', 'scared', 'asustada', '星星眼', '疑惑'],
+      sad: ['流泪', '泪', 'sad', 'triste', 'pena', 'llorando', 'tears', 'crying'],
+      angry: ['生气', 'mad', 'angry', 'enojada', 'molesta', 'pout', 'rabia'],
+      wink: ['wink', 'guiño', 'guino', 'picarona', 'coqueta'],
+      smug: ['←歪嘴', '歪嘴→', 'smug', 'presumida', 'mueca', '舌头', 'tongue'],
+      gamer: ['手柄', 'gamer', 'juegos', 'videojuegos', 'jugar', 'partida'],
+      streaming: ['直播套装', 'streaming', 'stream', 'en vivo'],
+      thinking: ['疑惑', 'thinking', 'pensando', 'analizando', 'curiosa', 'duda'],
+      relaxed: ['idle', 'relaxed', 'relajada', 'tranquila', 'paz', 'descanso'],
+      excited: ['星星眼', 'excited', 'emocionada', 'stars', '直播套装', 'dance']
+    };
+
+    const synonyms = SYNONYM_MAP[normalizedAction] || [normalizedAction];
+    const customExpressions = model.capabilities?.customExpressions || model.expressions || [];
+    const blockedList = model.blockedExpressions || [];
+
+    // 3. Dynamic fuzzy match against model's actual .exp3 expressions
+    for (const syn of synonyms) {
+      for (const exp of customExpressions) {
+        if (blockedList.includes(exp)) continue;
+        if (exp.toLowerCase() === syn || exp.toLowerCase().includes(syn) || syn.includes(exp.toLowerCase())) {
+          return { type: 'expression', name: exp };
+        }
       }
     }
 
-    // 3. Fallback standard parameter targets
+    // 4. Fallback standard parameter targets mapped to model's unique parameter IDs
     const mapping = model.standardMapping || {};
     const targets = {};
 
@@ -109,22 +135,58 @@ export class Live2DModelRegistry {
       if (mapping.eye_l_smile) targets[mapping.eye_l_smile] = 1.0;
       if (mapping.eye_r_smile) targets[mapping.eye_r_smile] = 1.0;
       if (mapping.mouth_form) targets[mapping.mouth_form] = 1.0;
-      if (mapping.cheek_blush) targets[mapping.cheek_blush] = 0.5;
-    } else if (normalizedAction === 'blush') {
+      if (mapping.cheek_blush) targets[mapping.cheek_blush] = 0.6;
+      if (mapping.brow_l_y) targets[mapping.brow_l_y] = 0.3;
+      if (mapping.brow_r_y) targets[mapping.brow_r_y] = 0.3;
+      if (mapping.brow_l_form) targets[mapping.brow_l_form] = 0.5;
+      if (mapping.brow_r_form) targets[mapping.brow_r_form] = 0.5;
+    } else if (normalizedAction === 'love') {
+      if (mapping.eye_l_smile) targets[mapping.eye_l_smile] = 1.0;
+      if (mapping.eye_r_smile) targets[mapping.eye_r_smile] = 1.0;
+      if (mapping.mouth_form) targets[mapping.mouth_form] = 0.8;
+      if (mapping.cheek_blush) targets[mapping.cheek_blush] = 1.0;
+      if (mapping.eye_l_open) targets[mapping.eye_l_open] = 0.9;
+      if (mapping.eye_r_open) targets[mapping.eye_r_open] = 0.9;
+    } else if (normalizedAction === 'blush' || normalizedAction === 'shy') {
       if (mapping.cheek_blush) targets[mapping.cheek_blush] = 1.0;
       if (mapping.eye_l_smile) targets[mapping.eye_l_smile] = 0.8;
       if (mapping.eye_r_smile) targets[mapping.eye_r_smile] = 0.8;
+      if (mapping.mouth_form) targets[mapping.mouth_form] = 0.5;
+      if (mapping.eye_l_open) targets[mapping.eye_l_open] = 0.8;
+      if (mapping.eye_r_open) targets[mapping.eye_r_open] = 0.8;
     } else if (normalizedAction === 'wink') {
       if (mapping.eye_r_open) targets[mapping.eye_r_open] = 0.0;
       if (mapping.eye_r_smile) targets[mapping.eye_r_smile] = 1.0;
+      if (mapping.cheek_blush) targets[mapping.cheek_blush] = 0.5;
+      if (mapping.mouth_form) targets[mapping.mouth_form] = 0.5;
     } else if (normalizedAction === 'sad') {
       if (mapping.brow_l_y) targets[mapping.brow_l_y] = -0.6;
       if (mapping.brow_r_y) targets[mapping.brow_r_y] = -0.6;
       if (mapping.mouth_form) targets[mapping.mouth_form] = -1.0;
-    } else if (normalizedAction === 'angry' || normalizedAction === 'mad') {
+      if (mapping.eye_l_open) targets[mapping.eye_l_open] = 0.7;
+      if (mapping.eye_r_open) targets[mapping.eye_r_open] = 0.7;
+    } else if (normalizedAction === 'angry' || normalizedAction === 'mad' || normalizedAction === 'pout') {
       if (mapping.brow_l_angle) targets[mapping.brow_l_angle] = -0.8;
       if (mapping.brow_r_angle) targets[mapping.brow_r_angle] = -0.8;
-      if (mapping.mouth_form) targets[mapping.mouth_form] = -0.5;
+      if (mapping.mouth_form) targets[mapping.mouth_form] = -0.6;
+      if (mapping.cheek_blush) targets[mapping.cheek_blush] = 0.4;
+    } else if (normalizedAction === 'yandere' || normalizedAction === 'crazy') {
+      if (mapping.mouth_form) targets[mapping.mouth_form] = -0.6;
+      if (mapping.brow_l_angle) targets[mapping.brow_l_angle] = -0.5;
+      if (mapping.brow_r_angle) targets[mapping.brow_r_angle] = -0.5;
+      if (mapping.eye_l_smile) targets[mapping.eye_l_smile] = 0.3;
+      if (mapping.eye_r_smile) targets[mapping.eye_r_smile] = 0.3;
+      if (mapping.cheek_blush) targets[mapping.cheek_blush] = 0.7;
+    } else if (normalizedAction === 'surprised' || normalizedAction === 'shock') {
+      if (mapping.eye_l_open) targets[mapping.eye_l_open] = 1.0;
+      if (mapping.eye_r_open) targets[mapping.eye_r_open] = 1.0;
+      if (mapping.brow_l_y) targets[mapping.brow_l_y] = 0.7;
+      if (mapping.brow_r_y) targets[mapping.brow_r_y] = 0.7;
+      if (mapping.mouth_open_y) targets[mapping.mouth_open_y] = 0.3;
+    } else if (normalizedAction === 'thinking') {
+      if (mapping.brow_l_y) targets[mapping.brow_l_y] = 0.3;
+      if (mapping.brow_r_y) targets[mapping.brow_r_y] = -0.2;
+      if (mapping.mouth_form) targets[mapping.mouth_form] = 0.0;
     }
 
     if (Object.keys(targets).length > 0) {
