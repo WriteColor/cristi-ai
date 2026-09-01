@@ -38,6 +38,15 @@ assert(mainContent.includes("createSettingsWindow"), 'Función createSettingsWin
 assert(mainContent.includes("open-settings-window"), 'IPC handler open-settings-window configurado');
 assert(mainContent.includes("save-app-config"), 'IPC handler save-app-config configurado');
 
+// Check IPC uniqueness (no duplicated handlers)
+const handleMatches = [...mainContent.matchAll(/ipcMain\.handle\s*\(\s*['"]([^'"]+)['"]/g)].map(m => m[1]);
+const handleDuplicates = handleMatches.filter((item, index) => handleMatches.indexOf(item) !== index);
+assert(handleDuplicates.length === 0, `Todos los ipcMain.handle son únicos (Duplicados: ${handleDuplicates.join(', ') || 'ninguno'})`);
+
+const onMatches = [...mainContent.matchAll(/ipcMain\.on\s*\(\s*['"]([^'"]+)['"]/g)].map(m => m[1]);
+const onDuplicates = onMatches.filter((item, index) => onMatches.indexOf(item) !== index);
+assert(onDuplicates.length === 0, `Todos los ipcMain.on son únicos (Duplicados: ${onDuplicates.join(', ') || 'ninguno'})`);
+
 // 2. Check Electron preload script
 console.log('\n[2/7] Verificando electron/preload.cjs...');
 const preloadContent = fs.readFileSync('electron/preload.cjs', 'utf8');

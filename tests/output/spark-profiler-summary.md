@@ -1,6 +1,6 @@
 # ⚡ Cristi AI Companion — Spark Performance Profiler & Timings Report
 
-> **Generado:** `2026-09-01T04:35:43.872Z` | **Motor:** `STANDALONE_BENCHMARK` | **Veredicto:** `PERFECT_60FPS`
+> **Generado:** `2026-09-01T04:46:02.441Z` | **Motor:** `STANDALONE_BENCHMARK` | **Veredicto:** `PERFECT_60FPS`
 
 ---
 
@@ -11,9 +11,9 @@
 | **TPS Actual (Ticks Per Second)** | **`60.00 TPS`** | ✅ `60.0 TPS Nominal` |
 | **Índice de Estabilidad de Tasa** | **`100%`** | ✅ `≥ 99.0% Óptimo` |
 | **Ventanas de TPS (5s / 10s / 60s)** | `59.94 / 59.88 / 59.7` | ✅ Estable |
-| **MSPT Promedio (Avg Frame Time)** | **`4.64 ms`** | ✅ `Presupuesto: 16.67 ms` |
-| **MSPT Mediana (p50)** | **`4.24 ms`** | ✅ Ultra-rápido |
-| **MSPT Percentil 95 (p95)** | **`4.84 ms`** | ✅ Fluido |
+| **MSPT Promedio (Avg Frame Time)** | **`4.65 ms`** | ✅ `Presupuesto: 16.67 ms` |
+| **MSPT Mediana (p50)** | **`4.28 ms`** | ✅ Ultra-rápido |
+| **MSPT Percentil 95 (p95)** | **`4.83 ms`** | ✅ Fluido |
 | **MSPT Percentil 99 (p99)** | **`8.66 ms`** | ✅ Sin tirones |
 | **Ticks Caídos (> 33.3ms)** | **`1`** | ✅ 0 caídas críticas |
 | **Presupuesto Libre Ocioso (CPU Idle)** | **`11.27 ms`** | 🚀 `67.6% Headroom` |
@@ -75,13 +75,13 @@ Active Tick Budget: 5.4 ms / 16.67 ms frame ceiling
 - **Tirones Críticos (> 50ms):** `0`
 - **Advertencias de Fotograma (> 33.3ms):** `1`
 
-* **#1 [SYS-02]** `+39.02ms` en `T+78ms` — *Texture atlas decompression & GC minor pause test*
+* **#1 [SYS-02]** `+39.02ms` en `T+79ms` — *Texture atlas decompression & GC minor pause test*
 
 ---
 
 ## 4. 💾 Memoria V8 Heap & Proceso
 
-- **JS Heap Usado:** `55.22 MB` / `77.75 MB` (`71%` de ocupación)
+- **JS Heap Usado:** `51.66 MB` / `77.75 MB` (`66.4%` de ocupación)
 - **Working Set Estimado:** `~215.4 MB`
 - **Fugas de Memoria:** `0 fugas detectadas`
 

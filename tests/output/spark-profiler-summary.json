@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-01T04:35:43.872Z",
+  "timestamp": "2026-09-01T04:46:02.441Z",
   "profilerVersion": "2.0.0-spark",
   "environment": {
     "os": "win32",
@@ -18,18 +18,18 @@
       "stabilityPercentage": 100
     },
     "mspt": {
-      "min": 3.59,
-      "avg": 4.64,
-      "p50": 4.24,
-      "p90": 4.72,
-      "p95": 4.84,
+      "min": 3.6,
+      "avg": 4.65,
+      "p50": 4.28,
+      "p90": 4.77,
+      "p95": 4.83,
       "p99": 8.66,
       "max": 39.02
     },
     "frameBudgetMs": 16.6667,
     "totalActiveTickCostMs": 5.4,
     "idleBudgetRemainingMs": 11.27,
-    "sparkline": "▆▅▅▆▂ ▄▃▅█▆▂▃ ▃▇▅▄▄  ▅▄▅▆▂ ▄▃▅",
+    "sparkline": "▇▅▅▇▂ ▄▃▅█▄▂▃ ▃▇▅▄▄  ▅▅▅▆  ▄▃▅",
     "droppedTicks": 1,
     "totalTicksSampled": 90
   },
@@ -236,18 +236,18 @@
         "type": "SIMULATED_FRAME_HITCH",
         "subsystemId": "SYS-02",
         "durationMs": 39.02,
-        "timestamp": 78,
+        "timestamp": 79,
         "attribution": "Texture atlas decompression & GC minor pause test"
       }
     ]
   },
   "memory": {
-    "jsHeapUsedMB": 55.22,
+    "jsHeapUsedMB": 51.66,
     "jsHeapTotalMB": 77.75,
-    "heapUtilizationPct": 71,
+    "heapUtilizationPct": 66.4,
     "processWorkingSetMB": 215.4
   },
   "healthVerdict": "PERFECT_60FPS",
-  "profilerRunDurationMs": 120,
+  "profilerRunDurationMs": 122,
   "mode": "STANDALONE_BENCHMARK"
 }
