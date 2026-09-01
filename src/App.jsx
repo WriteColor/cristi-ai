@@ -136,7 +136,16 @@ export function App() {
   });
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false);
   const [isClickThroughEnabled, setIsClickThroughEnabled] = useState(true);
-  const [isVoiceEnrollmentOpen, setIsVoiceEnrollmentOpen] = useState(false);
+  const [isVoiceEnrollmentOpen, setIsVoiceEnrollmentOpen] = useState(() => {
+    try {
+      const alreadyEnrolled = speakerRecognitionService.hasEnrolledProfile();
+      const alreadyDismissed = localStorage.getItem('cristi_voice_enrolled_dismissed_v1') === 'true' ||
+                               localStorage.getItem('cristi_voice_enrolled_v1') === 'true';
+      return !alreadyEnrolled && !alreadyDismissed;
+    } catch {
+      return false;
+    }
+  });
   const [speakerDecision, setSpeakerDecision] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
   const [contextMenu, setContextMenu] = useState({ isOpen: false, x: 0, y: 0 });
@@ -901,6 +910,9 @@ export function App() {
       closePerformanceHUD: () => setIsPerformanceHudOpen(false),
       openRegionPicker: () => setIsRegionPickerOpen(true),
       closeRegionPicker: () => setIsRegionPickerOpen(false),
+      openVoiceEnrollment: () => setIsVoiceEnrollmentOpen(true),
+      closeVoiceEnrollment: () => setIsVoiceEnrollmentOpen(false),
+      toggleCamera: handleToggleCamera,
       getModalStates: () => ({
         isSettingsOpen,
         isContextMenuOpen: contextMenu.isOpen,
@@ -1065,6 +1077,11 @@ export function App() {
   const handleToggleScreenWatch = () => {
     const nextState = !isScreenWatchActive;
     setIsScreenWatchActive(nextState);
+    if (nextState) {
+      toastService.info('Visión de Pantalla Activa', 'Cristi ahora está observando y analizando toda tu pantalla en tiempo real.');
+    } else {
+      toastService.info('Visión de Pantalla Desactivada', 'Se detuvo el análisis continuo de pantalla.');
+    }
     if (toolExecutorRef.current) {
       toolExecutorRef.current.executeSingleTool('set_screen_watch', { enabled: nextState });
     }
@@ -1073,6 +1090,11 @@ export function App() {
   const handleRegionSelected = (region) => {
     setScreenRegion(region);
     setIsRegionPickerOpen(false);
+    setIsScreenWatchActive(true);
+    toastService.success(
+      'Área de Visión Seleccionada',
+      `Cristi ahora vigila el área delimitada (${Math.round(region.w_pct)}% × ${Math.round(region.h_pct)}% de la pantalla).`
+    );
     if (screenCaptureRef.current) {
       screenCaptureRef.current.setRegion(region);
     }
@@ -1084,6 +1106,7 @@ export function App() {
   const handleClearScreenRegion = () => {
     setScreenRegion(null);
     screenCaptureRef.current?.clearRegion();
+    toastService.info('Visión Reestablecida', 'Cristi ha vuelto a la visión de pantalla completa.');
   };
 
   const handleMinimizeToTray = () => {
@@ -1178,6 +1201,8 @@ export function App() {
         videoRef={cameraVideoRef}
         overlayCanvasRef={overlayCanvasRef}
         isStreaming={isCameraActive}
+        mediaStream={cameraRef.current?.getMediaStream()}
+        cameraService={cameraRef.current}
         detections={visionDetections}
         ownerSamples={ownerSamples}
         availableDevices={availableDevices}

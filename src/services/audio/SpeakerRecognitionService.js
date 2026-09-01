@@ -368,6 +368,71 @@ export class SpeakerRecognitionService {
     return this.ownerProfile;
   }
 
+  /**
+   * Decode an Audio File (File, Blob, or ArrayBuffer) into 16kHz PCM Float32Array
+   */
+  async decodeAudioFile(fileOrBlob) {
+    let arrayBuffer;
+    if (fileOrBlob instanceof ArrayBuffer) {
+      arrayBuffer = fileOrBlob;
+    } else if (fileOrBlob && typeof fileOrBlob.arrayBuffer === 'function') {
+      arrayBuffer = await fileOrBlob.arrayBuffer();
+    } else {
+      throw new Error('Formato de archivo inválido para decodificación de audio.');
+    }
+
+    const AudioContextClass = typeof window !== 'undefined' ? (window.AudioContext || window.webkitAudioContext) : null;
+    if (!AudioContextClass) {
+      throw new Error('Web Audio API no está disponible en este entorno.');
+    }
+
+    const audioCtx = new AudioContextClass();
+    try {
+      const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+      const targetSampleRate = 16000;
+      const targetLength = Math.max(1, Math.ceil(decodedBuffer.duration * targetSampleRate));
+
+      const OfflineCtxClass = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (OfflineCtxClass) {
+        const offlineCtx = new OfflineCtxClass(1, targetLength, targetSampleRate);
+        const source = offlineCtx.createBufferSource();
+        source.buffer = decodedBuffer;
+        source.connect(offlineCtx.destination);
+        source.start(0);
+        const rendered = await offlineCtx.startRendering();
+        return rendered.getChannelData(0);
+      } else {
+        // Fallback channel extraction
+        return decodedBuffer.getChannelData(0);
+      }
+    } finally {
+      if (audioCtx.state !== 'closed') {
+        await audioCtx.close().catch(() => {});
+      }
+    }
+  }
+
+  /**
+   * Enroll a speaker profile directly from a pre-recorded audio file (.wav, .mp3, .ogg, .m4a, .webm, etc.)
+   */
+  async enrollFromAudioFile(fileOrBlob, ownerName = 'Mi Dueño', label = 'Archivo Pregrabado') {
+    const pcmFloat32 = await this.decodeAudioFile(fileOrBlob);
+    if (!pcmFloat32 || pcmFloat32.length < 1600) {
+      throw new Error('El archivo de audio es demasiado corto o no contiene voz suficiente (mínimo 100ms).');
+    }
+
+    const res = this.extractEmbedding(pcmFloat32);
+    if (!res || !res.embedding || res.embedding.length !== this.embeddingDim) {
+      throw new Error('No se pudieron extraer patrones biométricos del archivo de audio.');
+    }
+
+    return this.enrollSamples(ownerName, [{
+      id: `sample_file_${Date.now()}`,
+      label: label,
+      embedding: res.embedding
+    }]);
+  }
+
   clearProfile() {
     this.ownerProfile = null;
     this.saveProfile();
