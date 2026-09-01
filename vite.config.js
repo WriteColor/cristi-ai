@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'path';
 
 function terminalLoggerPlugin() {
   return {
@@ -60,5 +61,11 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     sourcemap: true,
+    rollupOptions: {
+      input: {
+        main: path.resolve(import.meta.dirname || __dirname, 'index.html'),
+        settings: path.resolve(import.meta.dirname || __dirname, 'settings.html')
+      }
+    }
   }
 });

@@ -85,4 +85,40 @@ contextBridge.exposeInMainWorld('electronAPI', {
       } catch (_) {}
     };
   },
+
+  // ── Settings & Config ─────────────────────────────────────────────────────
+  openSettingsWindow: () => ipcRenderer.invoke('open-settings-window'),
+  closeSettingsWindow: () => ipcRenderer.invoke('close-settings-window'),
+  saveAppConfig: (config) => ipcRenderer.invoke('save-app-config', config),
+  getAppConfig: () => ipcRenderer.invoke('get-app-config'),
+  onConfigUpdated: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (event, data) => callback(data);
+    ipcRenderer.on('config-updated', listener);
+    return () => {
+      try {
+        ipcRenderer.removeListener('config-updated', listener);
+      } catch (_) {}
+    };
+  },
+  onCompanionPause: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (event, ...args) => callback(...args);
+    ipcRenderer.on('companion-pause', listener);
+    return () => {
+      try {
+        ipcRenderer.removeListener('companion-pause', listener);
+      } catch (_) {}
+    };
+  },
+  onCompanionResume: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (event, ...args) => callback(...args);
+    ipcRenderer.on('companion-resume', listener);
+    return () => {
+      try {
+        ipcRenderer.removeListener('companion-resume', listener);
+      } catch (_) {}
+    };
+  },
 });

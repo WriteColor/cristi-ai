@@ -68,6 +68,7 @@ app.commandLine.appendSwitch('remote-debugging-port', CDP_PORT);
 app.commandLine.appendSwitch('remote-debugging-address', '127.0.0.1');
 
 let mainWindow = null;
+let settingsWindow = null;
 let tray = null;
 const isDev = !app.isPackaged;
 const RENDERER_URL = 'http://localhost:5173';
@@ -202,6 +203,92 @@ function createWindow() {
     mainWindow = null;
   });
 }
+
+function createSettingsWindow() {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.focus();
+    return;
+  }
+
+  settingsWindow = new BrowserWindow({
+    width: 960,
+    height: 720,
+    minWidth: 800,
+    minHeight: 600,
+    transparent: false,
+    backgroundColor: '#090d16',
+    frame: true,
+    icon: getAppIcon(),
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  if (isDev) {
+    settingsWindow.loadURL(`${RENDERER_URL}/settings.html`);
+  } else {
+    settingsWindow.loadURL('app://cristi/settings.html');
+  }
+
+  settingsWindow.on('closed', () => {
+    settingsWindow = null;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('companion-resume');
+    }
+  });
+}
+
+// ── IPC: Settings & Config ──────────────────────────────────────────────────
+ipcMain.handle('open-settings-window', () => {
+  createSettingsWindow();
+});
+
+ipcMain.handle('close-settings-window', () => {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.close();
+  }
+});
+
+const CONFIG_PATH = path.join(app.getPath('userData'), 'app-config.json');
+
+ipcMain.handle('save-app-config', (event, newConfig) => {
+  try {
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(newConfig, null, 2), 'utf-8');
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('config-updated', newConfig);
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('Error saving config:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('get-app-config', () => {
+  try {
+    if (fs.existsSync(CONFIG_PATH)) {
+      const data = fs.readFileSync(CONFIG_PATH, 'utf-8');
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error('Error reading config:', err);
+  }
+  return null;
+});
+
+ipcMain.on('companion-pause', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('companion-pause');
+  }
+});
+
+ipcMain.on('companion-resume', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('companion-resume');
+  }
+});
 
 // ── IPC: Click-Through Toggle ─────────────────────────────────────────────────
 // The renderer sends this IPC message when the cursor enters/leaves an interactive
@@ -885,6 +972,121 @@ ipcMain.handle('install-update', () => {
 
 ipcMain.handle('get-app-version', () => {
   return app.getVersion();
+});
+
+// ── Settings Multi-Window Management ───────────────────────────────────────
+let settingsWindow = null;
+
+function createSettingsWindow() {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    if (settingsWindow.isMinimized()) settingsWindow.restore();
+    settingsWindow.show();
+    settingsWindow.focus();
+    return settingsWindow;
+  }
+
+  const appIcon = getAppIcon();
+
+  settingsWindow = new BrowserWindow({
+    width: 980,
+    height: 720,
+    minWidth: 840,
+    minHeight: 600,
+    center: true,
+    frame: true,
+    transparent: false,
+    backgroundColor: '#090d16',
+    autoHideMenuBar: true,
+    title: 'Cristi AI Companion - Panel de Control & Configuración',
+    icon: appIcon || undefined,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: false,
+      webSecurity: false,
+      backgroundThrottling: false
+    }
+  });
+
+  // Notify companion overlay to reduce background load
+  if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('companion-pause');
+  }
+
+  if (isDev) {
+    const devUrl = `${VITE_DEV_SERVER_URL}/settings.html`;
+    settingsWindow.loadURL(devUrl).catch(() => {
+      settingsWindow.loadFile(path.join(__dirname, '../dist/settings.html')).catch(() => {});
+    });
+  } else {
+    settingsWindow.loadURL('app://./settings.html').catch(() => {
+      settingsWindow.loadFile(path.join(__dirname, '../dist/settings.html')).catch(() => {});
+    });
+  }
+
+  settingsWindow.on('closed', () => {
+    settingsWindow = null;
+    if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('companion-resume');
+    }
+  });
+
+  return settingsWindow;
+}
+
+ipcMain.handle('open-settings-window', () => {
+  createSettingsWindow();
+  return { success: true };
+});
+
+ipcMain.handle('close-settings-window', () => {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.close();
+  }
+  return { success: true };
+});
+
+// App Config Store in main process
+const CONFIG_FILE_PATH = path.join(app.getPath('userData'), 'cristi-config.json');
+
+ipcMain.handle('get-app-config', () => {
+  try {
+    if (fs.existsSync(CONFIG_FILE_PATH)) {
+      const raw = fs.readFileSync(CONFIG_FILE_PATH, 'utf-8');
+      return JSON.parse(raw);
+    }
+  } catch (err) {
+    console.warn('Error reading config file:', err);
+  }
+  return null;
+});
+
+ipcMain.handle('save-app-config', (event, newConfig) => {
+  try {
+    fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(newConfig, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('Error writing config file:', err);
+  }
+
+  // Broadcast to mainWindow in real-time
+  if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('config-updated', newConfig);
+  }
+
+  return { success: true };
+});
+
+ipcMain.on('companion-pause', () => {
+  if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('companion-pause');
+  }
+});
+
+ipcMain.on('companion-resume', () => {
+  if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('companion-resume');
+  }
 });
 
 function setupAutoUpdater() {

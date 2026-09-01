@@ -323,6 +323,67 @@ export const electronBridge = {
     }
     return () => {};
   },
+
+  // ── Settings & Config ─────────────────────────────────────────────────────
+  openSettingsWindow() {
+    return getApi()?.openSettingsWindow?.();
+  },
+  closeSettingsWindow() {
+    return getApi()?.closeSettingsWindow?.();
+  },
+  async saveAppConfig(config) {
+    const api = getApi();
+    if (api?.saveAppConfig) {
+      return await api.saveAppConfig(config);
+    }
+    // Fallback in web: localStorage
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem('cristi_app_config', JSON.stringify(config));
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
+    }
+    return { success: false, error: 'Unavailable' };
+  },
+  async getAppConfig() {
+    const api = getApi();
+    if (api?.getAppConfig) {
+      return await api.getAppConfig();
+    }
+    // Fallback in web: localStorage
+    if (typeof window !== 'undefined') {
+      try {
+        const item = window.localStorage.getItem('cristi_app_config');
+        return item ? JSON.parse(item) : null;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    return null;
+  },
+  onConfigUpdated(callback) {
+    const api = getApi();
+    if (api?.onConfigUpdated) {
+      return api.onConfigUpdated(callback);
+    }
+    return () => {};
+  },
+  onCompanionPause(callback) {
+    const api = getApi();
+    if (api?.onCompanionPause) {
+      return api.onCompanionPause(callback);
+    }
+    return () => {};
+  },
+  onCompanionResume(callback) {
+    const api = getApi();
+    if (api?.onCompanionResume) {
+      return api.onCompanionResume(callback);
+    }
+    return () => {};
+  },
 };
 
 export const ElectronBridge = electronBridge;

@@ -34,6 +34,9 @@ assert(mainContent.includes("ipcMain.handle('exec-command'"), 'IPC handler para 
 assert(mainContent.includes("ipcMain.handle('read-file'"), 'IPC handler para lectura de archivos');
 assert(mainContent.includes("ipcMain.handle('write-file'"), 'IPC handler para escritura de archivos');
 assert(mainContent.includes("tray = new Tray("), 'System tray nativo de Electron configurado');
+assert(mainContent.includes("createSettingsWindow"), 'Función createSettingsWindow configurada en main.cjs');
+assert(mainContent.includes("open-settings-window"), 'IPC handler open-settings-window configurado');
+assert(mainContent.includes("save-app-config"), 'IPC handler save-app-config configurado');
 
 // 2. Check Electron preload script
 console.log('\n[2/7] Verificando electron/preload.cjs...');
@@ -42,6 +45,8 @@ assert(preloadContent.includes("contextBridge.exposeInMainWorld('electronAPI'"),
 assert(preloadContent.includes('setIgnoreMouseEvents:'), 'Método setIgnoreMouseEvents expuesto');
 assert(preloadContent.includes('setAlwaysOnTop:'), 'Método setAlwaysOnTop expuesto');
 assert(preloadContent.includes('execCommand:'), 'Método execCommand expuesto');
+assert(preloadContent.includes('openSettingsWindow:'), 'Método openSettingsWindow expuesto');
+assert(preloadContent.includes('onConfigUpdated:'), 'Método onConfigUpdated expuesto');
 
 // 3. Check Renderer ElectronBridge
 console.log('\n[3/7] Verificando src/services/desktop/ElectronBridge.js...');
@@ -52,6 +57,8 @@ assert(bridgeContent.includes('execCommand(command'), 'Wrapper execCommand con s
 assert(bridgeContent.includes('openPath(targetPath)'), 'Wrapper openPath para apertura directa de archivos/carpetas');
 assert(bridgeContent.includes('captureScreenNative(region'), 'Wrapper captureScreenNative para visión multimodal');
 assert(bridgeContent.includes('onShortcutEvent(channel, callback)'), 'Wrapper onShortcutEvent para atajos globales');
+assert(bridgeContent.includes('openSettingsWindow()'), 'Wrapper openSettingsWindow para ventana independiente');
+assert(bridgeContent.includes('onConfigUpdated(callback)'), 'Wrapper onConfigUpdated para sincronización en caliente');
 
 // 4. Check useClickThrough hook
 console.log('\n[4/7] Verificando src/hooks/useClickThrough.js...');
@@ -116,6 +123,10 @@ if (!fs.existsSync('dist/index.html')) {
 assert(fs.existsSync('dist/index.html'), 'dist/index.html existe');
 const htmlContent = fs.readFileSync('dist/index.html', 'utf8');
 assert(htmlContent.includes('./assets/'), 'dist/index.html usa rutas relativas (base: ./)');
+
+assert(fs.existsSync('dist/settings.html'), 'dist/settings.html (Multi-Window Control Panel) existe');
+const settingsHtmlContent = fs.readFileSync('dist/settings.html', 'utf8');
+assert(settingsHtmlContent.includes('./assets/'), 'dist/settings.html usa rutas relativas (base: ./)');
 
 const readme = fs.readFileSync('README.md', 'utf8');
 assert(readme.includes('Electron'), 'README.md actualizado con arquitectura Electron');

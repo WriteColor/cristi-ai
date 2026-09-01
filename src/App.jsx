@@ -5,13 +5,11 @@ import {
   FloatingHUD,
   SubtitleOverlay,
   ContextMenu,
-  SettingsModal,
   CameraPreview,
   ScreenRegionOverlay,
   ScreenRegionPicker,
   ToastContainer,
   DesktopWidgets,
-  VoiceEnrollmentModal,
   SpeakerDiagnosticsHUD,
   BackgroundScene,
   PerformanceHUD
@@ -124,7 +122,6 @@ export function App() {
   const [ownerSamples, setOwnerSamples] = useState([]);
 
   // --- UI & Windows Hello Desktop States ---
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSolidBackdrop, setIsSolidBackdrop] = useState(() => {
     try {
       const saved = localStorage.getItem('cristi_ai_solid_backdrop_v1');
@@ -136,16 +133,6 @@ export function App() {
   });
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false);
   const [isClickThroughEnabled, setIsClickThroughEnabled] = useState(true);
-  const [isVoiceEnrollmentOpen, setIsVoiceEnrollmentOpen] = useState(() => {
-    try {
-      const alreadyEnrolled = speakerRecognitionService.hasEnrolledProfile();
-      const alreadyDismissed = localStorage.getItem('cristi_voice_enrolled_dismissed_v1') === 'true' ||
-                               localStorage.getItem('cristi_voice_enrolled_v1') === 'true';
-      return !alreadyEnrolled && !alreadyDismissed;
-    } catch {
-      return false;
-    }
-  });
   const [speakerDecision, setSpeakerDecision] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
   const [contextMenu, setContextMenu] = useState({ isOpen: false, x: 0, y: 0 });
@@ -161,10 +148,13 @@ export function App() {
   const [isUiVisible, setIsUiVisible] = useState(true);
   const autoHideTimerRef = useRef(null);
 
+  const handleOpenSettings = useCallback(() => {
+    soundFxService.playClick();
+    electronBridge.openSettingsWindow();
+  }, []);
+
   // --- Interaction Lock for Modals ---
   const isAnyModalOpen = Boolean(
-    isSettingsOpen ||
-    isVoiceEnrollmentOpen ||
     isRegionPickerOpen ||
     contextMenu.isOpen ||
     isPerformanceHudOpen
@@ -706,8 +696,7 @@ export function App() {
 
     if (!config.apiKey || !config.apiKey.trim()) {
       toastService.warning('Por favor configura tu Gemini API Key en el menú de Ajustes (⚙).');
-      soundFxService.playClick();
-      setIsSettingsOpen(true);
+      handleOpenSettings();
       return;
     }
 
@@ -879,6 +868,41 @@ export function App() {
     handleSaveConfig(nextConfig);
     toastService.info('Voz de Cristi', `Timbre cambiado a: ${voiceName}`);
   }, [config, handleSaveConfig]);
+
+  // --- Real-Time IPC Hot Synchronization with Settings Window ---
+  useEffect(() => {
+    const unsubConfig = electronBridge.onConfigUpdated((newConfig) => {
+      if (newConfig && typeof newConfig === 'object') {
+        setConfig((prev) => ({ ...prev, ...newConfig }));
+        if (newConfig.live2dModelId && newConfig.live2dModelId !== config.live2dModelId) {
+          if (window.__cristiAvatar?.loadModel) {
+            window.__cristiAvatar.loadModel(newConfig.live2dModelId);
+          }
+          if (live2dRef.current?.switchModel) {
+            live2dRef.current.switchModel(newConfig.live2dModelId);
+          }
+        }
+      }
+    });
+
+    const unsubPause = electronBridge.onCompanionPause(() => {
+      if (live2dRef.current?.setFpsLimit) {
+        live2dRef.current.setFpsLimit(30);
+      }
+    });
+
+    const unsubResume = electronBridge.onCompanionResume(() => {
+      if (live2dRef.current?.setFpsLimit) {
+        live2dRef.current.setFpsLimit(0);
+      }
+    });
+
+    return () => {
+      unsubConfig?.();
+      unsubPause?.();
+      unsubResume?.();
+    };
+  }, [config.live2dModelId]);
 
   // --- Right-Click Context Menu Handler ---
   const handleModelContextMenu = useCallback((e, bounds) => {
@@ -1185,7 +1209,7 @@ export function App() {
         onToggleMute={handleToggleMute}
         onToggleCamera={handleToggleCamera}
         onToggleBackdrop={handleToggleBackdrop}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenSettings={handleOpenSettings}
         isScreenWatchActive={isScreenWatchActive}
         hasScreenRegion={!!screenRegion}
         onToggleScreenWatch={handleToggleScreenWatch}
@@ -1224,7 +1248,7 @@ export function App() {
         position={contextMenu}
         isOpen={contextMenu.isOpen}
         onClose={() => setContextMenu({ isOpen: false, x: 0, y: 0, modelBounds: null })}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenSettings={handleOpenSettings}
         onToggleCamera={handleToggleCamera}
         isCameraActive={isCameraActive}
         onToggleBackdrop={handleToggleBackdrop}
@@ -1241,8 +1265,8 @@ export function App() {
         onToggleWidgets={() => setShowWidgets((prev) => !prev)}
         isClickThroughEnabled={isClickThroughEnabled}
         onToggleClickThrough={() => setIsClickThroughEnabled((prev) => !prev)}
-        onOpenVoiceEnrollment={() => setIsVoiceEnrollmentOpen(true)}
-        onOpenSpeakerHUD={() => setIsVoiceEnrollmentOpen(true)}
+        onOpenVoiceEnrollment={handleOpenSettings}
+        onOpenSpeakerHUD={handleOpenSettings}
         onTogglePerformanceHUD={() => setIsPerformanceHudOpen((prev) => !prev)}
         onOpenRegionPicker={() => setIsRegionPickerOpen(true)}
         isMuted={isMuted}
@@ -1259,30 +1283,16 @@ export function App() {
 
       {/* 7. Live S2S Voice Biometrics & Speaker Recognition Diagnostics HUD */}
       {isUiVisible && !isZenMode && (
-        <SpeakerDiagnosticsHUD onOpenEnrollment={() => setIsVoiceEnrollmentOpen(true)} />
+        <SpeakerDiagnosticsHUD onOpenEnrollment={handleOpenSettings} />
       )}
 
-      {/* 8. Multi-Sample Voice Enrollment & Biometric Calibration Modal */}
-      <VoiceEnrollmentModal
-        isOpen={isVoiceEnrollmentOpen}
-        onClose={() => setIsVoiceEnrollmentOpen(false)}
-      />
-
-      {/* 9. Horizontal Settings Modal */}
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        config={config}
-        onSaveConfig={handleSaveConfig}
-      />
-
-      {/* 10. Enterprise Performance & Telemetry HUD (Toggle with F3) */}
+      {/* 8. Enterprise Performance & Telemetry HUD (Toggle with F3) */}
       <PerformanceHUD
         isVisible={isPerformanceHudOpen}
         onClose={() => setIsPerformanceHudOpen(false)}
       />
 
-      {/* 11. Futuristic Minimalist HUD Toast Notifications */}
+      {/* 9. Futuristic Minimalist HUD Toast Notifications */}
       <ToastContainer />
     </div>
   );
