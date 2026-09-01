@@ -57,6 +57,13 @@ app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 
+// ── CDP Remote Debugging for Agentic Performance Monitoring (APM) ───────────
+// Enables zero-overhead local debugging exclusively bound to localhost (127.0.0.1).
+// This allows Playwright to connect over CDP to the live running process without extra binaries.
+const CDP_PORT = process.env.CRISTI_CDP_PORT || process.env.ELECTRON_CDP_PORT || '9222';
+app.commandLine.appendSwitch('remote-debugging-port', CDP_PORT);
+app.commandLine.appendSwitch('remote-debugging-address', '127.0.0.1');
+
 let mainWindow = null;
 let tray = null;
 const isDev = !app.isPackaged;

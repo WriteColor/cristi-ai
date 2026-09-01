@@ -15,6 +15,7 @@
     "setup:env": "node scripts/setup-clean-env.cjs",
     "postinstall": "node scripts/postinstall-setup.cjs",
     "test:diagnostics": "node tests/run_all_diagnostics.mjs",
+    "test:live-apm": "node scripts/diagnostics/run-live-audit.cjs",
     "test": "node tests/run_all_diagnostics.mjs"
   },
   "dependencies": {
