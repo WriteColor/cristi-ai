@@ -212,22 +212,49 @@ export default function SettingsApp() {
     e.target.value = '';
   };
 
+  const broadcastConfig = (overrides = {}) => {
+    const updated = {
+      apiKey: (overrides.apiKey !== undefined ? overrides.apiKey : apiKey).trim(),
+      modelId: overrides.modelId !== undefined ? overrides.modelId : modelId,
+      live2dModelId: overrides.live2dModelId !== undefined ? overrides.live2dModelId : live2dModelId,
+      voiceName: overrides.voiceName !== undefined ? overrides.voiceName : voiceName,
+      temperature: overrides.temperature !== undefined ? overrides.temperature : parseFloat(temperature),
+      systemPrompt: (overrides.systemPrompt !== undefined ? overrides.systemPrompt : systemPrompt).trim() || SYSTEM_PERSONA_PROMPT,
+      sceneId: overrides.sceneId !== undefined ? overrides.sceneId : sceneId
+    };
+    configManager.saveConfig(updated);
+    electronBridge.saveAppConfig(updated);
+    return updated;
+  };
+
+  const handleSelectModel = (id) => {
+    soundFxService.playClick();
+    setModelId(id);
+    broadcastConfig({ modelId: id });
+  };
+
+  const handleSelectAvatar = (id) => {
+    soundFxService.playClick();
+    setLive2dModelId(id);
+    broadcastConfig({ live2dModelId: id });
+  };
+
+  const handleSelectScene = (id) => {
+    soundFxService.playClick();
+    setSceneId(id);
+    sceneManager.setScene(id);
+    broadcastConfig({ sceneId: id });
+  };
+
+  const handleSelectVoice = (id) => {
+    soundFxService.playClick();
+    setVoiceName(id);
+    broadcastConfig({ voiceName: id });
+  };
+
   const handleSaveAndApply = async () => {
     soundFxService.playConnect();
-    const newConfig = {
-      apiKey: apiKey.trim(),
-      modelId,
-      live2dModelId,
-      voiceName,
-      temperature: parseFloat(temperature),
-      systemPrompt: systemPrompt.trim() || SYSTEM_PERSONA_PROMPT
-    };
-
-    // Save to local configManager
-    configManager.saveConfig(newConfig);
-
-    // Save and broadcast to companion window via Electron IPC
-    await electronBridge.saveAppConfig(newConfig);
+    broadcastConfig();
     toastService.success('✓ Cambios guardados y aplicados en tiempo real.');
   };
 
@@ -378,10 +405,7 @@ export default function SettingsApp() {
                       <div
                         key={m.id}
                         className={`settings-card-select ${isSelected ? 'selected' : ''}`}
-                        onClick={() => {
-                          soundFxService.playClick();
-                          setModelId(m.id);
-                        }}
+                        onClick={() => handleSelectModel(m.id)}
                       >
                         <div className="settings-card-select-header">
                           <span className="settings-card-title">{m.displayName}</span>
@@ -409,7 +433,11 @@ export default function SettingsApp() {
                   step="0.05"
                   value={temperature}
                   className="settings-range-slider"
-                  onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setTemperature(val);
+                    broadcastConfig({ temperature: val });
+                  }}
                 />
                 <p className="settings-field-hint">Valores bajos (0.2) dan respuestas lógicas y predecibles; valores altos (0.8 - 1.2) aumentan la expresividad y el coqueteo.</p>
               </div>
@@ -431,10 +459,7 @@ export default function SettingsApp() {
                     <div
                       key={avatar.id}
                       className={`settings-avatar-card ${isSelected ? 'selected' : ''}`}
-                      onClick={() => {
-                        soundFxService.playClick();
-                        setLive2dModelId(avatar.id);
-                      }}
+                      onClick={() => handleSelectAvatar(avatar.id)}
                     >
                       <div className="settings-avatar-header">
                         <span className="settings-avatar-name">{avatar.name}</span>
@@ -468,11 +493,7 @@ export default function SettingsApp() {
                     <div
                       key={sc.id}
                       className={`settings-scene-card ${isSelected ? 'selected' : ''}`}
-                      onClick={() => {
-                        soundFxService.playClick();
-                        setSceneId(sc.id);
-                        sceneManager.setScene(sc.id);
-                      }}
+                      onClick={() => handleSelectScene(sc.id)}
                     >
                       <div className="settings-scene-header">
                         <span className="settings-scene-name">{sc.name}</span>
@@ -507,10 +528,7 @@ export default function SettingsApp() {
                       <div
                         key={v.id}
                         className={`settings-voice-card ${isSelected ? 'selected' : ''}`}
-                        onClick={() => {
-                          soundFxService.playClick();
-                          setVoiceName(v.id);
-                        }}
+                        onClick={() => handleSelectVoice(v.id)}
                       >
                         <div className="settings-voice-header">
                           <span className="settings-voice-name">{v.name}</span>
@@ -629,6 +647,8 @@ export default function SettingsApp() {
                         onClick={() => {
                           soundFxService.playClick();
                           setSystemPrompt(preset.prompt);
+                          broadcastConfig({ systemPrompt: preset.prompt });
+                          toastService.info('Preset Aplicado', `Personalidad cambiada a ${preset.name}`);
                         }}
                       >
                         <Icon size={12} color={preset.color} />
@@ -652,6 +672,8 @@ export default function SettingsApp() {
                     onClick={() => {
                       soundFxService.playClick();
                       setSystemPrompt(SYSTEM_PERSONA_PROMPT);
+                      broadcastConfig({ systemPrompt: SYSTEM_PERSONA_PROMPT });
+                      toastService.info('Prompt Restablecido', 'Se restauró la personalidad oficial por defecto.');
                     }}
                   >
                     <RotateCcw size={12} />

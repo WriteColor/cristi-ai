@@ -120,11 +120,11 @@ console.log('\n[TEST 2] Sometiendo ConfigManager a corrupción de datos y satura
   };
 
   cm._getStorage = () => mockStorage;
-  const save1 = cm.saveConfig({ apiKey: 'key_1', modelId: 'gemini-2.0-flash-exp' });
+  const save1 = cm.saveConfig({ apiKey: 'key_1', modelId: 'gemini-3.1-flash-live-preview' });
   if (!save1.success) throw new Error('Primer guardado falló.');
 
   // Segundo guardado causará excepción y activará auto-recuperación
-  const save2 = cm.saveConfig({ apiKey: 'key_2', modelId: 'gemini-2.0-flash-exp' });
+  const save2 = cm.saveConfig({ apiKey: 'key_2', modelId: 'gemini-3.1-flash-live-preview' });
   if (!save2.success) throw new Error('Recuperación automática de cuota falló.');
 
   console.log('  ✅ Resiliencia a corrupción de JSON, validación de tipos y recuperación de cuota validada.');

@@ -96,7 +96,7 @@ runSuite('Electron Architecture & IPC', 'node tests/test_electron_architecture.m
 console.log('\n[IN-PROCESS] Verificando ConfigManager y copias de seguridad...');
 const initialConfig = {
   apiKey: 'AIzaSy_MasterTestKey',
-  modelId: 'gemini-2.0-flash-exp',
+  modelId: 'gemini-3.1-flash-live-preview',
   live2dModelId: 'ruan_mei',
   voiceName: 'Kore',
   temperature: 0.8,

@@ -37,6 +37,7 @@ import {
   configManager,
   soundFxService,
   proactiveTriggerService,
+  sceneManager,
   toast,
   toastService,
   logger
@@ -874,6 +875,8 @@ export function App() {
     const unsubConfig = electronBridge.onConfigUpdated((newConfig) => {
       if (newConfig && typeof newConfig === 'object') {
         setConfig((prev) => ({ ...prev, ...newConfig }));
+
+        // 1. Instant Live2D Model Hot-Swap
         if (newConfig.live2dModelId && newConfig.live2dModelId !== config.live2dModelId) {
           if (window.__cristiAvatar?.loadModel) {
             window.__cristiAvatar.loadModel(newConfig.live2dModelId);
@@ -881,6 +884,22 @@ export function App() {
           if (live2dRef.current?.switchModel) {
             live2dRef.current.switchModel(newConfig.live2dModelId);
           }
+          toastService.info('Avatar Live2D', `Avatar cambiado a: ${live2dModelRegistry.getModel(newConfig.live2dModelId)?.name || newConfig.live2dModelId}`);
+        }
+
+        // 2. Instant Background Scene Hot-Swap
+        if (newConfig.sceneId) {
+          sceneManager.setScene(newConfig.sceneId);
+        }
+
+        // 3. Voice Switch Notification
+        if (newConfig.voiceName && newConfig.voiceName !== config.voiceName) {
+          toastService.info('Voz de Cristi', `Timbre cambiado a: ${newConfig.voiceName}`);
+        }
+
+        // 4. Model Switch Notification
+        if (newConfig.modelId && newConfig.modelId !== config.modelId) {
+          toastService.info('Modelo IA', `Motor cambiado a: ${newConfig.modelId}`);
         }
       }
     });
@@ -902,7 +921,7 @@ export function App() {
       unsubPause?.();
       unsubResume?.();
     };
-  }, [config.live2dModelId]);
+  }, [config.live2dModelId, config.voiceName, config.modelId]);
 
   // --- Right-Click Context Menu Handler ---
   const handleModelContextMenu = useCallback((e, bounds) => {

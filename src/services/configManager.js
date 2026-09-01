@@ -4,7 +4,7 @@
  */
 
 import { logger } from './logger.js';
-import { SYSTEM_PERSONA_PROMPT } from '../config/models.js';
+import { SYSTEM_PERSONA_PROMPT, DEFAULT_MODEL_ID, GEMINI_MODELS } from '../config/models.js';
 
 const STORAGE_KEY_CONFIG = 'cristi_ai_settings_v1';
 const STORAGE_KEY_BACKUPS = 'cristi_ai_settings_backups_v1';
@@ -96,9 +96,13 @@ export class ConfigManager {
       config = {};
     }
 
+    const validModelIds = Object.values(GEMINI_MODELS).map(m => m.id);
+    const requestedModel = typeof config.modelId === 'string' ? config.modelId.trim() : '';
+    const safeModelId = validModelIds.includes(requestedModel) ? requestedModel : DEFAULT_MODEL_ID;
+
     return {
       apiKey: typeof config.apiKey === 'string' ? config.apiKey.trim() : '',
-      modelId: typeof config.modelId === 'string' && config.modelId.trim() ? config.modelId.trim() : 'gemini-2.0-flash-exp',
+      modelId: safeModelId,
       live2dModelId: typeof config.live2dModelId === 'string' && config.live2dModelId.trim() ? config.live2dModelId.trim() : 'yanderegirl',
       voiceName: typeof config.voiceName === 'string' && config.voiceName.trim() ? config.voiceName.trim() : 'Aoede',
       temperature: typeof config.temperature === 'number' && !isNaN(config.temperature) ? Math.max(0, Math.min(2, config.temperature)) : 0.75,

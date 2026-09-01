@@ -170,7 +170,7 @@ check(fallbackConfig.apiKey === 'default_key', 'ConfigManager se recuperó de JS
 // Test saving valid config
 const saved = configMgr.saveConfig({
   apiKey: 'AIzaSyTestKey123',
-  modelId: 'gemini-2.0-flash-exp',
+  modelId: 'gemini-3.1-flash-live-preview',
   temperature: 0.8
 });
 check(saved.success === true, 'Configuración guardada correctamente');
