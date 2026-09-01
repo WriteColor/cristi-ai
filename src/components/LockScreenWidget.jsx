@@ -99,4 +99,4 @@ export function LockScreenWidget({ isLocked = false, isListening = false, isSpea
   );
 }
 
-export default LockScreenWidget;
+export default React.memo(LockScreenWidget);

@@ -299,4 +299,4 @@ export function PerformanceHUD({ isVisible, onClose }) {
   );
 }
 
-export default PerformanceHUD;
+export default React.memo(PerformanceHUD);

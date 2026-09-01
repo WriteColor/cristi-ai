@@ -99,9 +99,6 @@ export function App() {
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [userVolume, setUserVolume] = useState(0);
-  const [modelVolume, setModelVolume] = useState(0);
-  const [lipSyncValue, setLipSyncValue] = useState(0);
   const [currentGesture, setCurrentGesture] = useState('idle');
   const [activeToolName, setActiveToolName] = useState(null);
 
@@ -297,68 +294,17 @@ export function App() {
     isPerformanceHudOpen
   ]);
 
-  // --- Global Intelligent Hit-Tester for Seamless Desktop & Background Click Interactivity ---
+  // --- Desktop Click-Through State Sync ---
+  // The heavy evaluateHitTarget has been purged. Interaction is handled natively by O(1) useClickThrough.
   useEffect(() => {
     if (!electronBridge.isElectron) return;
-
     if (!isClickThroughEnabled) {
       electronBridge.setIgnoreMouseEvents(false);
-      return;
+    } else {
+      if (electronBridge._interactionLockCount === 0) {
+        electronBridge.setIgnoreMouseEvents(true, { forward: true });
+      }
     }
-
-    let isHoveringInteractive = false;
-
-    const evaluateHitTarget = (clientX, clientY) => {
-      const el = document.elementFromPoint(clientX, clientY);
-      if (!el) {
-        if (isHoveringInteractive) {
-          isHoveringInteractive = false;
-          electronBridge.setIgnoreMouseEvents(true, { forward: true });
-        }
-        return;
-      }
-
-      // Check if cursor is over the non-interactive transparent canvas/root background
-      const isNonInteractiveBackground =
-        el === document.documentElement ||
-        el === document.body ||
-        el.id === 'root' ||
-        el.classList.contains('app-container') ||
-        el.classList.contains('transparent-backdrop') ||
-        el.classList.contains('live2d-root') ||
-        el.classList.contains('live2d-canvas-container') ||
-        el.classList.contains('live2d-canvas') ||
-        el.classList.contains('cristi-widgets-viewport') ||
-        window.getComputedStyle(el).pointerEvents === 'none';
-
-      if (!isNonInteractiveBackground) {
-        if (!isHoveringInteractive) {
-          isHoveringInteractive = true;
-          electronBridge.setIgnoreMouseEvents(false);
-        }
-      } else {
-        if (isHoveringInteractive) {
-          isHoveringInteractive = false;
-          electronBridge.setIgnoreMouseEvents(true, { forward: true });
-        }
-      }
-    };
-
-    const onGlobalMouseMove = (e) => {
-      evaluateHitTarget(e.clientX, e.clientY);
-    };
-
-    const onGlobalPointerDown = (e) => {
-      evaluateHitTarget(e.clientX, e.clientY);
-    };
-
-    window.addEventListener('mousemove', onGlobalMouseMove, { passive: true, capture: true });
-    window.addEventListener('pointerdown', onGlobalPointerDown, { passive: true, capture: true });
-
-    return () => {
-      window.removeEventListener('mousemove', onGlobalMouseMove, { capture: true });
-      window.removeEventListener('pointerdown', onGlobalPointerDown, { capture: true });
-    };
   }, [isClickThroughEnabled]);
 
   // --- Initialize Electron Native Desktop Environment & System Tray ---
@@ -484,14 +430,12 @@ export function App() {
       },
       onAudioEnd: () => {
         setIsSpeaking(false);
-        setLipSyncValue(0);
-        setModelVolume(0);
       },
       onLipSyncUpdate: (val) => {
-        setLipSyncValue(val);
+        // Obsolete
       },
       onVolumeChange: (vol) => {
-        setModelVolume(vol);
+        // Obsolete
       }
     });
 
@@ -790,11 +734,9 @@ export function App() {
             }
           },
           onVolumeChange: (vol) => {
-            setUserVolume(vol);
             if (vol > 0.12 && audioOutRef.current && audioOutRef.current.isPlaying) {
               audioOutRef.current.stopImmediate();
               setIsSpeaking(false);
-              setLipSyncValue(0);
             }
           },
           onError: (err) => {
@@ -877,7 +819,6 @@ export function App() {
             audioOutRef.current.stopImmediate();
           }
           setIsSpeaking(false);
-          setLipSyncValue(0);
         },
         onToolCall: async (functionCalls) => {
           if (toolExecutorRef.current) {
@@ -1160,7 +1101,6 @@ export function App() {
         ref={live2dRef}
         modelId={config.live2dModelId || 'yanderegirl'}
         gesture={currentGesture}
-        lipSyncValue={lipSyncValue}
         isSpeaking={isSpeaking}
         isListening={isListening}
         viewMode={viewMode}
@@ -1196,8 +1136,6 @@ export function App() {
         isSolidBackdrop={isSolidBackdrop}
         modelId={config.modelId}
         voiceName={config.voiceName}
-        userVolume={userVolume}
-        modelVolume={modelVolume}
         isSpeaking={isSpeaking}
         isListening={isListening}
         activeToolName={activeToolName}

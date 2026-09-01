@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Check } from 'lucide-react';
 import { soundFxService } from '../services/soundFxService.js';
 
-export function TacticalDropdown({
+export const TacticalDropdown = React.memo(function TacticalDropdown({
   options = [],
   value,
   onChange,
@@ -17,7 +17,7 @@ export function TacticalDropdown({
 
   const selectedOption = options.find((opt) => opt.value === value);
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click or Escape key
   useEffect(() => {
     if (!isOpen) return;
 
@@ -27,8 +27,18 @@ export function TacticalDropdown({
       }
     };
 
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+
     window.addEventListener('mousedown', handleOutsideClick);
-    return () => window.removeEventListener('mousedown', handleOutsideClick);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('mousedown', handleOutsideClick);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isOpen]);
 
   // Scroll selected item into view on open
@@ -123,6 +133,6 @@ export function TacticalDropdown({
       )}
     </div>
   );
-}
+});
 
 export default TacticalDropdown;

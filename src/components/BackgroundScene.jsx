@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { sceneManager } from '../services/sceneManager.js';
 
-export function BackgroundScene() {
+export const BackgroundScene = React.memo(function BackgroundScene() {
   const [sceneState, setSceneState] = useState(sceneManager.getScene());
   const canvasRef = useRef(null);
   const animFrameRef = useRef(null);
@@ -16,7 +16,7 @@ export function BackgroundScene() {
 
   // ── Matrix Digital Rain Canvas Effect ─────────────────────────────────────
   useEffect(() => {
-    if (sceneId !== 'matrix_rain') {
+    if (sceneId !== 'matrix_rain' || isTransparent) {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       return;
     }
@@ -81,7 +81,7 @@ export function BackgroundScene() {
       window.removeEventListener('resize', handleResize);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [sceneId]);
+  }, [sceneId, isTransparent]);
 
   if (isTransparent) {
     return null;
@@ -200,6 +200,6 @@ export function BackgroundScene() {
       <div className="scene-ambient-overlay" />
     </div>
   );
-}
+});
 
 export default BackgroundScene;

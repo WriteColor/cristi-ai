@@ -16,7 +16,7 @@ import { useClickThrough } from '../hooks/useClickThrough.js';
 /**
  * Cristi AI - Sensory Camera Preview with Windows Hello IR support & Multi-Sample Face Enrollment
  */
-export function CameraPreview({
+export const CameraPreview = React.memo(function CameraPreview({
   videoRef,
   overlayCanvasRef,
   isStreaming,
@@ -43,8 +43,14 @@ export function CameraPreview({
       if (feedbackTimeoutRef.current) {
         clearTimeout(feedbackTimeoutRef.current);
       }
+      if (overlayCanvasRef?.current) {
+        const ctx = overlayCanvasRef.current.getContext('2d');
+        if (ctx) {
+          ctx.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
+        }
+      }
     };
-  }, []);
+  }, [overlayCanvasRef]);
 
   if (!isStreaming) return null;
 
@@ -282,4 +288,4 @@ export function CameraPreview({
       </div>
     </div>
   );
-}
+});

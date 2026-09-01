@@ -28,7 +28,7 @@ const WALLPAPERS = [
   { id: 'dark', name: 'Minimalist Obsidian', gradient: 'radial-gradient(circle at center, #111827 0%, #030712 100%)' }
 ];
 
-export function LockScreenSandbox({
+export const LockScreenSandbox = React.memo(function LockScreenSandbox({
   isOpen = false,
   onClose,
   activeModelName = 'Cristi Gótica (Yandere Girl)'
@@ -85,6 +85,7 @@ export function LockScreenSandbox({
 
   // Clock Ticker
   useEffect(() => {
+    if (!isOpen) return;
     const updateTime = () => {
       const now = new Date();
       setTime(now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }));
@@ -93,16 +94,16 @@ export function LockScreenSandbox({
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isOpen]);
 
   // Waveform animation when speaking / listening
   useEffect(() => {
-    if (voiceState === 'idle') return;
+    if (voiceState === 'idle' || !isOpen) return;
     const interval = setInterval(() => {
       setAudioWaves(Array.from({ length: 12 }, () => Math.floor(Math.random() * 42) + 8));
     }, 120);
     return () => clearInterval(interval);
-  }, [voiceState]);
+  }, [voiceState, isOpen]);
 
   // Handle Voice Command Simulation
   const handleSimulateVoiceCommand = (commandText, replyText) => {
@@ -483,6 +484,6 @@ export function LockScreenSandbox({
       </div>
     </div>
   );
-}
+});
 
 export default LockScreenSandbox;

@@ -26,3 +26,4 @@ export function SubtitleOverlay({ userTranscript }) {
     </div>
   );
 }
+export default React.memo(SubtitleOverlay);
