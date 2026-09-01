@@ -2,7 +2,7 @@
  * Cristi AI - Sensory Camera Preview with Windows Hello IR support & Multi-Sample Face Enrollment
  * Modern, Draggable, Ultra-Performant Obsidian Design:
  * - Direct Hardware MediaStream Binding (Zero black-screen guarantee)
- * - Draggable PiP Window with Saved Persistent Position
+ * - Zero-Re-Render Direct GPU Draggable PiP Window
  * - Real-Time AI Canvas Overlays (Face & Object Bounding Boxes)
  * - Device Switcher Dropdown & Windows Hello IR Sensor Enhancements
  * - Multi-Sample Face Enrollment (With/Without Glasses, Angles)
@@ -53,16 +53,28 @@ export const CameraPreview = React.memo(function CameraPreview({
   const [showManager, setShowManager] = useState(false);
   const feedbackTimeoutRef = useRef(null);
 
-  // Position State (Draggable PiP)
-  const [pipPos, setPipPos] = useState(() => {
+  // Zero-Re-Render Drag Engine References
+  const containerRef = useRef(null);
+  const isDraggingRef = useRef(false);
+  const dragStartRef = useRef({ startX: 0, startY: 0, posX: 0, posY: 0 });
+  const posRef = useRef(() => {
     try {
       const saved = localStorage.getItem('cristi_camera_pip_pos');
       if (saved) return JSON.parse(saved);
     } catch {}
-    return { x: window.innerWidth - 300, y: 24 };
+    return { x: Math.max(10, window.innerWidth - 310), y: 24 };
   });
-  const isDraggingRef = useRef(false);
-  const dragStartRef = useRef({ startX: 0, startY: 0, posX: 0, posY: 0 });
+  const rafIdRef = useRef(null);
+
+  // Position initialization via GPU transform
+  useEffect(() => {
+    if (!isStreaming) return;
+    const initialPos = typeof posRef.current === 'function' ? posRef.current() : posRef.current;
+    posRef.current = initialPos;
+    if (containerRef.current) {
+      containerRef.current.style.transform = `translate3d(${initialPos.x}px, ${initialPos.y}px, 0)`;
+    }
+  }, [isStreaming]);
 
   // Direct video stream synchronization to guarantee no black screen
   useEffect(() => {
@@ -84,6 +96,9 @@ export const CameraPreview = React.memo(function CameraPreview({
       if (feedbackTimeoutRef.current) {
         clearTimeout(feedbackTimeoutRef.current);
       }
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
       if (overlayCanvasRef?.current) {
         const ctx = overlayCanvasRef.current.getContext('2d');
         if (ctx) {
@@ -95,7 +110,7 @@ export const CameraPreview = React.memo(function CameraPreview({
 
   if (!isStreaming) return null;
 
-  // --- Drag Handlers ---
+  // --- High Performance Zero-Re-Render Drag Handlers ---
   const handlePointerDown = (e) => {
     if (e.button !== 0) return;
     if (e.target.closest('button, select, input')) return;
@@ -105,29 +120,42 @@ export const CameraPreview = React.memo(function CameraPreview({
     dragStartRef.current = {
       startX: e.clientX,
       startY: e.clientY,
-      posX: pipPos.x,
-      posY: pipPos.y
+      posX: posRef.current.x,
+      posY: posRef.current.y
     };
 
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
   const handlePointerMove = (e) => {
-    if (!isDraggingRef.current) return;
+    if (!isDraggingRef.current || !containerRef.current) return;
     const deltaX = e.clientX - dragStartRef.current.startX;
     const deltaY = e.clientY - dragStartRef.current.startY;
-    const newX = Math.max(10, Math.min(window.innerWidth - 290, dragStartRef.current.posX + deltaX));
-    const newY = Math.max(10, Math.min(window.innerHeight - 220, dragStartRef.current.posY + deltaY));
+    const newX = Math.max(10, Math.min(window.innerWidth - 300, dragStartRef.current.posX + deltaX));
+    const newY = Math.max(10, Math.min(window.innerHeight - 230, dragStartRef.current.posY + deltaY));
 
-    setPipPos({ x: newX, y: newY });
+    posRef.current = { x: newX, y: newY };
+
+    if (!rafIdRef.current) {
+      rafIdRef.current = requestAnimationFrame(() => {
+        if (containerRef.current) {
+          containerRef.current.style.transform = `translate3d(${posRef.current.x}px, ${posRef.current.y}px, 0)`;
+        }
+        rafIdRef.current = null;
+      });
+    }
   };
 
   const handlePointerUp = (e) => {
     if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
-      localStorage.setItem('cristi_camera_pip_pos', JSON.stringify(pipPos));
+      localStorage.setItem('cristi_camera_pip_pos', JSON.stringify(posRef.current));
     } catch (_) {}
   };
 
@@ -148,58 +176,49 @@ export const CameraPreview = React.memo(function CameraPreview({
         message: `¡Muestra "${labelToUse}" guardada! (${ownerSamples.length + 1} en total).`
       });
     } catch (err) {
-      soundFxService.playDisconnect();
+      soundFxService.playError();
       setEnrollFeedback({
         success: false,
-        message: err.message || 'Error al capturar muestra facial.'
+        message: `Error al registrar: ${err.message}`
       });
     } finally {
       setIsEnrolling(false);
-      feedbackTimeoutRef.current = setTimeout(() => setEnrollFeedback(null), 3500);
+      feedbackTimeoutRef.current = setTimeout(() => {
+        setEnrollFeedback(null);
+      }, 4000);
     }
   };
 
-  const facesCount = detections?.faces?.length || 0;
-  const sceneState = detections?.sceneState || 'NO_ONE';
+  const isOwnerIdentified = detections?.isOwnerPresent;
+  const isStranger = detections?.isStrangerAlert;
 
-  let statusBadge = {
-    text: 'Buscando...',
-    color: '#94a3b8',
-    bg: 'rgba(15, 23, 42, 0.85)'
+  const getStatusBadge = () => {
+    if (isOwnerIdentified) {
+      return { text: 'DUEÑO RECONOCIDO', color: '#10b981', bg: 'rgba(16, 185, 129, 0.2)' };
+    }
+    if (isStranger) {
+      return { text: 'DESCONOCIDO', color: '#f43f5e', bg: 'rgba(244, 63, 94, 0.2)' };
+    }
+    if (detections?.faceDetected) {
+      return { text: 'ROSTRO DETECTADO', color: '#a855f7', bg: 'rgba(168, 85, 247, 0.2)' };
+    }
+    return { text: 'ESCANEANDO...', color: '#38bdf8', bg: 'rgba(56, 189, 248, 0.2)' };
   };
 
-  if (sceneState === 'OWNER_ALONE') {
-    statusBadge = {
-      text: `♥ Dueño (${ownerSamples.length} muestras)`,
-      color: '#c084fc',
-      bg: 'rgba(88, 28, 135, 0.88)'
-    };
-  } else if (sceneState === 'OWNER_WITH_OTHERS') {
-    statusBadge = {
-      text: `⚠ Dueño + ${facesCount - 1} Extraño(s)`,
-      color: '#f43f5e',
-      bg: 'rgba(159, 18, 57, 0.92)'
-    };
-  } else if (sceneState === 'STRANGER_ONLY') {
-    statusBadge = {
-      text: `⚠ ${facesCount} Desconocido(s)`,
-      color: '#fbbf24',
-      bg: 'rgba(180, 83, 9, 0.9)'
-    };
-  }
-
-  const pipStyle = {
-    position: 'fixed',
-    left: `${pipPos.x}px`,
-    top: `${pipPos.y}px`,
-    transform: 'none'
-  };
+  const statusBadge = getStatusBadge();
 
   return (
     <div
+      ref={containerRef}
       className={`camera-pip expanded ${showManager ? 'with-manager' : ''}`}
-      style={pipStyle}
+      style={{
+        position: 'fixed',
+        left: 0,
+        top: 0,
+        margin: 0
+      }}
       {...interactiveProps}
+      onClick={(e) => e.stopPropagation()}
     >
       <span className="hud-corner hud-corner-tl" />
       <span className="hud-corner hud-corner-tr" />
@@ -241,85 +260,82 @@ export const CameraPreview = React.memo(function CameraPreview({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          {/* IR Filter Toggle */}
           <button
             type="button"
             className={`camera-icon-mini-btn ${isIREnhanced ? 'active' : ''}`}
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               soundFxService.playClick();
               onToggleIREnhancement?.();
             }}
-            title={isIREnhanced ? 'Desactivar Filtro IR' : 'Activar Filtro Infrarrojo / Windows Hello'}
+            title="Sensor IR / Windows Hello"
           >
-            <SunMedium size={11} />
+            <SunMedium size={12} />
           </button>
 
-          {/* Sample Manager Toggle */}
           <button
             type="button"
             className={`camera-icon-mini-btn ${showManager ? 'active' : ''}`}
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               soundFxService.playClick();
-              setShowManager(!showManager);
+              setShowManager((prev) => !prev);
             }}
-            title="Administrador de Muestras Faciales"
+            title="Administrar Muestras Faciales"
           >
-            <Sliders size={11} />
+            <Sliders size={12} />
           </button>
 
-          {/* Close Button */}
           <button
             type="button"
             className="camera-close-mini-btn"
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               soundFxService.playClick();
               onClose?.();
             }}
             title="Cerrar Cámara"
           >
-            <X size={11} />
+            <X size={12} />
           </button>
         </div>
       </div>
 
-      {/* Feedback Toast */}
+      {/* Feedback Toast Banner */}
       {enrollFeedback && (
         <div className={`camera-feedback-toast ${enrollFeedback.success ? 'success' : 'error'}`}>
-          <span>{enrollFeedback.message}</span>
+          {enrollFeedback.message}
         </div>
       )}
 
-      {/* Expandable Device & Face Sample Manager */}
+      {/* Collapsible Sample Manager Drawer */}
       {showManager && (
         <div className="camera-manager-drawer">
-          {/* Device Selector */}
+          {/* Device Switcher */}
           {availableDevices.length > 1 && (
             <div className="camera-device-select-row">
-              <label className="camera-mini-label">Dispositivo:</label>
+              <span className="camera-mini-label">Dispositivo:</span>
               <select
                 className="camera-mini-select"
-                value={currentDeviceId}
-                onChange={(e) => {
-                  soundFxService.playClick();
-                  onSwitchCamera?.(e.target.value);
-                }}
+                value={currentDeviceId || ''}
+                onChange={(e) => onSwitchCamera?.(e.target.value)}
               >
-                {availableDevices.map((d) => (
-                  <option key={d.deviceId} value={d.deviceId}>
-                    {d.isIR ? '👁 IR: ' : '📷 '}{d.label}
+                {availableDevices.map((dev) => (
+                  <option key={dev.deviceId} value={dev.deviceId}>
+                    {dev.label || `Cámara ${dev.deviceId.slice(0, 5)}`}
                   </option>
                 ))}
               </select>
             </div>
           )}
 
-          {/* Quick Preset Buttons */}
+          {/* Preset Buttons */}
           <div className="camera-preset-buttons-row">
             <button
               type="button"
               className="camera-preset-btn"
-              onClick={() => handleEnrollSample('Con Lentes')}
               disabled={isEnrolling}
+              onClick={() => handleEnrollSample('Con Lentes')}
             >
               <Glasses size={11} />
               <span>Con Lentes</span>
@@ -327,8 +343,8 @@ export const CameraPreview = React.memo(function CameraPreview({
             <button
               type="button"
               className="camera-preset-btn"
-              onClick={() => handleEnrollSample('Sin Lentes')}
               disabled={isEnrolling}
+              onClick={() => handleEnrollSample('Sin Lentes')}
             >
               <Smile size={11} />
               <span>Sin Lentes</span>
@@ -336,18 +352,18 @@ export const CameraPreview = React.memo(function CameraPreview({
             <button
               type="button"
               className="camera-preset-btn"
-              onClick={() => handleEnrollSample('Perfil / Ángulo')}
               disabled={isEnrolling}
+              onClick={() => handleEnrollSample('De Perfil')}
             >
-              <UserPlus size={11} />
+              <Camera size={11} />
               <span>De Perfil</span>
             </button>
           </div>
 
-          {/* Existing Samples Count & Clear */}
+          {/* Samples Counter & Clear Action */}
           <div className="camera-samples-footer">
             <span className="camera-samples-count">
-              {ownerSamples.length} muestra(s) biométricas
+              {ownerSamples.length} muestra{ownerSamples.length !== 1 ? 's' : ''} biométrica{ownerSamples.length !== 1 ? 's' : ''}
             </span>
             {ownerSamples.length > 0 && (
               <button
@@ -358,7 +374,7 @@ export const CameraPreview = React.memo(function CameraPreview({
                   onClearAllSamples?.();
                 }}
               >
-                Limpiar
+                Borrar todas
               </button>
             )}
           </div>
@@ -367,3 +383,5 @@ export const CameraPreview = React.memo(function CameraPreview({
     </div>
   );
 });
+
+export default CameraPreview;

@@ -41,6 +41,9 @@ app.commandLine.appendSwitch('force_high_performance_gpu');
 app.commandLine.appendSwitch('gpu-preference', 'high-performance');
 app.commandLine.appendSwitch('use-angle', 'd3d11');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-gpu-compositing');
+app.commandLine.appendSwitch('enable-threaded-compositing');
+app.commandLine.appendSwitch('enable-smooth-scrolling');
 app.commandLine.appendSwitch('enable-zero-copy');
 app.commandLine.appendSwitch('enable-native-gpu-memory-buffers');
 app.commandLine.appendSwitch('enable-accelerated-video-decode');
@@ -50,7 +53,7 @@ app.commandLine.appendSwitch('disable-gpu-vsync');
 app.commandLine.appendSwitch('disable-frame-rate-limit');
 app.commandLine.appendSwitch('max-active-webgl-contexts', '32');
 app.commandLine.appendSwitch('high-dpi-support', '1');
-app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,CanvasOopRasterization,UseSkiaRenderer,SharedArrayBuffer,RawDraw');
+app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,CanvasOopRasterization,UseSkiaRenderer,SharedArrayBuffer,RawDraw,SmoothScrolling');
 
 // Essential Desktop Mate Anti-Throttling & Multitasking Flags (Alt+Tab & Virtual Desktops)
 app.commandLine.appendSwitch('disable-background-timer-throttling');

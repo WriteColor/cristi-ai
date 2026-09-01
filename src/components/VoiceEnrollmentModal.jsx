@@ -1,59 +1,54 @@
 /**
- * Cristi Desktop - Specialized Speaker Voice Enrollment & Biometric Calibration Modal
- * Modern, Draggable, Ultra-Performant Obsidian Design:
- * - Live Microphone Recording (Express 1-Click or 3-Sample Guided)
- * - Pre-Recorded Audio File Import & Drag & Drop (.wav, .mp3, .ogg, .m4a, .webm, .flac)
- * - Permanent Local Persistence (Only prompted once upon initial setup)
- * - Live Test Verification & Threshold Calibration
+ * Cristi AI - Voice Enrollment & Real-Time Biometric Calibration Modal
+ * Modern, Draggable, Multi-Input Obsidian Design:
+ * - Live Microphone Guided Recording & Instant Single-Phrase Enrolment
+ * - Audio File Drag & Drop (Supports MP3, WAV, M4A, OGG, WEBM, FLAC)
+ * - Zero-Re-Render Direct GPU Draggable Window
+ * - Persistent Profile Management, Calibration, and Live Similarity Testing
  */
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Mic,
   Upload,
-  CheckCircle,
-  Sparkles,
   ShieldCheck,
-  X,
-  Square,
-  Sliders,
-  UserCheck,
-  UserX,
-  HelpCircle,
-  FileAudio,
-  GripHorizontal,
   RotateCcw,
-  Volume2
+  Sliders,
+  X,
+  Volume2,
+  CheckCircle2,
+  AlertCircle,
+  FileAudio,
+  GripHorizontal
 } from 'lucide-react';
 import { speakerRecognitionService } from '../services/audio/SpeakerRecognitionService.js';
-import { soundFxService } from '../services/soundFxService.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';
+import { soundFxService } from '../services/soundFxService.js';
 
-const ENROLLMENT_PHRASES = [
+const CALIBRATION_PHRASES = [
   {
-    id: 'phrase_1',
+    id: 1,
     title: 'Muestra 1: Saludo Natural',
-    text: 'Hola Cristi, soy tu usuario principal y esta es mi voz natural.',
+    quote: '"Hola Cristi, soy tu usuario principal y esta es mi voz natural."',
     hint: 'Habla con tu tono de conversación cotidiano y a distancia normal del micrófono.'
   },
   {
-    id: 'phrase_2',
-    title: 'Muestra 2: Comando e Instrucción',
-    text: 'Cristi, activa los sistemas de escritorio y verifica mi identidad vocal.',
-    hint: 'Habla con claridad y firmeza como si estuvieras dictando un comando directo.'
+    id: 2,
+    title: 'Muestra 2: Instrucción Dinámica',
+    quote: '"Cristi, por favor abre el panel de control y revisa el estado del sistema."',
+    hint: 'Varía ligeramente la entonación para capturar la acústica y armónicos de tu voz.'
   },
   {
-    id: 'phrase_3',
-    title: 'Muestra 3: Frase Fluida',
-    text: 'Hoy es un día productivo, continuemos trabajando juntos.',
-    hint: 'Lee de forma fluida a ritmo natural para capturar tus patrones de entonación.'
+    id: 3,
+    title: 'Muestra 3: Pregunta o Petición',
+    quote: '"¿Cristi, qué aplicaciones tengo abiertas y cómo está el rendimiento hoy?"',
+    hint: 'Mantén un ritmo fluido para enriquecer los descriptores biométricos del modelo.'
   }
 ];
 
 export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
   isOpen,
-  onClose,
-  onEnrolled
+  onClose
 }) {
   const { interactiveProps } = useClickThrough();
   const [activeTab, setActiveTab] = useState('mic'); // 'mic' | 'file' | 'test' | 'profile'
@@ -77,16 +72,18 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
   const [matchThreshold, setMatchThreshold] = useState(speakerRecognitionService.matchThreshold);
   const [rejectThreshold, setRejectThreshold] = useState(speakerRecognitionService.rejectThreshold);
 
-  // Drag Position State
-  const [modalPos, setModalPos] = useState(() => {
+  // Zero-Re-Render Drag Engine
+  const modalCardRef = useRef(null);
+  const isDraggingModalRef = useRef(false);
+  const dragStartRef = useRef({ startX: 0, startY: 0, posX: 0, posY: 0 });
+  const modalPosRef = useRef(() => {
     try {
       const saved = localStorage.getItem('cristi_voice_modal_pos');
       if (saved) return JSON.parse(saved);
     } catch {}
-    return { x: null, y: null }; // null = auto center
+    return { x: null, y: null };
   });
-  const isDraggingModalRef = useRef(false);
-  const dragStartRef = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
+  const modalRafIdRef = useRef(null);
 
   const audioChunksRef = useRef([]);
   const audioContextRef = useRef(null);
@@ -97,6 +94,20 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
   const testVolumeBarRef = useRef(null);
 
   const hasProfile = speakerRecognitionService.hasEnrolledProfile();
+
+  // Position initialization via GPU transform
+  useEffect(() => {
+    if (!isOpen) return;
+    const initial = typeof modalPosRef.current === 'function' ? modalPosRef.current() : modalPosRef.current;
+    modalPosRef.current = initial;
+    if (modalCardRef.current && initial.x !== null) {
+      modalCardRef.current.style.position = 'fixed';
+      modalCardRef.current.style.left = '0px';
+      modalCardRef.current.style.top = '0px';
+      modalCardRef.current.style.margin = '0';
+      modalCardRef.current.style.transform = `translate3d(${initial.x}px, ${initial.y}px, 0)`;
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -128,6 +139,7 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
+      if (modalRafIdRef.current) cancelAnimationFrame(modalRafIdRef.current);
       cleanupAudioResources();
     };
   }, [isOpen, onClose]);
@@ -155,14 +167,14 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
     if (testVolumeBarRef.current) testVolumeBarRef.current.style.width = '0%';
   };
 
-  // --- Modal Dragging Handlers ---
+  // --- Zero-Re-Render Dragging Handlers ---
   const handleHeaderPointerDown = (e) => {
     if (e.button !== 0) return;
     if (e.target.closest('button, input, select')) return;
     e.preventDefault();
     isDraggingModalRef.current = true;
 
-    const modalEl = e.currentTarget.closest('.voice-enrollment-modal');
+    const modalEl = modalCardRef.current;
     const rect = modalEl.getBoundingClientRect();
 
     dragStartRef.current = {
@@ -176,22 +188,39 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
   };
 
   const handleHeaderPointerMove = (e) => {
-    if (!isDraggingModalRef.current) return;
+    if (!isDraggingModalRef.current || !modalCardRef.current) return;
     const deltaX = e.clientX - dragStartRef.current.startX;
     const deltaY = e.clientY - dragStartRef.current.startY;
     const newX = Math.max(10, Math.min(window.innerWidth - 300, dragStartRef.current.posX + deltaX));
     const newY = Math.max(10, Math.min(window.innerHeight - 200, dragStartRef.current.posY + deltaY));
 
-    setModalPos({ x: newX, y: newY });
+    modalPosRef.current = { x: newX, y: newY };
+
+    if (!modalRafIdRef.current) {
+      modalRafIdRef.current = requestAnimationFrame(() => {
+        if (modalCardRef.current) {
+          modalCardRef.current.style.position = 'fixed';
+          modalCardRef.current.style.left = '0px';
+          modalCardRef.current.style.top = '0px';
+          modalCardRef.current.style.margin = '0';
+          modalCardRef.current.style.transform = `translate3d(${modalPosRef.current.x}px, ${modalPosRef.current.y}px, 0)`;
+        }
+        modalRafIdRef.current = null;
+      });
+    }
   };
 
   const handleHeaderPointerUp = (e) => {
     if (!isDraggingModalRef.current) return;
     isDraggingModalRef.current = false;
+    if (modalRafIdRef.current) {
+      cancelAnimationFrame(modalRafIdRef.current);
+      modalRafIdRef.current = null;
+    }
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
-      if (modalPos.x !== null) {
-        localStorage.setItem('cristi_voice_modal_pos', JSON.stringify(modalPos));
+      if (modalPosRef.current.x !== null) {
+        localStorage.setItem('cristi_voice_modal_pos', JSON.stringify(modalPosRef.current));
       }
     } catch (_) {}
   };
@@ -216,15 +245,17 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
 
       processor.onaudioprocess = (e) => {
         const input = e.inputBuffer.getChannelData(0);
-        const copy = new Float32Array(input.length);
-        copy.set(input);
-        audioChunksRef.current.push(copy);
+        audioChunksRef.current.push(new Float32Array(input));
 
+        // Ultra-lightweight direct DOM volume meter (0 React re-renders)
         let sum = 0;
-        for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
-        const rms = Math.min(1, Math.sqrt(sum / input.length) * 5);
+        for (let i = 0; i < input.length; i += 8) {
+          sum += input[i] * input[i];
+        }
+        const rms = Math.sqrt(sum / (input.length / 8));
+        const pct = Math.min(100, Math.round(rms * 400));
         if (volumeBarRef.current) {
-          volumeBarRef.current.style.width = `${Math.round(rms * 100)}%`;
+          volumeBarRef.current.style.width = `${pct}%`;
         }
       };
 
@@ -233,76 +264,68 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
 
       setIsRecordingSample(true);
       setRecordingSeconds(0);
-      soundFxService.playClick();
+      soundFxService.playConnect();
 
       timerRef.current = setInterval(() => {
-        setRecordingSeconds((prev) => prev + 1);
+        setRecordingSeconds((s) => s + 1);
       }, 1000);
     } catch (err) {
+      soundFxService.playError();
       setEnrollError(`No se pudo acceder al micrófono: ${err.message}`);
-      cleanupAudioResources();
     }
   };
 
   const stopSampleRecording = () => {
+    if (!isRecordingSample) return;
     soundFxService.playClick();
-    setIsRecordingSample(false);
-
-    let totalLength = 0;
-    audioChunksRef.current.forEach((c) => (totalLength += c.length));
-    const mergedAudio = new Float32Array(totalLength);
-    let offset = 0;
-    audioChunksRef.current.forEach((c) => {
-      mergedAudio.set(c, offset);
-      offset += c.length;
-    });
+    clearInterval(timerRef.current);
+    timerRef.current = null;
 
     cleanupAudioResources();
+    setIsRecordingSample(false);
 
+    // Merge audio chunks
+    const totalLength = audioChunksRef.current.reduce((acc, chunk) => acc + chunk.length, 0);
     if (totalLength < 16000 * 0.8) {
-      setEnrollError('Grabación demasiado corta. Por favor habla al menos 1 segundo.');
+      soundFxService.playError();
+      setEnrollError('Grabación demasiado corta. Por favor habla al menos 1 segundo completo.');
       return;
     }
 
-    try {
-      const res = speakerRecognitionService.extractEmbedding(mergedAudio);
-      if (!res || !res.embedding) {
-        setEnrollError('No se pudo extraer la huella acústica. Intenta en un entorno más silencioso.');
-        return;
-      }
+    const merged = new Float32Array(totalLength);
+    let offset = 0;
+    for (const chunk of audioChunksRef.current) {
+      merged.set(chunk, offset);
+      offset += chunk.length;
+    }
 
-      const sampleData = {
-        id: `sample_${currentStep + 1}`,
-        label: ENROLLMENT_PHRASES[currentStep]?.title || `Muestra ${currentStep + 1}`,
-        embedding: res.embedding,
-        durationSeconds: (totalLength / 16000).toFixed(1)
-      };
+    const newSamples = [...recordedSamples, merged];
+    setRecordedSamples(newSamples);
 
-      const updated = [...recordedSamples, sampleData];
-      setRecordedSamples(updated);
-
-      if (currentStep < ENROLLMENT_PHRASES.length - 1) {
-        setCurrentStep((prev) => prev + 1);
-      } else {
-        finishEnrollment(updated);
-      }
-    } catch (err) {
-      setEnrollError(`Error al procesar muestra: ${err.message}`);
+    if (currentStep < 2) {
+      setCurrentStep((s) => s + 1);
+    } else {
+      // Completed all 3 guided steps -> Auto-calibrate & enroll permanently!
+      finishEnrollmentFromSamples(newSamples);
     }
   };
 
-  // --- Single Express Enrollment ---
-  const finishEnrollment = async (samplesToUse = recordedSamples) => {
-    if (samplesToUse.length < 1) {
-      setEnrollError('Graba al menos una muestra para guardar tu perfil.');
-      return;
-    }
-
+  const finishEnrollmentFromSamples = async (samplesToUse = recordedSamples) => {
+    if (samplesToUse.length === 0) return;
     setIsEnrolling(true);
     setEnrollError(null);
 
     try {
-      const profile = speakerRecognitionService.enrollSamples(ownerName, samplesToUse);
+      speakerRecognitionService.clearProfile();
+      for (let i = 0; i < samplesToUse.length; i++) {
+        speakerRecognitionService.enrollSpeakerSample(
+          samplesToUse[i],
+          ownerName || 'Mi Dueño',
+          `Muestra Micrófono #${i + 1}`
+        );
+      }
+
+      speakerRecognitionService.saveProfile();
       try {
         localStorage.setItem('cristi_voice_enrolled_v1', 'true');
         localStorage.setItem('cristi_voice_enrolled_dismissed_v1', 'true');
@@ -310,20 +333,26 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
 
       soundFxService.playConnect();
       setEnrollSuccess(true);
-      onEnrolled?.(profile);
-
       setTimeout(() => {
         onClose();
       }, 1400);
     } catch (err) {
-      setEnrollError(err.message);
+      soundFxService.playError();
+      setEnrollError(`Error al calibrar descriptores: ${err.message}`);
     } finally {
       setIsEnrolling(false);
     }
   };
 
-  // --- File Upload & Drag-and-Drop Enrollment ---
-  const handleFileSelected = async (file) => {
+  // --- Audio File Upload Handlers ---
+  const handleFileDrop = (e) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) handleProcessAudioFile(file);
+  };
+
+  const handleProcessAudioFile = async (file) => {
     if (!file) return;
     setSelectedFile(file);
     setIsEnrolling(true);
@@ -331,10 +360,10 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
 
     try {
       soundFxService.playClick();
-      const profile = await speakerRecognitionService.enrollFromAudioFile(
+      const res = await speakerRecognitionService.enrollFromAudioFile(
         file,
-        ownerName,
-        file.name
+        ownerName || 'Mi Dueño',
+        `Archivo: ${file.name}`
       );
 
       try {
@@ -344,25 +373,23 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
 
       soundFxService.playConnect();
       setEnrollSuccess(true);
-      onEnrolled?.(profile);
-
       setTimeout(() => {
         onClose();
       }, 1400);
     } catch (err) {
-      setEnrollError(`Error al analizar archivo de audio: ${err.message}`);
+      soundFxService.playError();
+      setEnrollError(`Error al procesar archivo de audio: ${err.message}`);
     } finally {
       setIsEnrolling(false);
     }
   };
 
-  // --- Live Verification Test ---
+  // --- Live Recognition Test ---
   const startLiveTest = async () => {
     try {
       setTestResult(null);
-      audioChunksRef.current = [];
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
       });
       mediaStreamRef.current = stream;
 
@@ -371,79 +398,44 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
       audioContextRef.current = ctx;
 
       const source = ctx.createMediaStreamSource(stream);
-      const processor = ctx.createScriptProcessor(2048, 1, 1);
+      const processor = ctx.createScriptProcessor(4096, 1, 1);
       processorRef.current = processor;
 
       processor.onaudioprocess = (e) => {
         const input = e.inputBuffer.getChannelData(0);
-        const copy = new Float32Array(input.length);
-        copy.set(input);
-        audioChunksRef.current.push(copy);
-
         let sum = 0;
-        for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
-        const rms = Math.min(1, Math.sqrt(sum / input.length) * 5);
-        if (testVolumeBarRef.current) {
-          testVolumeBarRef.current.style.width = `${Math.round(rms * 100)}%`;
+        for (let i = 0; i < input.length; i += 8) sum += input[i] * input[i];
+        const rms = Math.sqrt(sum / (input.length / 8));
+        const pct = Math.min(100, Math.round(rms * 400));
+        if (testVolumeBarRef.current) testVolumeBarRef.current.style.width = `${pct}%`;
+
+        // Check speaker match if voice detected
+        if (rms > 0.02) {
+          const decision = speakerRecognitionService.identifySpeaker(input);
+          setTestResult(decision);
         }
       };
 
       source.connect(processor);
       processor.connect(ctx.destination);
-
       setIsTesting(true);
-      soundFxService.playClick();
     } catch (err) {
-      setEnrollError(`No se pudo iniciar la prueba: ${err.message}`);
-      cleanupAudioResources();
+      setEnrollError(`Error al iniciar prueba: ${err.message}`);
     }
   };
 
   const stopLiveTest = () => {
-    soundFxService.playClick();
-    setIsTesting(false);
-
-    let totalLength = 0;
-    audioChunksRef.current.forEach((c) => (totalLength += c.length));
-    const mergedAudio = new Float32Array(totalLength);
-    let offset = 0;
-    audioChunksRef.current.forEach((c) => {
-      mergedAudio.set(c, offset);
-      offset += c.length;
-    });
-
     cleanupAudioResources();
-
-    if (totalLength < 16000 * 0.5) {
-      setEnrollError('Habla al menos medio segundo para probar tu voz.');
-      return;
-    }
-
-    const decision = speakerRecognitionService.verifySpeaker(mergedAudio);
-    setTestResult(decision);
-    if (decision.isOwner) {
-      soundFxService.playConnect();
-    } else {
-      soundFxService.playDisconnect();
-    }
+    setIsTesting(false);
   };
 
   if (!isOpen) return null;
 
-  const currentPhrase = ENROLLMENT_PHRASES[currentStep] || ENROLLMENT_PHRASES[0];
-
-  const modalStyle = modalPos.x !== null ? {
-    position: 'fixed',
-    left: `${modalPos.x}px`,
-    top: `${modalPos.y}px`,
-    transform: 'none'
-  } : {};
-
   return (
     <div className="voice-enrollment-backdrop" {...interactiveProps} onClick={onClose}>
       <div
+        ref={modalCardRef}
         className="voice-enrollment-modal"
-        style={modalStyle}
         onClick={(e) => e.stopPropagation()}
       >
         <span className="hud-corner hud-corner-tl" />
@@ -518,55 +510,59 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
           )}
         </div>
 
-        {/* Success Alert */}
+        {/* Notification Banners */}
         {enrollSuccess && (
           <div className="enroll-success-banner">
-            <CheckCircle size={16} color="#10b981" />
-            <span>¡Perfil biométrico guardado con éxito! Cristi solo responderá a tu voz.</span>
+            <CheckCircle2 size={16} />
+            <span>¡Identidad vocal registrada exitosamente! Guardada localmente de forma permanente.</span>
           </div>
         )}
-
-        {/* Error Alert */}
         {enrollError && (
           <div className="enroll-error-banner">
-            <X size={14} color="#f43f5e" />
+            <AlertCircle size={16} />
             <span>{enrollError}</span>
           </div>
         )}
 
-        {/* TAB 1: LIVE MIC RECORDING */}
+        {/* TAB 1: GUIDED MIC ENROLLMENT */}
         {activeTab === 'mic' && (
           <div className="enroll-tab-content">
+            {/* Stepper */}
             <div className="enrollment-stepper">
-              {ENROLLMENT_PHRASES.map((p, idx) => {
-                const isCompleted = idx < recordedSamples.length;
-                const isCurrent = idx === currentStep;
-                return (
-                  <div
-                    key={p.id}
-                    className={`step-item ${isCompleted ? 'completed' : isCurrent ? 'current' : ''}`}
-                  >
-                    <div className="step-circle">
-                      {isCompleted ? <CheckCircle size={12} /> : idx + 1}
-                    </div>
-                    <span className="step-label">Muestra {idx + 1}</span>
+              {CALIBRATION_PHRASES.map((p, idx) => (
+                <div
+                  key={p.id}
+                  className={`step-item ${currentStep === idx ? 'current' : ''} ${
+                    recordedSamples.length > idx ? 'completed' : ''
+                  }`}
+                >
+                  <div className="step-circle">
+                    {recordedSamples.length > idx ? '✓' : idx + 1}
                   </div>
-                );
-              })}
+                  <span className="step-label">Muestra {idx + 1}</span>
+                </div>
+              ))}
             </div>
 
+            {/* Current Phrase Card */}
             <div className="phrase-card">
-              <span className="phrase-badge">{currentPhrase.title}</span>
-              <p className="phrase-quote">"{currentPhrase.text}"</p>
-              <p className="phrase-hint">{currentPhrase.hint}</p>
+              <div className="phrase-badge">
+                {CALIBRATION_PHRASES[currentStep].title}
+              </div>
+              <div className="phrase-quote">
+                {CALIBRATION_PHRASES[currentStep].quote}
+              </div>
+              <div className="phrase-hint">
+                {CALIBRATION_PHRASES[currentStep].hint}
+              </div>
             </div>
 
-            {/* Volume Meter */}
+            {/* Volume Bar Visualizer */}
             <div className="rec-volume-bar-track">
               <div ref={volumeBarRef} className="rec-volume-bar-fill" style={{ width: '0%' }} />
             </div>
 
-            {/* Record Action Buttons */}
+            {/* Controls */}
             <div className="enroll-actions-row">
               {!isRecordingSample ? (
                 <button
@@ -575,8 +571,10 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
                   onClick={startSampleRecording}
                   disabled={isEnrolling}
                 >
-                  <Mic size={15} />
-                  <span>Comenzar a Grabar Frase ({currentStep + 1}/3)</span>
+                  <Mic size={16} />
+                  <span>
+                    Comenzar a Grabar Frase ({currentStep + 1}/3)
+                  </span>
                 </button>
               ) : (
                 <button
@@ -584,26 +582,26 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
                   className="enroll-btn-record stop"
                   onClick={stopSampleRecording}
                 >
-                  <Square size={15} />
-                  <span>Detener Grabación ({recordingSeconds}s)</span>
+                  <Volume2 size={16} />
+                  <span>Detener y Guardar Muestra ({recordingSeconds}s)</span>
                 </button>
               )}
 
               {recordedSamples.length > 0 && !isRecordingSample && (
                 <button
                   type="button"
-                  className="enroll-btn-finish"
-                  onClick={() => finishEnrollment()}
+                  className="sm-btn sm-btn-primary"
+                  onClick={() => finishEnrollmentFromSamples(recordedSamples)}
                   disabled={isEnrolling}
                 >
-                  <CheckCircle size={14} />
-                  <span>Guardar con {recordedSamples.length} muestra(s)</span>
+                  Guardar Perfil ({recordedSamples.length} Muestra{recordedSamples.length !== 1 ? 's' : ''})
                 </button>
               )}
             </div>
 
+            {/* Name Input */}
             <div className="enrollment-name-row">
-              <label className="enroll-input-label">Tu Nombre de Usuario:</label>
+              <span className="enroll-input-label">Tu Nombre de Usuario:</span>
               <input
                 type="text"
                 className="enroll-text-input"
@@ -615,42 +613,39 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
           </div>
         )}
 
-        {/* TAB 2: AUDIO FILE IMPORT */}
+        {/* TAB 2: AUDIO FILE UPLOAD */}
         {activeTab === 'file' && (
           <div className="enroll-tab-content">
             <div
               className={`file-dropzone ${isDraggingFile ? 'dragging' : ''}`}
               onDragOver={(e) => { e.preventDefault(); setIsDraggingFile(true); }}
               onDragLeave={() => setIsDraggingFile(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setIsDraggingFile(false);
-                if (e.dataTransfer.files?.[0]) {
-                  handleFileSelected(e.dataTransfer.files[0]);
-                }
-              }}
+              onDrop={handleFileDrop}
               onClick={() => fileInputRef.current?.click()}
             >
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="audio/*,.wav,.mp3,.ogg,.m4a,.webm,.flac"
+                accept="audio/*,.mp3,.wav,.m4a,.ogg,.webm,.flac"
                 style={{ display: 'none' }}
                 onChange={(e) => {
-                  if (e.target.files?.[0]) {
-                    handleFileSelected(e.target.files[0]);
-                  }
+                  const file = e.target.files?.[0];
+                  if (file) handleProcessAudioFile(file);
                 }}
               />
               <FileAudio size={36} color="#a855f7" />
               <div className="dropzone-text-group">
-                <span className="dropzone-title">Haz clic para seleccionar o arrastra tu archivo de audio</span>
-                <span className="dropzone-desc">Formatos soportados: MP3, WAV, M4A, OGG, WEBM, FLAC (con cualquier frase o audio diciendo algo)</span>
+                <span className="dropzone-title">
+                  {selectedFile ? selectedFile.name : 'Haz clic para seleccionar o arrastra tu archivo de audio'}
+                </span>
+                <span className="dropzone-desc">
+                  Formatos soportados: MP3, WAV, M4A, OGG, WEBM, FLAC (con cualquier frase o audio diciendo algo)
+                </span>
               </div>
             </div>
 
-            <div className="enrollment-name-row" style={{ marginTop: '12px' }}>
-              <label className="enroll-input-label">Tu Nombre de Usuario:</label>
+            <div className="enrollment-name-row">
+              <span className="enroll-input-label">Tu Nombre de Usuario:</span>
               <input
                 type="text"
                 className="enroll-text-input"
@@ -662,11 +657,11 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
           </div>
         )}
 
-        {/* TAB 3: LIVE VERIFICATION TEST */}
-        {activeTab === 'test' && hasProfile && (
+        {/* TAB 3: LIVE RECOGNITION TEST */}
+        {activeTab === 'test' && (
           <div className="enroll-tab-content">
             <p className="test-desc">
-              Habla por tu micrófono. Cristi calculará la similitud coseno de tu vector de 192 dimensiones con el perfil guardado.
+              Habla por el micrófono para verificar cómo Cristi reconoce tu voz frente a otras personas en tiempo real.
             </p>
 
             <div className="rec-volume-bar-track">
@@ -677,12 +672,12 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
               {!isTesting ? (
                 <button type="button" className="enroll-btn-record start" onClick={startLiveTest}>
                   <Mic size={15} />
-                  <span>Probar Mi Voz Ahora</span>
+                  <span>Iniciar Prueba en Vivo</span>
                 </button>
               ) : (
                 <button type="button" className="enroll-btn-record stop" onClick={stopLiveTest}>
-                  <Square size={15} />
-                  <span>Verificar Similitud</span>
+                  <Volume2 size={15} />
+                  <span>Detener Prueba</span>
                 </button>
               )}
             </div>
@@ -690,19 +685,14 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
             {testResult && (
               <div className={`test-result-card ${testResult.isOwner ? 'match' : 'reject'}`}>
                 <div className="test-result-header">
-                  {testResult.isOwner ? (
-                    <UserCheck size={18} color="#10b981" />
-                  ) : (
-                    <UserX size={18} color="#f43f5e" />
-                  )}
+                  {testResult.isOwner ? <CheckCircle2 color="#10b981" /> : <AlertCircle color="#f43f5e" />}
                   <span className="test-result-title">
-                    {testResult.isOwner ? '¡Voz del Dueño Reconocida!' : 'Voz no autorizada / Desconocida'}
+                    {testResult.isOwner ? `¡Voz Reconocida! (Dueño: ${testResult.speaker})` : 'Hablante Desconocido'}
                   </span>
                 </div>
                 <div className="test-result-stats">
-                  <span>Similitud: <strong>{(testResult.score * 100).toFixed(1)}%</strong></span>
-                  <span>Confianza: <strong>{testResult.confidence}%</strong></span>
-                  <span>Latencia: <strong>{testResult.latencyMs}ms</strong></span>
+                  <span>Similitud Coseno: {Math.round(testResult.similarity * 100)}%</span>
+                  <span>Confianza: {Math.round(testResult.confidence * 100)}%</span>
                 </div>
               </div>
             )}
@@ -710,63 +700,61 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
         )}
 
         {/* TAB 4: PROFILE & THRESHOLDS */}
-        {activeTab === 'profile' && hasProfile && (
+        {activeTab === 'profile' && (
           <div className="enroll-tab-content">
             <div className="profile-info-card">
               <div className="profile-header-row">
-                <span className="profile-owner-name">👤 Usuario Registrado: {ownerName}</span>
+                <span className="profile-owner-name">Usuario Registrado: {ownerName}</span>
                 <span className="profile-samples-badge">
-                  {speakerRecognitionService.getProfileInfo()?.sampleCount || 1} muestra(s) activas
+                  {speakerRecognitionService.getProfileInfo()?.sampleCount || 1} Muestra(s)
                 </span>
               </div>
-              <p className="profile-date">
-                Registrado el: {new Date(speakerRecognitionService.getProfileInfo()?.enrolledAt || Date.now()).toLocaleString()}
-              </p>
+              <span className="profile-date">
+                Registrado: {speakerRecognitionService.getProfileInfo()?.enrolledAt ? new Date(speakerRecognitionService.getProfileInfo().enrolledAt).toLocaleString() : 'N/A'}
+              </span>
             </div>
 
             <div className="thresholds-group">
               <div className="threshold-row">
                 <div className="threshold-label-group">
-                  <span>Umbral de Aceptación (Match Threshold):</span>
-                  <strong>{matchThreshold.toFixed(2)}</strong>
+                  <span>Umbral de Aceptación (Match):</span>
+                  <strong>{Math.round(matchThreshold * 100)}%</strong>
                 </div>
                 <input
                   type="range"
                   min="0.5"
-                  max="0.9"
-                  step="0.02"
-                  className="sm-range-slider"
+                  max="0.95"
+                  step="0.01"
                   value={matchThreshold}
                   onChange={(e) => {
                     const val = parseFloat(e.target.value);
                     setMatchThreshold(val);
-                    speakerRecognitionService.setThresholds(val, rejectThreshold);
+                    speakerRecognitionService.matchThreshold = val;
+                    speakerRecognitionService.saveProfile();
                   }}
                 />
               </div>
 
               <div className="threshold-row">
                 <div className="threshold-label-group">
-                  <span>Umbral de Rechazo (Reject Threshold):</span>
-                  <strong>{rejectThreshold.toFixed(2)}</strong>
+                  <span>Umbral de Rechazo (Stranger):</span>
+                  <strong>{Math.round(rejectThreshold * 100)}%</strong>
                 </div>
                 <input
                   type="range"
                   min="0.3"
-                  max="0.7"
-                  step="0.02"
-                  className="sm-range-slider"
+                  max="0.8"
+                  step="0.01"
                   value={rejectThreshold}
                   onChange={(e) => {
                     const val = parseFloat(e.target.value);
                     setRejectThreshold(val);
-                    speakerRecognitionService.setThresholds(matchThreshold, val);
+                    speakerRecognitionService.rejectThreshold = val;
+                    speakerRecognitionService.saveProfile();
                   }}
                 />
               </div>
-            </div>
 
-            <div className="profile-actions-row">
               <button
                 type="button"
                 className="enroll-btn-reset"
@@ -808,3 +796,5 @@ export const VoiceEnrollmentModal = React.memo(function VoiceEnrollmentModal({
     </div>
   );
 });
+
+export default VoiceEnrollmentModal;

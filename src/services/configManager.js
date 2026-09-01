@@ -4,6 +4,7 @@
  */
 
 import { logger } from './logger.js';
+import { SYSTEM_PERSONA_PROMPT } from '../config/models.js';
 
 const STORAGE_KEY_CONFIG = 'cristi_ai_settings_v1';
 const STORAGE_KEY_BACKUPS = 'cristi_ai_settings_backups_v1';
@@ -101,7 +102,7 @@ export class ConfigManager {
       live2dModelId: typeof config.live2dModelId === 'string' && config.live2dModelId.trim() ? config.live2dModelId.trim() : 'yanderegirl',
       voiceName: typeof config.voiceName === 'string' && config.voiceName.trim() ? config.voiceName.trim() : 'Aoede',
       temperature: typeof config.temperature === 'number' && !isNaN(config.temperature) ? Math.max(0, Math.min(2, config.temperature)) : 0.75,
-      systemPrompt: typeof config.systemPrompt === 'string' ? config.systemPrompt : '',
+      systemPrompt: typeof config.systemPrompt === 'string' && config.systemPrompt.trim() ? config.systemPrompt : SYSTEM_PERSONA_PROMPT,
       updatedAt: config.updatedAt && typeof config.updatedAt === 'string' ? config.updatedAt : new Date().toISOString()
     };
   }

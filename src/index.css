@@ -665,6 +665,10 @@ html, body, #root {
   flex: 1;
   padding: 24px 28px;
   overflow-y: auto;
+  contain: layout style paint;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  will-change: scroll-position;
 }
 
 .sm-tab-pane {
@@ -1670,6 +1674,8 @@ html, body, #root {
 
 .camera-pip {
   position: fixed;
+  left: 0;
+  top: 0;
   width: 290px;
   background: #000;
   border: var(--border-purple);
@@ -1677,7 +1683,8 @@ html, body, #root {
   overflow: hidden;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.9);
   z-index: 2500;
-  contain: layout style;
+  contain: layout style paint;
+  will-change: transform;
   transform: translateZ(0);
 }
 
@@ -1888,7 +1895,8 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  contain: layout style;
+  contain: layout style paint;
+  will-change: transform;
 }
 
 .enrollment-header {
@@ -2591,9 +2599,13 @@ html, body, #root {
 
 .performance-hud-container {
   position: fixed;
+  left: 0;
+  top: 0;
   width: 320px;
   z-index: 3000;
   pointer-events: auto;
+  contain: layout style paint;
+  will-change: transform;
   transform: translateZ(0);
 }
 

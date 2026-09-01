@@ -3,6 +3,7 @@
  * Modern, Draggable, Ultra-Performant Obsidian Design:
  * - Real-Time Framerate, TPS, MSPT & Jitter
  * - System Memory (Heap & OS Working Set / RSS)
+ * - Zero-Re-Render Direct GPU Draggable Panel
  * - Subsystems Execution Profiling (SYS-01 to SYS-06)
  * - Anomaly & Lag Spike Detection
  */
@@ -31,26 +32,38 @@ export function PerformanceHUD({ isVisible, onClose }) {
   const [anomalies, setAnomalies] = useState(() => performanceProfiler.getAnomalies());
   const [isExpanded, setIsExpanded] = useState(true);
 
-  // Position State (Draggable HUD)
-  const [hudPos, setHudPos] = useState(() => {
+  // Zero-Re-Render Drag Engine References
+  const panelRef = useRef(null);
+  const isDraggingRef = useRef(false);
+  const dragStartRef = useRef({ startX: 0, startY: 0, posX: 0, posY: 0 });
+  const hudPosRef = useRef(() => {
     try {
       const saved = localStorage.getItem('cristi_perf_hud_pos');
       if (saved) return JSON.parse(saved);
     } catch {}
-    return { x: window.innerWidth - 340, y: 24 };
+    return { x: Math.max(10, window.innerWidth - 340), y: 24 };
   });
-  const isDraggingRef = useRef(false);
-  const dragStartRef = useRef({ startX: 0, startY: 0, posX: 0, posY: 0 });
+  const rafIdRef = useRef(null);
 
   const { interactiveProps } = useClickThrough();
   const updateThrottleRef = useRef(0);
+
+  // Position initialization via GPU transform
+  useEffect(() => {
+    if (!isVisible) return;
+    const initialPos = typeof hudPosRef.current === 'function' ? hudPosRef.current() : hudPosRef.current;
+    hudPosRef.current = initialPos;
+    if (panelRef.current) {
+      panelRef.current.style.transform = `translate3d(${initialPos.x}px, ${initialPos.y}px, 0)`;
+    }
+  }, [isVisible]);
 
   useEffect(() => {
     if (!isVisible) return;
 
     const unsub = performanceProfiler.onTelemetry((newSnapshot) => {
       const now = performance.now();
-      if (now - updateThrottleRef.current > 450) {
+      if (now - updateThrottleRef.current > 500) {
         updateThrottleRef.current = now;
         setSnapshot(newSnapshot);
         setHistory(performanceProfiler.getHistory('60s'));
@@ -76,13 +89,14 @@ export function PerformanceHUD({ isVisible, onClose }) {
     return () => {
       unsub();
       unsubAnomaly();
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isVisible, onClose]);
 
   if (!isVisible) return null;
 
-  // --- Drag Handlers ---
+  // --- High Performance Zero-Re-Render Drag Handlers ---
   const handlePointerDown = (e) => {
     if (e.button !== 0) return;
     if (e.target.closest('button')) return;
@@ -92,29 +106,42 @@ export function PerformanceHUD({ isVisible, onClose }) {
     dragStartRef.current = {
       startX: e.clientX,
       startY: e.clientY,
-      posX: hudPos.x,
-      posY: hudPos.y
+      posX: hudPosRef.current.x,
+      posY: hudPosRef.current.y
     };
 
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
   const handlePointerMove = (e) => {
-    if (!isDraggingRef.current) return;
+    if (!isDraggingRef.current || !panelRef.current) return;
     const deltaX = e.clientX - dragStartRef.current.startX;
     const deltaY = e.clientY - dragStartRef.current.startY;
     const newX = Math.max(10, Math.min(window.innerWidth - 330, dragStartRef.current.posX + deltaX));
     const newY = Math.max(10, Math.min(window.innerHeight - 150, dragStartRef.current.posY + deltaY));
 
-    setHudPos({ x: newX, y: newY });
+    hudPosRef.current = { x: newX, y: newY };
+
+    if (!rafIdRef.current) {
+      rafIdRef.current = requestAnimationFrame(() => {
+        if (panelRef.current) {
+          panelRef.current.style.transform = `translate3d(${hudPosRef.current.x}px, ${hudPosRef.current.y}px, 0)`;
+        }
+        rafIdRef.current = null;
+      });
+    }
   };
 
   const handlePointerUp = (e) => {
     if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
-      localStorage.setItem('cristi_perf_hud_pos', JSON.stringify(hudPos));
+      localStorage.setItem('cristi_perf_hud_pos', JSON.stringify(hudPosRef.current));
     } catch (_) {}
   };
 
@@ -137,17 +164,16 @@ export function PerformanceHUD({ isVisible, onClose }) {
     return '#f43f5e';
   };
 
-  const hudStyle = {
-    position: 'fixed',
-    left: `${hudPos.x}px`,
-    top: `${hudPos.y}px`,
-    transform: 'none'
-  };
-
   return (
     <div
+      ref={panelRef}
       className="performance-hud-container"
-      style={hudStyle}
+      style={{
+        position: 'fixed',
+        left: 0,
+        top: 0,
+        margin: 0
+      }}
       {...interactiveProps}
       onClick={(e) => e.stopPropagation()}
     >

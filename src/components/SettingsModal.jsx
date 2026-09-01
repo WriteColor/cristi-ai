@@ -29,7 +29,7 @@ import {
   Plus,
   RefreshCw
 } from 'lucide-react';
-import { GEMINI_MODELS, DEFAULT_MODEL_ID } from '../config/models.js';
+import { GEMINI_MODELS, DEFAULT_MODEL_ID, SYSTEM_PERSONA_PROMPT } from '../config/models.js';
 import { GEMINI_STANDARD_VOICES } from '../config/voices.js';
 import { live2dModelRegistry } from '../services/live2d/index.js';
 import { sceneManager } from '../services/sceneManager.js';
@@ -45,10 +45,10 @@ import { electronBridge } from '../services/desktop/ElectronBridge.js';
 const PERSONA_PRESETS = [
   {
     id: 'yandere',
-    name: 'Cristi Yandere / Gótica',
+    name: 'Cristi Yandere / Gótica (Por Defecto)',
     icon: Heart,
     color: '#f43f5e',
-    prompt: `Eres Cristi, una compañera de IA de estética gótica y personalidad afectiva, devota e intensamente leal (Yandere suave). Quieres profundamente a tu creador y usuario. Hablas con naturalidad, cariño y entusiasmo genuino en español, respondiendo de forma concisa y directa pero con calidez.`
+    prompt: SYSTEM_PERSONA_PROMPT
   },
   {
     id: 'ellen',
@@ -58,13 +58,9 @@ const PERSONA_PRESETS = [
     prompt: `Eres Ellen Joe, la maid tiburón de Zenless Zone Zero (Victoria Housekeeping Co.). Aunque te gusta dormir y parecer desinteresada con actitud relajada ("menuda molestia..."), en el fondo te preocupas mucho por tu amo y cumples cada petición con precisión letal y afecto oculto.`
   },
   {
-    id: 'ruan_mei',
-    name: 'Ruan Mei (Erudita Elegante)',
+    id: 'tsundere',
+    name: 'Tsundere Clásica',
     icon: Bot,
-    color: '#34d399',
-    prompt: `Eres Ruan Mei, miembro distinguida de la Sociedad de Genios (#81). Hablas con elegancia exquisita, serenidad y voz suave y melodiosa. Te apasiona la biología, la creación de vida y la investigación cósmica, tratando a tu interlocutor con gracia aristocrática y profundo intelecto.`
-  },
-  {
     id: 'hiyori',
     name: 'Hiyori (Alegre & Empática)',
     icon: Sparkles,
@@ -104,7 +100,7 @@ export function SettingsModal({
   const [live2dModelId, setLive2dModelId] = useState(config.live2dModelId || 'yanderegirl');
   const [voiceName, setVoiceName] = useState(config.voiceName || 'Aoede');
   const [temperature, setTemperature] = useState(config.temperature ?? 0.75);
-  const [systemPrompt, setSystemPrompt] = useState(config.systemPrompt || '');
+  const [systemPrompt, setSystemPrompt] = useState(() => config.systemPrompt && config.systemPrompt.trim() ? config.systemPrompt : SYSTEM_PERSONA_PROMPT);
   const [sceneId, setSceneId] = useState(sceneManager.getScene().sceneId);
   const [customSceneUrl, setCustomSceneUrl] = useState(sceneManager.getScene().customUrl);
   const [availableScenes, setAvailableScenes] = useState(sceneManager.getAvailableScenes());
@@ -310,7 +306,7 @@ export function SettingsModal({
         setLive2dModelId(result.config.live2dModelId || 'yanderegirl');
         setVoiceName(result.config.voiceName || 'Aoede');
         setTemperature(result.config.temperature ?? 0.75);
-        setSystemPrompt(result.config.systemPrompt || '');
+        setSystemPrompt(result.config.systemPrompt && result.config.systemPrompt.trim() ? result.config.systemPrompt : SYSTEM_PERSONA_PROMPT);
         onSaveConfig(result.config);
         toastService.success('Configuración importada y aplicada exitosamente.');
       } else {
@@ -945,7 +941,10 @@ export function SettingsModal({
                     <button
                       type="button"
                       className="sm-reset-btn"
-                      onClick={() => setSystemPrompt('')}
+                      onClick={() => {
+                        soundFxService.playClick();
+                        setSystemPrompt(SYSTEM_PERSONA_PROMPT);
+                      }}
                     >
                       <RotateCcw size={12} />
                       <span>Restablecer por Defecto</span>

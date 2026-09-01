@@ -77,7 +77,7 @@ export function App() {
       live2dModelId: 'yanderegirl',
       voiceName: 'Aoede',
       temperature: 0.75,
-      systemPrompt: ''
+      systemPrompt: SYSTEM_PERSONA_PROMPT
     };
   });
 
