@@ -29,14 +29,14 @@ export class SystemTrayService {
 
   async setupTray() {
     this.isInitialized = true;
-    logger.info('TRAY', 'Cristi Desktop System Tray activo y gestionado por Electron.');
+    logger.info('TRAY', 'Cristi AI Companion System Tray activo y gestionado por Electron.');
   }
 
   async minimizeToTray() {
     try {
       electronBridge.hideWindow();
       await electronBridge.showNotification(
-        'Cristi Desktop',
+        'Cristi AI Companion',
         'Cristi permanece activa en la bandeja del sistema (haz doble clic para mostrar).'
       );
     } catch (err) {

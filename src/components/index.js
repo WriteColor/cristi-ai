@@ -20,3 +20,4 @@ export { VoiceEnrollmentModal } from './VoiceEnrollmentModal.jsx';
 export { SpeakerDiagnosticsHUD } from './SpeakerDiagnosticsHUD.jsx';
 export { BackgroundScene } from './BackgroundScene.jsx';
 export { TacticalDropdown } from './TacticalDropdown.jsx';
+export { PerformanceHUD } from './PerformanceHUD.jsx';

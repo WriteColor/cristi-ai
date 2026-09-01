@@ -2,30 +2,22 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Lock as LockIcon,
   Unlock,
-  ShieldCheck,
   Bell,
   Clock,
   Mic,
-  MicOff,
   Volume2,
   Sparkles,
   ExternalLink,
   X,
-  Play,
-  CheckCircle,
-  AlertTriangle,
-  RotateCcw,
   Wifi,
   BatteryCharging,
   Power,
   ChevronUp,
   Layout,
-  Image as ImageIcon,
   MessageSquare,
   Sliders
 } from 'lucide-react';
 import { lockScreenService } from '../services/desktop/LockScreenService.js';
-import { eventBus, EVENTS } from '../services/eventBus.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';
 import { soundFxService } from '../services/soundFxService.js';
 
@@ -60,6 +52,8 @@ export function LockScreenSandbox({
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
+        e.stopPropagation();
+        e.stopImmediatePropagation?.();
         soundFxService.playClick();
         onClose();
       }

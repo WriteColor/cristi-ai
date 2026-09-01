@@ -35,9 +35,10 @@ export class SpeakerRecognitionService {
 
     this._memoryStore = {};
 
-    // Pre-compute Hamming window and Mel Filterbank
+    // Pre-compute Hamming window, Mel Filterbank, and STFT Trig Lookup Tables
     this.hammingWindow = this.createHammingWindow(this.windowSize);
     this.melFilterbank = this.createMelFilterbank(this.fftSize, this.sampleRate, this.numMelBands, 80, 7600);
+    this.initTrigTables();
 
     this.loadSavedProfile();
   }
@@ -442,21 +443,43 @@ export class SpeakerRecognitionService {
     return filterbank;
   }
 
+  initTrigTables() {
+    const N = this.fftSize;
+    const half = N / 2;
+    const step = 2;
+    const numN = N / step;
+    const totalEntries = (half + 1) * numN;
+    this.cosTable = new Float32Array(totalEntries);
+    this.sinTable = new Float32Array(totalEntries);
+
+    let idx = 0;
+    for (let k = 0; k <= half; k++) {
+      for (let n = 0; n < N; n += step) {
+        const angle = (2 * Math.PI * k * n) / N;
+        this.cosTable[idx] = Math.cos(angle);
+        this.sinTable[idx] = Math.sin(angle);
+        idx++;
+      }
+    }
+  }
+
   computeMagnitudeSpectrum(realBuffer) {
-    // Fast Cooley-Tukey Radix-2 FFT approximation for magnitude
     const N = realBuffer.length;
     const half = N / 2;
     const mag = new Float32Array(half + 1);
+    const step = 2;
+    const cosT = this.cosTable;
+    const sinT = this.sinTable;
 
+    let tableIdx = 0;
     for (let k = 0; k <= half; k++) {
       let re = 0;
       let im = 0;
-      // Stride sampling for microsecond inference
-      const step = 2;
       for (let n = 0; n < N; n += step) {
-        const angle = (2 * Math.PI * k * n) / N;
-        re += realBuffer[n] * Math.cos(angle);
-        im -= realBuffer[n] * Math.sin(angle);
+        const sample = realBuffer[n];
+        re += sample * cosT[tableIdx];
+        im -= sample * sinT[tableIdx];
+        tableIdx++;
       }
       mag[k] = Math.sqrt(re * re + im * im) * step;
     }

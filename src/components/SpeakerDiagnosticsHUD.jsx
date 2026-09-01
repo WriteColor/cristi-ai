@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Shield, ShieldAlert, ShieldCheck, Activity, User, UserX, Sliders } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, Activity, User, UserX, Sliders } from 'lucide-react';
 import { speakerRecognitionService } from '../services/audio/SpeakerRecognitionService.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';
 

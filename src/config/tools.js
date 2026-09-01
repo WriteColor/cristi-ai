@@ -1,6 +1,6 @@
 /**
  * Cristi AI - Tool Function Declarations for Gemini Multimodal Live API
- * Extended with: avatar movement, full system access, and screen capture tools.
+ * Extended with: avatar movement, full system access, tactical HUD widgets, and screen capture tools.
  */
 
 export const COMPANION_FUNCTION_DECLARATIONS = [
@@ -334,7 +334,7 @@ export const COMPANION_FUNCTION_DECLARATIONS = [
   },
 
   // ─────────────────────────────────────────────────────────────────────
-  // MEMORIA
+  // MEMORIA PERMANENTE
   // ─────────────────────────────────────────────────────────────────────
   {
     name: 'manage_memory',
@@ -358,6 +358,91 @@ export const COMPANION_FUNCTION_DECLARATIONS = [
       },
       required: ['action']
     }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────
+  // WIDGETS TÁCTICOS Y NOTIFICACIONES
+  // ─────────────────────────────────────────────────────────────────────
+  {
+    name: 'set_reminder',
+    description: 'Crea y fija un recordatorio interactivo táctico en la pantalla para el usuario.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        title: {
+          type: 'STRING',
+          description: 'Título o contenido del recordatorio.'
+        },
+        time: {
+          type: 'STRING',
+          description: 'Hora programada (ej: "14:30"). Si se omite, se usa la hora actual.'
+        },
+        tag: {
+          type: 'STRING',
+          description: 'Etiqueta de categoría (ej: "Trabajo", "Salud", "Cristi").'
+        }
+      },
+      required: ['title']
+    }
+  },
+  {
+    name: 'set_alarm',
+    description: 'Programa una alarma o alerta temporizada visual y sonora en el escritorio.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        time: {
+          type: 'STRING',
+          description: 'Hora de la alarma en formato HH:mm (ej: "08:30").'
+        },
+        label: {
+          type: 'STRING',
+          description: 'Etiqueta o razón de la alarma.'
+        }
+      },
+      required: ['time']
+    }
+  },
+  {
+    name: 'show_tactical_widget',
+    description: 'Muestra una tarjeta táctica HUD flotante en pantalla con información, datos o alertas.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        type: {
+          type: 'STRING',
+          enum: ['info', 'warning', 'reminder', 'status', 'weather'],
+          description: 'Tipo de widget táctico.'
+        },
+        title: {
+          type: 'STRING',
+          description: 'Título principal del widget.'
+        },
+        content: {
+          type: 'STRING',
+          description: 'Contenido o texto detallado.'
+        },
+        duration: {
+          type: 'INTEGER',
+          description: 'Duración en pantalla en milisegundos (por defecto 10000).'
+        }
+      },
+      required: ['title']
+    }
+  },
+  {
+    name: 'dismiss_tactical_widget',
+    description: 'Descarta u oculta un widget táctico específico mostrado en pantalla por su identificador.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        id: {
+          type: 'STRING',
+          description: 'Identificador del widget a descartar.'
+        }
+      },
+      required: ['id']
+    }
   }
 ];
 
@@ -370,4 +455,3 @@ export function getLiveToolsConfig() {
     }
   ];
 }
-

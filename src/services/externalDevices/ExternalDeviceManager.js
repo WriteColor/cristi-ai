@@ -3,9 +3,6 @@
  * Módulo en modo Standby / No disponible.
  * No ejecuta sondeos, no crea hardware virtual y no satura logs.
  */
-
-import { eventBus, EVENTS } from '../eventBus.js';
-
 export class ExternalDeviceManager {
   constructor() {
     this.status = 'standby_beta_unavailable';

@@ -29,9 +29,7 @@ export class ErrorBoundary extends React.Component {
         <div style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(6, 7, 10, 0.95)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
+          background: 'rgba(6, 7, 10, 0.98)',
           color: '#f8fafc',
           display: 'flex',
           flexDirection: 'column',

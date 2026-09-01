@@ -2,6 +2,14 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
+const ALLOWED_SHORTCUT_CHANNELS = new Set([
+  'shortcut-toggle-mute',
+  'shortcut-capture-screen',
+  'shortcut-toggle-zen-mode',
+  'shortcut-toggle-perf-hud',
+  'shortcut-toggle-always-on-top',
+]);
+
 contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
 
@@ -12,12 +20,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ignore=true + forward:true → pass clicks to desktop but still receive mousemove
   // ignore=false              → window receives all mouse events normally
   setIgnoreMouseEvents: (ignore, options) => {
-    ipcRenderer.send('set-ignore-mouse-events', ignore, options);
+    ipcRenderer.send('set-ignore-mouse-events', Boolean(ignore), options || {});
   },
 
   // ── Window Management ─────────────────────────────────────────────────────
   setAlwaysOnTop: (value) => {
-    ipcRenderer.send('set-always-on-top', value);
+    ipcRenderer.send('set-always-on-top', Boolean(value));
   },
   getAlwaysOnTop: () => ipcRenderer.invoke('get-always-on-top'),
 
@@ -44,12 +52,37 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showNotification: (payload) => ipcRenderer.invoke('show-notification', payload),
   captureScreenNative: (region) => ipcRenderer.invoke('capture-screen-native', region),
   importCustomSceneFile: () => ipcRenderer.invoke('import-custom-scene-file'),
+  getProcessMemoryInfo: () => ipcRenderer.invoke('get-process-memory-info'),
+  getGpuFeatureStatus: () => ipcRenderer.invoke('get-gpu-feature-status'),
+  getGpuInfo: () => ipcRenderer.invoke('get-gpu-info'),
+
+  // ── Auto-Updater API ───────────────────────────────────────────────────────
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  onUpdateStatus: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (event, data) => callback(data);
+    ipcRenderer.on('update-status', listener);
+    return () => {
+      try {
+        ipcRenderer.removeListener('update-status', listener);
+      } catch (_) {}
+    };
+  },
 
   // ── Global Shortcut Event Subscriptions ───────────────────────────────────
   onShortcutEvent: (channel, callback) => {
+    if (!ALLOWED_SHORTCUT_CHANNELS.has(channel) || typeof callback !== 'function') {
+      return () => {};
+    }
     const listener = (event, ...args) => callback(...args);
     ipcRenderer.on(channel, listener);
-    return () => ipcRenderer.removeListener(channel, listener);
+    return () => {
+      try {
+        ipcRenderer.removeListener(channel, listener);
+      } catch (_) {}
+    };
   },
 });
-

@@ -12,15 +12,14 @@ import {
   ChevronDown,
   ChevronRight,
   ShieldCheck,
-  Eye,
   Sliders,
   Image as ImageIcon,
-  FolderPlus
+  FolderPlus,
+  Activity
 } from 'lucide-react';
 import { live2dModelRegistry } from '../services/live2d/index.js';
 import { GEMINI_MODELS, GEMINI_MODELS_LIST } from '../config/models.js';
 import { GEMINI_STANDARD_VOICES } from '../config/voices.js';
-import { BACKGROUND_SCENES } from '../config/scenes.js';
 import { sceneManager } from '../services/sceneManager.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';
 import { electronBridge } from '../services/desktop/ElectronBridge.js';
@@ -51,6 +50,7 @@ export function ContextMenu({
   onOpenLockSandbox,
   onOpenVoiceEnrollment,
   onOpenSpeakerHUD,
+  onTogglePerformanceHUD,
   isZenMode,
   onToggleZenMode
 }) {
@@ -104,7 +104,7 @@ export function ContextMenu({
     menuEl.style.top = `${Math.round(targetTop)}px`;
   }, [isOpen, posX, posY, activeSection]);
 
-  // Close on outside click or Escape
+  // Close on outside click, window blur or Escape
   useEffect(() => {
     if (!isOpen) return;
 
@@ -117,16 +117,25 @@ export function ContextMenu({
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
+        e.stopPropagation();
+        e.stopImmediatePropagation?.();
         soundFxService.playClick();
         onClose();
       }
     };
 
-    window.addEventListener('mousedown', handleOutsideClick);
+    const handleBlur = () => {
+      onClose();
+    };
+
+    window.addEventListener('pointerdown', handleOutsideClick, { capture: true });
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('blur', handleBlur);
+
     return () => {
-      window.removeEventListener('mousedown', handleOutsideClick);
+      window.removeEventListener('pointerdown', handleOutsideClick, { capture: true });
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('blur', handleBlur);
     };
   }, [isOpen, onClose]);
 
@@ -424,6 +433,19 @@ export function ContextMenu({
               <Tv size={12} />
               <span>Diagnóstico Audio</span>
             </button>
+
+            <button
+              type="button"
+              className="ctx-action-item"
+              onClick={() => {
+                soundFxService.playClick();
+                onTogglePerformanceHUD?.();
+                onClose();
+              }}
+            >
+              <Activity size={12} />
+              <span>Telemetría &amp; FPS (F3)</span>
+            </button>
           </div>
         )}
       </div>
@@ -471,4 +493,4 @@ export function ContextMenu({
   );
 }
 
-export default ContextMenu;
+export default React.memo(ContextMenu);

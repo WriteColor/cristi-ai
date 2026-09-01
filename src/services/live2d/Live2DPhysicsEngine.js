@@ -125,8 +125,8 @@ export class Live2DPhysicsEngine {
       this.currentGustStrength = (Math.random() > 0.4 ? 1 : -1) * (0.4 + Math.random() * 0.6);
     }
 
-    // Decay gust strength smoothly
-    this.currentGustStrength *= Math.max(0, 1 - deltaSec * 1.8);
+    // Decay gust strength smoothly with exact continuous exponential decay
+    this.currentGustStrength *= Math.exp(-1.8 * deltaSec);
 
     return (ambientWind * this.windIntensity) + (this.currentGustStrength * 0.6);
   }
@@ -224,8 +224,8 @@ export class Live2DPhysicsEngine {
       const acceleration = totalForce / spring.mass;
       spring.velocity += acceleration * dt;
 
-      // Numerical damping safeguard
-      spring.velocity *= 0.98;
+      // Numerical damping safeguard - frame-rate normalized for 60Hz-240Hz monitors
+      spring.velocity *= Math.pow(0.98, dt * 60);
       spring.position += spring.velocity * dt;
 
       // Clamp output between -1.0 and 1.0 (Live2D standard range)
@@ -236,5 +236,30 @@ export class Live2DPhysicsEngine {
         setParamCallback(paramId, clampedVal);
       }
     }
+  }
+
+  /**
+   * Reset all spring positions and velocities to neutral
+   */
+  reset() {
+    for (const spring of this.springs.values()) {
+      spring.position = 0;
+      spring.velocity = 0;
+      spring.target = 0;
+    }
+    this.lastHead = { x: 0, y: 0, z: 0 };
+    this.lastBody = { x: 0, y: 0, z: 0 };
+    this.headVelocity = { x: 0, y: 0, z: 0 };
+    this.bodyVelocity = { x: 0, y: 0, z: 0 };
+    this.headAccel = { x: 0, y: 0, z: 0 };
+    this.bodyAccel = { x: 0, y: 0, z: 0 };
+  }
+
+  /**
+   * Release resources and maps
+   */
+  destroy() {
+    this.springs.clear();
+    this.activePhysicsParams = [];
   }
 }

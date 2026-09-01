@@ -15,7 +15,8 @@ import {
   LockScreenSandbox,
   VoiceEnrollmentModal,
   SpeakerDiagnosticsHUD,
-  BackgroundScene
+  BackgroundScene,
+  PerformanceHUD
 } from './components/index.js';
 import {
   eventBus,
@@ -38,6 +39,8 @@ import {
   clickThroughService,
   speakerRecognitionService,
   modelManager,
+  configManager,
+  soundFxService,
   proactiveTriggerService,
   toast,
   toastService,
@@ -145,6 +148,7 @@ export function App() {
   const [speakerDecision, setSpeakerDecision] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
   const [contextMenu, setContextMenu] = useState({ isOpen: false, x: 0, y: 0 });
+  const [isPerformanceHudOpen, setIsPerformanceHudOpen] = useState(false);
 
   // --- Zen Mode / Ghost UI Auto-Hide States ---
   const [isZenMode, setIsZenMode] = useState(false);
@@ -173,21 +177,24 @@ export function App() {
 
 
   // Toggle Torso vs Full body framing
-  const handleToggleViewMode = () => {
-    const nextMode = viewMode === 'torso' ? 'full' : 'torso';
-    setViewMode(nextMode);
-    localStorage.setItem(STORAGE_KEY_VIEWMODE, nextMode);
-  };
+  const handleToggleViewMode = useCallback(() => {
+    setViewMode((prev) => {
+      const nextMode = prev === 'torso' ? 'full' : 'torso';
+      try {
+        localStorage.setItem(STORAGE_KEY_VIEWMODE, nextMode);
+      } catch (e) {}
+      return nextMode;
+    });
+  }, []);
 
   // Toggle Zen Mode (hide UI completely)
-  const handleToggleZenMode = () => {
+  const handleToggleZenMode = useCallback(() => {
     setIsZenMode((prev) => {
       const next = !prev;
       setIsUiVisible(!next);
-      setTimeout(() => clickThroughService.syncHitboxes(), 60);
       return next;
     });
-  };
+  }, []);
 
   // --- Zen Mode: Auto-Fade on Inactivity ---
   const resetInactivityTimer = useCallback(() => {
@@ -196,14 +203,21 @@ export function App() {
       return;
     }
     setIsUiVisible(true);
-    setTimeout(() => clickThroughService.syncHitboxes(), 60);
 
     if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
     autoHideTimerRef.current = setTimeout(() => {
       setIsUiVisible(false);
-      setTimeout(() => clickThroughService.syncHitboxes(), 60);
     }, 5000);
   }, [isZenMode]);
+
+  // Clean up subtitle timer on unmount
+  useEffect(() => {
+    return () => {
+      if (subtitleTimeoutRef.current) {
+        clearTimeout(subtitleTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const onActivity = () => {
@@ -213,11 +227,24 @@ export function App() {
     const onKeyDown = (e) => {
       proactiveTriggerService.recordUserActivity();
       if (e.key === 'Escape') {
-        setIsSettingsOpen(false);
-        setIsVoiceEnrollmentOpen(false);
-        setIsLockSandboxOpen(false);
-        setIsRegionPickerOpen(false);
-        setContextMenu({ isOpen: false, x: 0, y: 0 });
+        // Hierarchical escape resolution
+        if (contextMenu.isOpen) {
+          setContextMenu({ isOpen: false, x: 0, y: 0, modelBounds: null });
+        } else if (isRegionPickerOpen) {
+          setIsRegionPickerOpen(false);
+        } else if (isVoiceEnrollmentOpen) {
+          setIsVoiceEnrollmentOpen(false);
+        } else if (isLockSandboxOpen) {
+          setIsLockSandboxOpen(false);
+        } else if (isSettingsOpen) {
+          setIsSettingsOpen(false);
+        } else if (isPerformanceHudOpen) {
+          setIsPerformanceHudOpen(false);
+        }
+      }
+      if (e.key === 'F3') {
+        e.preventDefault();
+        setIsPerformanceHudOpen((prev) => !prev);
       }
       if (e.key === 'h' || e.key === 'H') {
         if (!e.target.matches('input, textarea')) {
@@ -244,11 +271,26 @@ export function App() {
       if (autoHideTimerRef.current) clearTimeout(autoHideTimerRef.current);
       proactiveTriggerService.stop();
     };
-  }, [resetInactivityTimer]);
+  }, [
+    isZenMode,
+    resetInactivityTimer,
+    handleToggleZenMode,
+    contextMenu.isOpen,
+    isRegionPickerOpen,
+    isVoiceEnrollmentOpen,
+    isLockSandboxOpen,
+    isSettingsOpen,
+    isPerformanceHudOpen
+  ]);
 
   // --- Global Intelligent Hit-Tester for Seamless Desktop & Background Click Interactivity ---
   useEffect(() => {
     if (!electronBridge.isElectron) return;
+
+    if (!isClickThroughEnabled) {
+      electronBridge.setIgnoreMouseEvents(false);
+      return;
+    }
 
     let isHoveringInteractive = false;
 
@@ -267,6 +309,8 @@ export function App() {
         el === document.documentElement ||
         el === document.body ||
         el.id === 'root' ||
+        el.classList.contains('app-container') ||
+        el.classList.contains('transparent-backdrop') ||
         el.classList.contains('live2d-root') ||
         el.classList.contains('live2d-canvas-container') ||
         el.classList.contains('live2d-canvas') ||
@@ -301,7 +345,7 @@ export function App() {
       window.removeEventListener('mousemove', onGlobalMouseMove, { capture: true });
       window.removeEventListener('pointerdown', onGlobalPointerDown, { capture: true });
     };
-  }, []);
+  }, [isClickThroughEnabled]);
 
   // --- Initialize Electron Native Desktop Environment & System Tray ---
   useEffect(() => {
@@ -332,7 +376,7 @@ export function App() {
 
         systemTrayRef.current.setupTray();
 
-        // Register Global Shortcut Event Listeners
+        // Register Global Shortcut Event Listeners (OS-Wide)
         const unsubMuteShortcut = electronBridge.onShortcutEvent('shortcut-toggle-mute', () => {
           setIsMuted((prev) => {
             const next = !prev;
@@ -345,8 +389,8 @@ export function App() {
           toastService.info('Analizando pantalla activa (Ctrl+Shift+S)...');
           try {
             const frame = await electronBridge.captureScreenNative();
-            if (frame && geminiSocketRef.current) {
-              geminiSocketRef.current.sendRealtimeMedia(frame, 'image/jpeg');
+            if (frame && socketRef.current) {
+              socketRef.current.sendRealtimeMedia(frame, 'image/jpeg');
               toastService.success('Captura enviada a Cristi para análisis.');
             }
           } catch (e) {
@@ -354,9 +398,34 @@ export function App() {
           }
         });
 
+        const unsubZenShortcut = electronBridge.onShortcutEvent('shortcut-toggle-zen-mode', () => {
+          setIsZenMode((prev) => {
+            const next = !prev;
+            setIsUiVisible(!next);
+            toastService.info(next ? 'Modo Zen activado / UI Oculta (Ctrl+Shift+H)' : 'Interfaz visible (Ctrl+Shift+H)');
+            setTimeout(() => clickThroughService.syncHitboxes(), 60);
+            return next;
+          });
+        });
+
+        const unsubPerfShortcut = electronBridge.onShortcutEvent('shortcut-toggle-perf-hud', () => {
+          setIsPerformanceHudOpen((prev) => {
+            const next = !prev;
+            toastService.info(next ? 'Telemetría y FPS activada (Ctrl+Shift+P)' : 'Telemetría oculta (Ctrl+Shift+P)');
+            return next;
+          });
+        });
+
+        const unsubPinShortcut = electronBridge.onShortcutEvent('shortcut-toggle-always-on-top', () => {
+          handleToggleAlwaysOnTop();
+        });
+
         systemTrayRef.current._unsubShortcuts = () => {
           unsubMuteShortcut();
           unsubVisionShortcut();
+          unsubZenShortcut();
+          unsubPerfShortcut();
+          unsubPinShortcut();
         };
       } catch (e) {
         console.log('Electron init notice:', e);
@@ -461,9 +530,8 @@ export function App() {
       }
     });
 
-    visionServiceRef.current.initialize().then(() => {
-      setOwnerSamples(visionServiceRef.current.getOwnerSamples());
-    }).catch(console.error);
+    // Retrieve saved biometric owner samples without eagerly loading neural weights into memory
+    setOwnerSamples(visionServiceRef.current.getOwnerSamples());
 
     return () => {
       if (visionServiceRef.current) {
@@ -608,10 +676,11 @@ export function App() {
 
   // --- Multi-Sample Face Enrollment Handlers ---
   const handleAddOwnerSample = async (sampleLabel = 'Con Lentes') => {
-    if (!visionServiceRef.current || !cameraVideoRef.current) {
+    const video = cameraVideoRef.current || cameraRef.current?.getVideoElement();
+    if (!visionServiceRef.current || !video) {
       throw new Error('La cámara debe estar activa para capturar tu rostro.');
     }
-    const result = await visionServiceRef.current.addOwnerSample(cameraVideoRef.current, sampleLabel);
+    const result = await visionServiceRef.current.addOwnerSample(video, sampleLabel);
     setOwnerSamples(visionServiceRef.current.getOwnerSamples());
     setCurrentGesture('blush');
 
@@ -646,7 +715,9 @@ export function App() {
       }
       await cameraRef.current.start(cameraVideoRef.current, deviceId);
       if (visionServiceRef.current) {
-        visionServiceRef.current.startTracking(cameraVideoRef.current, overlayCanvasRef.current);
+        const getVideo = () => cameraVideoRef.current || cameraRef.current?.getVideoElement();
+        const getCanvas = () => overlayCanvasRef.current;
+        visionServiceRef.current.startTracking(getVideo, getCanvas);
       }
     }
   };
@@ -864,14 +935,17 @@ export function App() {
     };
   }, [handleToggleConnection, isConnected, isConnecting, isSpeaking, isListening, config, currentGesture, userTranscript, modelTranscript, setSubtitleText]);
 
-  // --- Mute Toggle Handler ---
-  const handleToggleMute = () => {
-    const nextState = !isMuted;
-    setIsMuted(nextState);
+  // --- Reactive Synchronization for Microphone Mute State (Shortcuts, Tray, UI) ---
+  useEffect(() => {
     if (audioInRef.current) {
-      if (nextState) audioInRef.current.mute();
+      if (isMuted) audioInRef.current.mute();
       else audioInRef.current.unmute();
     }
+  }, [isMuted]);
+
+  // --- Mute Toggle Handler ---
+  const handleToggleMute = () => {
+    setIsMuted((prev) => !prev);
   };
 
   // --- Camera Hardware & AI Tracking Toggle ---
@@ -880,14 +954,35 @@ export function App() {
     setIsCameraActive(nextState);
 
     if (nextState) {
-      if (cameraRef.current && cameraVideoRef.current) {
+      try {
+        if (!cameraRef.current) {
+          cameraRef.current = new CameraService({
+            onFrame: (base64JPEG) => {
+              if (socketRef.current && socketRef.current.isConnected) {
+                socketRef.current.sendVideoFrame(base64JPEG);
+              }
+            },
+            onError: (err) => {
+              setErrorMessage(`Error de hardware de cámara: ${err.message}`);
+            }
+          });
+        }
+
         await cameraRef.current.start(cameraVideoRef.current, currentDeviceId);
+
         if (isConnected) {
           cameraRef.current.startPeriodicStreaming(0.5);
         }
-      }
-      if (visionServiceRef.current && cameraVideoRef.current && overlayCanvasRef.current) {
-        visionServiceRef.current.startTracking(cameraVideoRef.current, overlayCanvasRef.current);
+
+        if (visionServiceRef.current) {
+          const getVideo = () => cameraVideoRef.current || cameraRef.current?.getVideoElement();
+          const getCanvas = () => overlayCanvasRef.current;
+          visionServiceRef.current.startTracking(getVideo, getCanvas);
+        }
+      } catch (err) {
+        console.error('Error al activar cámara:', err);
+        setErrorMessage(`Error al activar cámara: ${err.message}`);
+        setIsCameraActive(false);
       }
     } else {
       if (cameraRef.current) {
@@ -899,6 +994,13 @@ export function App() {
       setVisionDetections(null);
     }
   };
+
+  // Sync camera preview element when CameraPreview component mounts into DOM
+  useEffect(() => {
+    if (isCameraActive && cameraVideoRef.current && cameraRef.current?.isStreaming) {
+      cameraRef.current.attachVideoPreview(cameraVideoRef.current);
+    }
+  }, [isCameraActive]);
 
   // --- Transparent Backdrop Toggle ---
   const handleToggleBackdrop = () => {
@@ -912,11 +1014,13 @@ export function App() {
   };
 
   // --- Always On Top Window Toggle ---
-  const handleToggleAlwaysOnTop = () => {
-    const nextState = !isAlwaysOnTop;
-    setIsAlwaysOnTop(nextState);
-    electronBridge.setAlwaysOnTop(nextState);
-  };
+  const handleToggleAlwaysOnTop = useCallback(() => {
+    setIsAlwaysOnTop((prev) => {
+      const nextState = !prev;
+      electronBridge.setAlwaysOnTop(nextState);
+      return nextState;
+    });
+  }, []);
 
   // --- Configuration Persistence and Live Updates ---
   const handleSaveConfig = (newConfig) => {
@@ -1147,6 +1251,7 @@ export function App() {
         onOpenLockSandbox={() => setIsLockSandboxOpen(true)}
         onOpenVoiceEnrollment={() => setIsVoiceEnrollmentOpen(true)}
         onOpenSpeakerHUD={() => setIsVoiceEnrollmentOpen(true)}
+        onTogglePerformanceHUD={() => setIsPerformanceHudOpen((prev) => !prev)}
         onOpenRegionPicker={() => setIsRegionPickerOpen(true)}
         isMuted={isMuted}
         onToggleMute={handleToggleMute}
@@ -1194,7 +1299,13 @@ export function App() {
         onSaveConfig={handleSaveConfig}
       />
 
-      {/* 12. Futuristic Minimalist HUD Toast Notifications */}
+      {/* 12. Enterprise Performance & Telemetry HUD (Toggle with F3) */}
+      <PerformanceHUD
+        isVisible={isPerformanceHudOpen}
+        onClose={() => setIsPerformanceHudOpen(false)}
+      />
+
+      {/* 13. Futuristic Minimalist HUD Toast Notifications */}
       <ToastContainer />
     </div>
   );

@@ -26,7 +26,7 @@ console.log('🎙️ CRISTI DESKTOP - AUDIO SUBSYSTEM & SPEAKER BIOMETRICS VALID
 console.log('================================================================');
 
 // ── 1. AudioInputService DSP & Resampling ────────────────────────────────────
-console.log('\n[1/4] Verificando AudioInputService (DSP, HPF 80Hz & Resampling 16kHz)...');
+console.log('\n[1/5] Verificando AudioInputService (DSP, HPF 80Hz, Resampling 16kHz & Mute)...');
 const audioIn = new AudioInputService({});
 assert(audioIn.targetSampleRate === 16000, 'Frecuencia de muestreo objetivo establecida en 16,000 Hz.');
 assert(audioIn.rollingBufferSize === 64000, 'Buffer rotativo de telemetría de 4 segundos inicializado.');
@@ -41,14 +41,37 @@ assert(resampled16k.length === 160, `Re-muestreo a 16kHz exacto (Esperado: 160, 
 const pcmBuffer = audioIn.floatTo16BitPCM(resampled16k);
 assert(pcmBuffer.byteLength === 320, 'Conversión a Int16 PCM Little Endian correcta (320 bytes).');
 
-// ── 2. AudioOutputService Jitter Buffering ───────────────────────────────────
-console.log('\n[2/4] Verificando AudioOutputService & Jitter Buffering...');
+// Test Base64 chunked encoding
+const b64 = audioIn.arrayBufferToBase64(pcmBuffer);
+assert(typeof b64 === 'string' && b64.length > 0, 'Codificación Base64 por chunks de alto rendimiento validada.');
+
+// Test Mute / Unmute
+assert(audioIn.isMuted === false, 'Micrófono inicia en estado des-silenciado.');
+audioIn.mute();
+assert(audioIn.isMuted === true, 'audioIn.mute() cambia isMuted a true.');
+assert(audioIn.getTelemetry().isMuted === true, 'Telemetría refleja isMuted correctamente.');
+audioIn.unmute();
+assert(audioIn.isMuted === false, 'audioIn.unmute() restablece isMuted a false.');
+audioIn.toggleMute();
+assert(audioIn.isMuted === true, 'audioIn.toggleMute() conmuta correctamente.');
+audioIn.unmute();
+
+// ── 2. AudioOutputService Jitter Buffering & Barge-in ─────────────────────────
+console.log('\n[2/5] Verificando AudioOutputService, Jitter Buffering & Reset en Barge-in...');
 const audioOut = new AudioOutputService({});
 assert(audioOut.sampleRate === 24000, 'Frecuencia de salida configurada a 24,000 Hz (Gemini Live standard).');
 assert(audioOut.jitterLeadTime === 0.035, 'Buffer de jitter configurado con lead-time de 35ms.');
 
-// ── 3. GeminiLiveSocket Resilient Reconnection ──────────────────────────────
-console.log('\n[3/4] Verificando GeminiLiveSocket (Exponential Backoff & Friendly Config)...');
+// Verify stopImmediate resets nextScheduleTime to 0
+audioOut.nextScheduleTime = 123.456;
+audioOut.isPlaying = true;
+audioOut.stopImmediate();
+assert(audioOut.nextScheduleTime === 0, 'Barge-in / stopImmediate resetea nextScheduleTime = 0.');
+assert(audioOut.isPlaying === false, 'stopImmediate detiene el estado isPlaying.');
+assert(audioOut.activeSources.length === 0, 'stopImmediate vacía todas las fuentes activas.');
+
+// ── 3. GeminiLiveSocket Resilient Reconnection & Barge-in ─────────────────────
+console.log('\n[3/5] Verificando GeminiLiveSocket (Exponential Backoff & Barge-in Dispatch)...');
 let errorReported = null;
 const socketWithoutKey = new GeminiLiveSocket({
   apiKey: '',
@@ -58,8 +81,39 @@ socketWithoutKey.connect();
 assert(errorReported !== null, 'Detección amigable de API Key no configurada sin excepciones fatales.');
 assert(socketWithoutKey.maxReconnectAttempts === 5, 'Máximo de 5 intentos de reconexión configurado.');
 
-// ── 4. SpeakerRecognitionService Cosine Biometrics ──────────────────────────
-console.log('\n[4/4] Verificando SpeakerRecognitionService (MFCC + Cosine Similarity)...');
+let interruptedFired = false;
+const liveSocket = new GeminiLiveSocket({
+  apiKey: 'test-key',
+  onInterrupted: () => { interruptedFired = true; }
+});
+liveSocket.handleServerMessage(JSON.stringify({
+  serverContent: {
+    interrupted: true
+  }
+}));
+assert(interruptedFired === true, 'Mensaje de interrupción del servidor activa onInterrupted inmediatamente.');
+
+// ── 4. SpeechRecognitionService Graceful Handling ────────────────────────────
+console.log('\n[4/5] Verificando SpeechRecognitionService (Compatibilidad Dual & Degradación Elegante)...');
+import { SpeechRecognitionService } from '../src/services/speechRecognition.js';
+
+let speechResultText = null;
+const speechService = new SpeechRecognitionService({
+  onResult: (text, isFinal) => {
+    speechResultText = text;
+  }
+});
+assert(typeof speechService.start === 'function', 'SpeechRecognitionService expone método start.');
+assert(typeof speechService.stop === 'function', 'SpeechRecognitionService expone método stop.');
+assert(typeof speechService.destroy === 'function', 'SpeechRecognitionService expone método destroy.');
+assert(speechService.isSupported() === false || speechService.isSupported() === true, 'isSupported() evaluado sin excepciones.');
+speechService.start(); // Should gracefully handle absence of Web Speech API in Node.js
+speechService.stop();
+speechService.destroy();
+assert(speechService.shouldStayActive === false, 'destroy() apaga shouldStayActive de forma segura.');
+
+// ── 5. SpeakerRecognitionService Cosine Biometrics ──────────────────────────
+console.log('\n[5/5] Verificando SpeakerRecognitionService (MFCC + Cosine Similarity)...');
 const speakerService = new SpeakerRecognitionService();
 
 // Synthetic Voice Generator (Harmonic Formants)

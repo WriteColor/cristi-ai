@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck,
-  Bell,
   Clock,
   Mic,
   Volume2,
   Lock as LockIcon,
-  Sparkles,
-  ExternalLink
+  Sparkles
 } from 'lucide-react';
 import { lockScreenService } from '../services/desktop/LockScreenService.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';

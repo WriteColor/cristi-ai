@@ -7,10 +7,7 @@ import { chromium } from 'playwright';
 import path from 'path';
 
 // Import our system services
-import { GEMINI_MODELS, DEFAULT_MODEL_ID, getModelDisplayName } from '../../src/config/models.js';
-import { COMPANION_FUNCTION_DECLARATIONS, getLiveToolsConfig } from '../../src/config/tools.js';
 import { VirtualTerminalService } from '../../src/services/virtualTerminalService.js';
-import { ToolExecutor } from '../../src/services/toolExecutor.js';
 
 async function runComprehensiveTests() {
   console.log('================================================================');

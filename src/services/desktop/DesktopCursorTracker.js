@@ -12,8 +12,6 @@
  * 5. Window Blur / Out-of-bounds Directional Memory & Organic Saccades.
  */
 
-import { eventBus, EVENTS } from '../eventBus.js';
-
 export class DesktopCursorTracker {
   constructor() {
     this.isTracking = false;
@@ -50,11 +48,8 @@ export class DesktopCursorTracker {
     if (this.isTracking || typeof window === 'undefined') return;
     this.isTracking = true;
 
-    // 1. Listen to all DOM window & document pointer events (works continuously in Electron with forward:true)
-    window.addEventListener('mousemove', this.handleMouseMove, { passive: true, capture: true });
+    // Listen to window pointer events cleanly (Electron forward:true delivers continuous events)
     window.addEventListener('pointermove', this.handlePointerMove, { passive: true, capture: true });
-    document.addEventListener('mousemove', this.handleMouseMove, { passive: true, capture: true });
-    document.addEventListener('pointermove', this.handlePointerMove, { passive: true, capture: true });
     document.addEventListener('mouseleave', this.handleMouseLeave, { passive: true });
     window.addEventListener('blur', this.handleWindowBlur, { passive: true });
   }
@@ -66,10 +61,7 @@ export class DesktopCursorTracker {
     if (!this.isTracking || typeof window === 'undefined') return;
     this.isTracking = false;
 
-    window.removeEventListener('mousemove', this.handleMouseMove, { capture: true });
     window.removeEventListener('pointermove', this.handlePointerMove, { capture: true });
-    document.removeEventListener('mousemove', this.handleMouseMove, { capture: true });
-    document.removeEventListener('pointermove', this.handlePointerMove, { capture: true });
     document.removeEventListener('mouseleave', this.handleMouseLeave);
     window.removeEventListener('blur', this.handleWindowBlur);
 

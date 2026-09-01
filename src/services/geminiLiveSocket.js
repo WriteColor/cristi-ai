@@ -208,14 +208,21 @@ export class GeminiLiveSocket {
    * Send a video/camera/screen frame (JPEG base64)
    */
   sendVideoFrame(base64JPEGData) {
+    return this.sendRealtimeMedia(base64JPEGData, 'image/jpeg');
+  }
+
+  /**
+   * Send real-time media chunk (image/jpeg, audio/pcm, etc.)
+   */
+  sendRealtimeMedia(data, mimeType = 'image/jpeg') {
     if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) return;
 
     const message = {
       realtimeInput: {
         mediaChunks: [
           {
-            mimeType: 'image/jpeg',
-            data: base64JPEGData
+            mimeType,
+            data
           }
         ]
       }
@@ -255,7 +262,7 @@ export class GeminiLiveSocket {
       id: r.id,
       name: r.name,
       response: {
-        output: r.output
+        output: r.output || r.response?.output || r.response?.result || r.response || {}
       }
     }));
 

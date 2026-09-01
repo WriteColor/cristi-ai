@@ -26,18 +26,18 @@ import {
   Upload,
   Image as ImageIcon,
   FolderPlus,
-  Trash2,
-  Plus
+  Plus,
+  RefreshCw
 } from 'lucide-react';
 import { GEMINI_MODELS, DEFAULT_MODEL_ID } from '../config/models.js';
 import { GEMINI_STANDARD_VOICES } from '../config/voices.js';
-import { BACKGROUND_SCENES } from '../config/scenes.js';
 import { live2dModelRegistry } from '../services/live2d/index.js';
 import { sceneManager } from '../services/sceneManager.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';
 import { soundFxService } from '../services/soundFxService.js';
 import { configManager } from '../services/configManager.js';
 import { toastService } from '../services/toastService.js';
+import { electronBridge } from '../services/desktop/ElectronBridge.js';
 
 /**
  * Predefined System Prompt Presets for Quick Persona Switching
@@ -110,6 +110,106 @@ export function SettingsModal({
   const [availableScenes, setAvailableScenes] = useState(sceneManager.getAvailableScenes());
   const [sceneFilter, setSceneFilter] = useState('all'); // 'all' | 'builtin' | 'custom'
 
+  // Auto-Updater State & Handlers
+  const [appVersion, setAppVersion] = useState('1.0.0');
+  const [updateState, setUpdateState] = useState({
+    status: 'idle', // 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error'
+    version: null,
+    progress: 0,
+    message: 'Sistema listo para comprobar nuevas versiones.',
+  });
+
+  useEffect(() => {
+    electronBridge.getAppVersion().then((v) => {
+      if (v) setAppVersion(v);
+    });
+
+    const unsubscribe = electronBridge.onUpdateStatus((data) => {
+      if (data.type === 'checking') {
+        setUpdateState({
+          status: 'checking',
+          version: null,
+          progress: 0,
+          message: 'Buscando actualizaciones en los servidores oficiales...',
+        });
+      } else if (data.type === 'available') {
+        setUpdateState({
+          status: 'available',
+          version: data.version,
+          progress: 0,
+          message: `¡Nueva versión v${data.version} disponible para descargar!`,
+        });
+        toastService.info('Actualización Disponible', `Versión v${data.version} lista para descargar.`);
+      } else if (data.type === 'not-available') {
+        setUpdateState({
+          status: 'not-available',
+          version: data.version || appVersion,
+          progress: 0,
+          message: 'Cristi AI Companion está al día. Tienes instalada la versión más reciente.',
+        });
+      } else if (data.type === 'progress') {
+        setUpdateState((prev) => ({
+          ...prev,
+          status: 'downloading',
+          progress: data.percent,
+          message: `Descargando actualización: ${data.percent}% (${Math.round((data.transferred || 0) / 1024 / 1024)} MB / ${Math.round((data.total || 0) / 1024 / 1024)} MB)`,
+        }));
+      } else if (data.type === 'downloaded') {
+        setUpdateState({
+          status: 'downloaded',
+          version: data.version,
+          progress: 100,
+          message: `Versión v${data.version} descargada con éxito. Reinicia la aplicación para aplicarla.`,
+        });
+        toastService.success('Actualización Descargada', 'Reinicia Cristi AI Companion para aplicar la nueva versión.');
+      } else if (data.type === 'error') {
+        setUpdateState({
+          status: 'error',
+          version: null,
+          progress: 0,
+          message: data.message || 'No se pudo conectar con el servidor de actualizaciones.',
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [appVersion]);
+
+  const handleCheckUpdates = async () => {
+    soundFxService.playClick();
+    setUpdateState({
+      status: 'checking',
+      version: null,
+      progress: 0,
+      message: 'Buscando actualizaciones...',
+    });
+    const res = await electronBridge.checkForUpdates();
+    if (!res?.success && res?.error) {
+      setUpdateState({
+        status: 'error',
+        version: null,
+        progress: 0,
+        message: res.error,
+      });
+    }
+  };
+
+  const handleDownloadUpdate = async () => {
+    soundFxService.playClick();
+    setUpdateState((prev) => ({
+      ...prev,
+      status: 'downloading',
+      progress: 0,
+      message: 'Iniciando descarga en segundo plano...',
+    }));
+    await electronBridge.downloadUpdate();
+  };
+
+  const handleInstallUpdate = () => {
+    soundFxService.playClick();
+    electronBridge.installUpdate();
+  };
+
   const textareaRef = useRef(null);
   const modalRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -137,6 +237,8 @@ export function SettingsModal({
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
+        e.stopPropagation();
+        e.stopImmediatePropagation?.();
         soundFxService.playClick();
         onClose();
         return;
@@ -238,6 +340,7 @@ export function SettingsModal({
     { id: 'scene', label: 'Fondo & Escenas', icon: ImageIcon, subtitle: 'Escritorio transparente o cinemático' },
     { id: 'voice', label: 'Voz de Cristi', icon: Mic2, subtitle: `${GEMINI_STANDARD_VOICES.length} timbres vocales de Gemini` },
     { id: 'persona', label: 'Personalidad', icon: User, subtitle: 'Temperatura y prompt dinámico' },
+    { id: 'updates', label: 'Actualizaciones', icon: RefreshCw, subtitle: `Versión v${appVersion} • Canal Oficial` },
   ];
 
   return (
@@ -864,6 +967,101 @@ export function SettingsModal({
                 </div>
               </div>
             )}
+
+            {/* TAB: ACTUALIZACIONES DEL SISTEMA */}
+            {activeTab === 'updates' && (
+              <div className="sm-tab-content">
+                <div className="sm-field-group">
+                  <label className="sm-field-label">
+                    <RefreshCw size={14} className="sm-label-icon" />
+                    <span>Versión y Canal de Distribución</span>
+                  </label>
+
+                  <div className="sm-update-version-card">
+                    <div className="sm-update-version-info">
+                      <span className="sm-update-badge">Cristi AI Companion</span>
+                      <span className="sm-update-version-number">v{appVersion}</span>
+                      <span className="sm-update-channel-tag">Canal Local del Proyecto (release/)</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="sm-btn sm-btn-primary"
+                      onClick={handleCheckUpdates}
+                      disabled={updateState.status === 'checking' || updateState.status === 'downloading'}
+                    >
+                      <RefreshCw size={14} className={updateState.status === 'checking' ? 'spin-animation' : ''} />
+                      <span>{updateState.status === 'checking' ? 'Buscando...' : 'Comprobar Compilación'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Update Status Message & Progress */}
+                <div className={`sm-update-status-box sm-update-status-${updateState.status}`}>
+                  <div className="sm-update-status-header">
+                    <span className="sm-update-status-dot" />
+                    <span className="sm-update-status-title">
+                      {updateState.status === 'idle' && 'Estado del Actualizador Local'}
+                      {updateState.status === 'checking' && 'Buscando nueva compilación local...'}
+                      {updateState.status === 'available' && `¡Nueva Compilación v${updateState.version} Lista!`}
+                      {updateState.status === 'not-available' && 'Versión al Día'}
+                      {updateState.status === 'downloading' && 'Preparando instalador local...'}
+                      {updateState.status === 'downloaded' && '¡Instalador Local Preparado!'}
+                      {updateState.status === 'error' && 'Aviso del Sistema'}
+                    </span>
+                  </div>
+                  <p className="sm-update-status-desc">{updateState.message}</p>
+
+                  {/* Download Progress Bar */}
+                  {updateState.status === 'downloading' && (
+                    <div className="sm-update-progress-track">
+                      <div
+                        className="sm-update-progress-fill"
+                        style={{ width: `${updateState.progress}%` }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Action Buttons based on status */}
+                  {updateState.status === 'available' && (
+                    <div className="sm-update-actions">
+                      <button
+                        type="button"
+                        className="sm-btn sm-btn-primary sm-btn-compact"
+                        onClick={handleDownloadUpdate}
+                      >
+                        <Download size={13} />
+                        <span>Cargar Compilación v{updateState.version}</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {updateState.status === 'downloaded' && (
+                    <div className="sm-update-actions">
+                      <button
+                        type="button"
+                        className="sm-btn sm-btn-primary sm-btn-compact"
+                        onClick={handleInstallUpdate}
+                        style={{ background: '#10b981', borderColor: '#059669', color: '#fff' }}
+                      >
+                        <Zap size={13} />
+                        <span>Reiniciar e Instalar Actualización</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Additional Info Cards */}
+                <div className="sm-field-group" style={{ marginTop: '16px' }}>
+                  <label className="sm-field-label">
+                    <ShieldCheck size={14} className="sm-label-icon" />
+                    <span>Actualizador Local Offline (Zero Network)</span>
+                  </label>
+                  <p className="sm-field-hint">
+                    El sistema detecta automáticamente las nuevas versiones generadas localmente mediante <code>pnpm app:build</code> dentro de la carpeta <code>release/</code> de este proyecto, sin requerir conexión a internet ni servidores externos.
+                  </p>
+                </div>
+              </div>
+            )}
           </main>
         </div>
 
@@ -912,4 +1110,4 @@ export function SettingsModal({
   );
 }
 
-export default SettingsModal;
+export default React.memo(SettingsModal);

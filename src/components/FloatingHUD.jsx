@@ -310,5 +310,5 @@ export function FloatingHUD({
   );
 }
 
-export default FloatingHUD;
+export default React.memo(FloatingHUD);
 

@@ -41,9 +41,9 @@ class CristiPcmProcessor extends AudioWorkletProcessor {
       this.buffer[this.bufferIndex++] = sample;
 
       if (this.bufferIndex >= this.bufferSize) {
-        // Send full buffer to main thread
+        // Send full buffer to main thread with zero-copy transferable memory
         const copy = new Float32Array(this.buffer);
-        this.port.postMessage({ pcmChunk: copy });
+        this.port.postMessage({ pcmChunk: copy }, [copy.buffer]);
         this.bufferIndex = 0;
       }
     }
@@ -72,6 +72,7 @@ export class AudioInputService {
     this.analyserNode = null;
     this.muteNode = null;
     this.isRecording = false;
+    this.isMuted = false;
     this.targetSampleRate = 16000;
 
     // Rolling 4-second Float32 audio buffer for speaker verification & diagnostics
@@ -84,12 +85,43 @@ export class AudioInputService {
   getTelemetry() {
     return {
       isRecording: this.isRecording,
+      isMuted: this.isMuted,
       processorType: this.workletNode ? 'AudioWorklet (Low Latency)' : 'ScriptProcessor (Fallback)',
       sampleRate: this.audioContext?.sampleRate || 0,
       targetRate: this.targetSampleRate,
       hpfEnabled: !!this.hpfFilterNode,
       processedChunksCount: this._processedChunksCount
     };
+  }
+
+  mute() {
+    this.isMuted = true;
+    this.onVolumeChange(0);
+    logger.info('AUDIO', 'Micrófono silenciado (DSP stream desconectado del envío).');
+  }
+
+  unmute() {
+    this.isMuted = false;
+    logger.info('AUDIO', 'Micrófono reactivado (DSP stream reanudado).');
+  }
+
+  toggleMute() {
+    if (this.isMuted) {
+      this.unmute();
+    } else {
+      this.mute();
+    }
+    return this.isMuted;
+  }
+
+  async resumeContext() {
+    if (this.audioContext && (this.audioContext.state === 'suspended' || this.audioContext.state === 'interrupted')) {
+      try {
+        await this.audioContext.resume();
+      } catch (e) {
+        logger.warn('AUDIO', 'No se pudo reanudar AudioContext de entrada:', e);
+      }
+    }
   }
 
   async start() {
@@ -105,9 +137,14 @@ export class AudioInputService {
         }
       });
 
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      const AudioContextClass = typeof window !== 'undefined'
+        ? (window.AudioContext || window.webkitAudioContext)
+        : null;
+
+      if (!AudioContextClass) throw new Error('AudioContext no soportado en este entorno');
+
       this.audioContext = new AudioContextClass();
-      if (this.audioContext.state === 'suspended') {
+      if (this.audioContext.state === 'suspended' || this.audioContext.state === 'interrupted') {
         await this.audioContext.resume();
       }
 
@@ -184,6 +221,11 @@ export class AudioInputService {
   }
 
   handleAudioBuffer(inputData, inputSampleRate) {
+    if (this.isMuted) {
+      this.onVolumeChange(0);
+      return;
+    }
+
     // Calculate RMS volume for audio visualizer
     let sumSquares = 0;
     for (let i = 0; i < inputData.length; i++) {
@@ -219,47 +261,67 @@ export class AudioInputService {
     this.isRecording = false;
 
     if (this.workletNode) {
-      this.workletNode.disconnect();
+      try {
+        this.workletNode.port.onmessage = null;
+        this.workletNode.disconnect();
+      } catch (_) {}
       this.workletNode = null;
     }
 
     if (this.processorNode) {
-      this.processorNode.disconnect();
+      try {
+        this.processorNode.onaudioprocess = null;
+        this.processorNode.disconnect();
+      } catch (_) {}
       this.processorNode = null;
     }
 
     if (this.muteNode) {
-      this.muteNode.disconnect();
+      try {
+        this.muteNode.disconnect();
+      } catch (_) {}
       this.muteNode = null;
     }
 
     if (this.gainNode) {
-      this.gainNode.disconnect();
+      try {
+        this.gainNode.disconnect();
+      } catch (_) {}
       this.gainNode = null;
     }
 
     if (this.hpfFilterNode) {
-      this.hpfFilterNode.disconnect();
+      try {
+        this.hpfFilterNode.disconnect();
+      } catch (_) {}
       this.hpfFilterNode = null;
     }
 
     if (this.sourceNode) {
-      this.sourceNode.disconnect();
+      try {
+        this.sourceNode.disconnect();
+      } catch (_) {}
       this.sourceNode = null;
     }
 
     if (this.analyserNode) {
-      this.analyserNode.disconnect();
+      try {
+        this.analyserNode.disconnect();
+      } catch (_) {}
       this.analyserNode = null;
     }
 
     if (this.mediaStream) {
-      this.mediaStream.getTracks().forEach((track) => track.stop());
+      try {
+        this.mediaStream.getTracks().forEach((track) => track.stop());
+      } catch (_) {}
       this.mediaStream = null;
     }
 
     if (this.audioContext && this.audioContext.state !== 'closed') {
-      this.audioContext.close();
+      try {
+        this.audioContext.close();
+      } catch (_) {}
       this.audioContext = null;
     }
 
@@ -300,16 +362,21 @@ export class AudioInputService {
   }
 
   /**
-   * Fast ArrayBuffer to Base64 String
+   * Fast ArrayBuffer to Base64 String with chunking for high throughput
    */
   arrayBufferToBase64(buffer) {
     let binary = '';
     const bytes = new Uint8Array(buffer);
     const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(bytes[i]);
+    const chunkSize = 8192;
+    for (let i = 0; i < len; i += chunkSize) {
+      const sub = bytes.subarray(i, Math.min(i + chunkSize, len));
+      binary += String.fromCharCode.apply(null, sub);
     }
-    return window.btoa(binary);
+    const btoaFn = (typeof window !== 'undefined' && window.btoa)
+      ? window.btoa
+      : (typeof btoa !== 'undefined' ? btoa : (str) => Buffer.from(str, 'binary').toString('base64'));
+    return btoaFn(binary);
   }
 
   /**

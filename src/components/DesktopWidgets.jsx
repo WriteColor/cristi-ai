@@ -5,10 +5,7 @@ import {
   CloudSun,
   CheckCircle2,
   Sparkles,
-  X,
-  Pin,
-  Calendar,
-  AlertCircle
+  X
 } from 'lucide-react';
 import { eventBus, EVENTS } from '../services/eventBus.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';
@@ -32,6 +29,8 @@ export function DesktopWidgets({ isVisible = true }) {
     }
   });
 
+  const autoDismissTimersRef = useRef(new Set());
+
   // Listen to Cristi AI widget events
   useEffect(() => {
     const handleWidgetTriggered = (widget) => {
@@ -39,15 +38,19 @@ export function DesktopWidgets({ isVisible = true }) {
       setWidgets((prev) => {
         const filtered = prev.filter((w) => w.id !== widget.id);
         const updated = [widget, ...filtered];
-        localStorage.setItem(STORAGE_KEY_CRISTI_WIDGETS, JSON.stringify(updated));
+        try {
+          localStorage.setItem(STORAGE_KEY_CRISTI_WIDGETS, JSON.stringify(updated));
+        } catch (_) {}
         return updated;
       });
 
       // If widget has a temporary auto-dismiss duration
       if (widget.duration && widget.duration > 0) {
-        setTimeout(() => {
+        const timerId = setTimeout(() => {
+          autoDismissTimersRef.current.delete(timerId);
           handleDismiss(widget.id);
         }, widget.duration);
+        autoDismissTimersRef.current.add(timerId);
       }
     };
 
@@ -61,6 +64,10 @@ export function DesktopWidgets({ isVisible = true }) {
     return () => {
       unsubTrigger();
       unsubDismiss();
+      for (const t of autoDismissTimersRef.current) {
+        clearTimeout(t);
+      }
+      autoDismissTimersRef.current.clear();
     };
   }, []);
 
@@ -168,4 +175,4 @@ export function DesktopWidgets({ isVisible = true }) {
   );
 }
 
-export default DesktopWidgets;
+export default React.memo(DesktopWidgets);

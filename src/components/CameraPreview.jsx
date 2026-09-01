@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Eye,
   X,
-  UserCheck,
   ShieldAlert,
   Sparkles,
   UserPlus,
-  Trash2,
   Camera,
   Glasses,
   Smile,
@@ -38,6 +36,15 @@ export function CameraPreview({
   const [customLabel, setCustomLabel] = useState('Con Lentes');
   const [enrollFeedback, setEnrollFeedback] = useState(null);
   const [showManager, setShowManager] = useState(false);
+  const feedbackTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimeoutRef.current) {
+        clearTimeout(feedbackTimeoutRef.current);
+      }
+    };
+  }, []);
 
   if (!isStreaming) return null;
 
@@ -45,6 +52,9 @@ export function CameraPreview({
     const labelToUse = presetLabel || customLabel || 'Muestra';
     setIsEnrolling(true);
     setEnrollFeedback(null);
+    if (feedbackTimeoutRef.current) {
+      clearTimeout(feedbackTimeoutRef.current);
+    }
 
     try {
       await onAddSample(labelToUse);
@@ -59,7 +69,7 @@ export function CameraPreview({
       });
     } finally {
       setIsEnrolling(false);
-      setTimeout(() => setEnrollFeedback(null), 3500);
+      feedbackTimeoutRef.current = setTimeout(() => setEnrollFeedback(null), 3500);
     }
   };
 

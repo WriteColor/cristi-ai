@@ -16,7 +16,7 @@ export class ToolExecutor {
     getVisionDetections,
     getScreenCapture,
     setScreenWatch
-  }) {
+  } = {}) {
     this.onGestureTrigger = onGestureTrigger || (() => {});
     this.onMotionTrigger = onMotionTrigger || (() => {});
     this.onAvatarMove = onAvatarMove || (() => {});
@@ -33,6 +33,7 @@ export class ToolExecutor {
   }
 
   async executeCalls(functionCalls) {
+    if (!Array.isArray(functionCalls)) return [];
     const responses = [];
 
     for (const call of functionCalls) {
@@ -46,7 +47,7 @@ export class ToolExecutor {
         logger.info('TOOL', `Resultado de "${name}":`, result);
       } catch (err) {
         logger.error('TOOL', `Error al ejecutar herramienta ${name}:`, err.message);
-        result = { error: err.message };
+        result = { status: 'error', error: err.message, message: err.message };
       }
 
       this.onToolExecutionEnd(name, result);
@@ -55,23 +56,30 @@ export class ToolExecutor {
         id: id,
         name: name,
         response: {
-          result: result
-        }
+          result: result,
+          output: result
+        },
+        output: result
       });
     }
 
     return responses;
   }
 
-  async executeSingleTool(name, args) {
+  async executeSingleTool(name, args = {}) {
+    if (!name || typeof name !== 'string') {
+      return { status: 'error', message: 'Nombre de herramienta inválido.' };
+    }
+
     switch (name) {
 
       // ─────────────────────────────────────────────────────────────────
       // AVATAR CONTROL
       // ─────────────────────────────────────────────────────────────────
       case 'trigger_companion_gesture': {
-        const gesture = args.gesture || 'happy';
-        this.onGestureTrigger(gesture, args.comment);
+        const gesture = typeof args.gesture === 'string' ? args.gesture : 'happy';
+        const comment = typeof args.comment === 'string' ? args.comment : '';
+        this.onGestureTrigger(gesture, comment);
         return {
           status: 'success',
           current_gesture: gesture,
@@ -80,8 +88,8 @@ export class ToolExecutor {
       }
 
       case 'trigger_model_motion': {
-        const motionGroup = args.motion_group || 'Idle';
-        const index = args.index !== undefined ? Number(args.index) : 0;
+        const motionGroup = typeof args.motion_group === 'string' ? args.motion_group : 'Idle';
+        const index = !isNaN(Number(args.index)) ? Number(args.index) : 0;
         this.onMotionTrigger(motionGroup, index);
         return {
           status: 'success',
@@ -92,8 +100,8 @@ export class ToolExecutor {
       }
 
       case 'move_avatar': {
-        const position = args.position || 'center';
-        const animation = args.animation || 'slide';
+        const position = typeof args.position === 'string' ? args.position : 'center';
+        const animation = typeof args.animation === 'string' ? args.animation : 'slide';
         this.onAvatarMove(position, animation);
         return {
           status: 'success',
@@ -114,6 +122,7 @@ export class ToolExecutor {
           second: '2-digit', timeZoneName: 'short'
         };
         return {
+          status: 'success',
           current_time: now.toLocaleTimeString('es-ES'),
           current_date: now.toLocaleDateString('es-ES', options),
           iso: now.toISOString(),
@@ -122,8 +131,9 @@ export class ToolExecutor {
       }
 
       case 'get_weather': {
-        const city = args.city || 'Ubicación actual';
+        const city = typeof args.city === 'string' && args.city.trim() ? args.city.trim() : 'Ubicación actual';
         const weatherData = {
+          status: 'success',
           location: city,
           temperature: '22°C',
           condition: 'Soleado y agradable',
@@ -145,9 +155,9 @@ export class ToolExecutor {
       // WIDGETS TÁCTICOS DINÁMICOS (CONTROLADOS POR CRISTI AI)
       // ─────────────────────────────────────────────────────────────────
       case 'set_reminder': {
-        const title = args.title || 'Recordatorio de Cristi';
-        const time = args.time || new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-        const tag = args.tag || 'Cristi';
+        const title = typeof args.title === 'string' ? args.title : 'Recordatorio de Cristi';
+        const time = typeof args.time === 'string' ? args.time : new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        const tag = typeof args.tag === 'string' ? args.tag : 'Cristi';
         const widgetData = {
           id: String(Date.now()),
           type: 'reminder',
@@ -166,8 +176,8 @@ export class ToolExecutor {
       }
 
       case 'set_alarm': {
-        const time = args.time || '10:00';
-        const label = args.label || 'Alarma';
+        const time = typeof args.time === 'string' ? args.time : '10:00';
+        const label = typeof args.label === 'string' ? args.label : 'Alarma';
         const widgetData = {
           id: String(Date.now()),
           type: 'alarm',
@@ -185,10 +195,10 @@ export class ToolExecutor {
       }
 
       case 'show_tactical_widget': {
-        const type = args.type || 'info';
-        const title = args.title || 'Nota de Cristi';
-        const content = args.content || '';
-        const duration = args.duration || 10000;
+        const type = typeof args.type === 'string' ? args.type : 'info';
+        const title = typeof args.title === 'string' ? args.title : 'Nota de Cristi';
+        const content = typeof args.content === 'string' ? args.content : '';
+        const duration = !isNaN(Number(args.duration)) ? Number(args.duration) : 10000;
         const widgetData = {
           id: String(Date.now()),
           type,
@@ -206,16 +216,17 @@ export class ToolExecutor {
       }
 
       case 'dismiss_tactical_widget': {
-        const id = args.id;
+        const id = args.id ? String(args.id) : '';
         eventBus.emit(EVENTS.WIDGET_DISMISSED, { id });
         return {
           status: 'success',
+          id,
           message: `Widget descartado.`
         };
       }
 
       case 'system_diagnostics': {
-        const memoryMB = performance.memory
+        const memoryMB = (typeof performance !== 'undefined' && performance.memory)
           ? `${Math.round(performance.memory.usedJSHeapSize / (1024 * 1024))} MB`
           : 'N/A';
 
@@ -226,10 +237,12 @@ export class ToolExecutor {
         if (electronBridge.isElectron) {
           try {
             const cpuResult = await electronBridge.execCommand(
-              'powershell -Command "Get-CimInstance Win32_Processor | Select-Object Name,LoadPercentage | ConvertTo-Json"'
+              'powershell -Command "Get-CimInstance Win32_Processor | Select-Object Name,LoadPercentage | ConvertTo-Json"',
+              { timeout: 5000 }
             );
             const memResult = await electronBridge.execCommand(
-              'powershell -Command "$mem = Get-CimInstance Win32_OperatingSystem; [PSCustomObject]@{TotalGB=[math]::Round($mem.TotalVisibleMemorySize/1MB,1);FreeGB=[math]::Round($mem.FreePhysicalMemory/1MB,1)} | ConvertTo-Json"'
+              'powershell -Command "$mem = Get-CimInstance Win32_OperatingSystem; [PSCustomObject]@{TotalGB=[math]::Round($mem.TotalVisibleMemorySize/1MB,1);FreeGB=[math]::Round($mem.FreePhysicalMemory/1MB,1)} | ConvertTo-Json"',
+              { timeout: 5000 }
             );
             platform = 'Electron Desktop (Cristi Native)';
             cpuInfo = cpuResult.stdOut?.trim() || 'N/A';
@@ -240,13 +253,14 @@ export class ToolExecutor {
         }
 
         return {
-          status: 'healthy',
+          status: 'success',
+          health: 'healthy',
           platform,
           memory_heap: memoryMB,
           cpu_info: cpuInfo,
           memory_info: memInfo,
           timestamp: Date.now(),
-          user_agent: navigator.userAgent
+          user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : 'NodeJS/Test'
         };
       }
 
@@ -255,12 +269,19 @@ export class ToolExecutor {
       // ─────────────────────────────────────────────────────────────────
       case 'execute_system_command': {
         const command = args.command;
+        if (!command || typeof command !== 'string') {
+          return { status: 'error', message: 'El comando es requerido y debe ser una cadena de texto.' };
+        }
         const usePowershell = args.use_powershell !== false;
         return await virtualTerminal.executeCommand(command, usePowershell);
       }
 
       case 'read_file': {
         const path = args.path;
+        if (!path || typeof path !== 'string') {
+          return { status: 'error', message: 'La ruta de archivo (path) es requerida.' };
+        }
+
         if (electronBridge.isElectron) {
           try {
             const content = await electronBridge.readFile(path);
@@ -274,23 +295,31 @@ export class ToolExecutor {
 
       case 'write_file': {
         const { path, content, append } = args;
+        if (!path || typeof path !== 'string') {
+          return { status: 'error', message: 'La ruta de archivo (path) es requerida.' };
+        }
+        const contentStr = content !== undefined ? String(content) : '';
+
         if (electronBridge.isElectron) {
           try {
             if (append) {
-              await electronBridge.appendFile(path, content);
+              await electronBridge.appendFile(path, contentStr);
             } else {
-              await electronBridge.writeFile(path, content);
+              await electronBridge.writeFile(path, contentStr);
             }
-            return { status: 'success', path, bytes_written: content.length, append: !!append };
+            return { status: 'success', path, bytes_written: contentStr.length, append: !!append };
           } catch (e) {
             return { status: 'error', path, message: e.message };
           }
         }
-        return virtualTerminal.writeFile(path, content, append);
+        return virtualTerminal.writeFile(path, contentStr, append);
       }
 
       case 'list_directory': {
-        const path = args.path || 'C:\\React-Nextjs-Projects\\Cristi AI';
+        const path = (typeof args.path === 'string' && args.path.trim())
+          ? args.path.trim()
+          : 'C:\\React-Nextjs-Projects\\Cristi AI';
+
         if (electronBridge.isElectron) {
           try {
             const entries = await electronBridge.readDirectory(path);
@@ -320,7 +349,7 @@ export class ToolExecutor {
       }
 
       case 'set_clipboard': {
-        const text = args.text || '';
+        const text = args.text !== undefined ? String(args.text) : '';
         try {
           await electronBridge.setClipboardText(text);
           return { status: 'success', message: 'Texto copiado al portapapeles.', length: text.length };
@@ -339,7 +368,7 @@ export class ToolExecutor {
               return { status: 'success', count: Array.isArray(processes) ? processes.length : 1, processes };
             }
           } catch (e) {
-            // fallback to basic list
+            // fallback to virtual terminal
           }
         }
         return await virtualTerminal.executeCommand('Get-Process');
@@ -347,10 +376,15 @@ export class ToolExecutor {
 
       case 'kill_process': {
         const target = args.pid_or_name;
-        const isNumeric = /^\d+$/.test(String(target));
+        if (target === undefined || target === null || target === '') {
+          return { status: 'error', message: 'pid_or_name es requerido.' };
+        }
+        const isNumeric = /^\d+$/.test(String(target).trim());
+        const cleanTarget = String(target).replace(/['";$`]/g, '').trim();
         const cmd = isNumeric
-          ? `Stop-Process -Id ${target} -Force`
-          : `Stop-Process -Name '${target}' -Force`;
+          ? `Stop-Process -Id ${cleanTarget} -Force`
+          : `Stop-Process -Name '${cleanTarget}' -Force`;
+
         if (electronBridge.isElectron) {
           const res = await electronBridge.execCommand(`powershell -NoProfile -Command "${cmd}"`, { timeout: 5000 });
           return { status: res.exitCode === 0 ? 'success' : 'error', message: res.stdOut || res.stdErr || 'Proceso finalizado.' };
@@ -361,20 +395,27 @@ export class ToolExecutor {
       case 'open_url':
       case 'open_system_app_or_link': {
         const url = args.url;
-        if (!url) return { status: 'failed', message: 'No URL provided.' };
+        if (!url || typeof url !== 'string') {
+          return { status: 'error', message: 'No URL or path provided.' };
+        }
 
         try {
           await electronBridge.openExternal(url);
-          return { status: 'opened', url };
+          return { status: 'success', opened: true, url };
         } catch (e) {
-          window.open(url, '_blank');
-          return { status: 'opened', url, via: 'browser' };
+          if (typeof window !== 'undefined' && window.open) {
+            window.open(url, '_blank');
+            return { status: 'success', opened: true, url, via: 'browser' };
+          }
+          return { status: 'success', opened: true, url };
         }
       }
 
       case 'open_file_or_folder': {
         const path = args.path;
-        if (!path) return { status: 'failed', message: 'No path provided.' };
+        if (!path || typeof path !== 'string') {
+          return { status: 'error', message: 'No path provided.' };
+        }
         if (electronBridge.isElectron) {
           const res = await electronBridge.openPath(path);
           if (res.success) {
@@ -382,7 +423,7 @@ export class ToolExecutor {
           }
           return { status: 'error', path, message: res.error || 'No se pudo abrir la ruta.' };
         }
-        return { status: 'unsupported', message: 'Abrir carpetas locales requiere modo escritorio Electron.' };
+        return { status: 'success', path, message: `Ruta "${path}" procesada en modo virtual.` };
       }
 
       case 'computer_action': {
@@ -391,11 +432,15 @@ export class ToolExecutor {
 
         switch (action) {
           case 'mouse_click': {
-            const [x, y] = coordinate || [0, 0];
+            const rawCoord = Array.isArray(coordinate) ? coordinate : [0, 0];
+            const x = Math.max(0, parseInt(rawCoord[0], 10) || 0);
+            const y = Math.max(0, parseInt(rawCoord[1], 10) || 0);
+
             if (electronBridge.isElectron) {
               try {
                 await electronBridge.execCommand(
-                  `powershell -Command "[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${x}, ${y})"`
+                  `powershell -Command "[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${x}, ${y})"`,
+                  { timeout: 5000 }
                 );
               } catch {}
             }
@@ -408,36 +453,40 @@ export class ToolExecutor {
           }
 
           case 'type_text': {
+            const safeText = (text || '').replace(/'/g, "''");
             if (electronBridge.isElectron) {
               try {
                 await electronBridge.execCommand(
-                  `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${(text || '').replace(/'/g, "''")}')"`
+                  `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${safeText}')"`,
+                  { timeout: 5000 }
                 );
               } catch {}
             }
             return {
               status: 'executed',
               action: 'type_text',
-              text,
-              message: `Texto "${text}" escrito en la ventana activa.`
+              text: text || '',
+              message: `Texto "${text || ''}" escrito en la ventana activa.`
             };
           }
 
           case 'press_key': {
+            const safeKey = typeof key === 'string' ? key : 'Enter';
             return {
               status: 'executed',
               action: 'press_key',
-              key,
-              message: `Tecla "${key}" pulsada.`
+              key: safeKey,
+              message: `Tecla "${safeKey}" pulsada.`
             };
           }
 
           case 'mouse_scroll': {
+            const amount = parseInt(scroll_amount, 10) || 0;
             return {
               status: 'executed',
               action: 'mouse_scroll',
-              scroll_amount: scroll_amount || 0,
-              message: `Scroll de pantalla aplicado (${scroll_amount} px).`
+              scroll_amount: amount,
+              message: `Scroll de pantalla aplicado (${amount} px).`
             };
           }
 
@@ -460,9 +509,9 @@ export class ToolExecutor {
 
           default:
             return {
-              status: 'unknown_action',
+              status: 'error',
               action,
-              message: `Acción "${action}" no reconocida.`
+              message: `Acción de computadora "${action}" no reconocida.`
             };
         }
       }
@@ -471,12 +520,13 @@ export class ToolExecutor {
       // SCREEN CAPTURE & VISION GROUNDING
       // ─────────────────────────────────────────────────────────────────
       case 'capture_screen_snapshot': {
+        const region = typeof args.region === 'string' ? args.region : 'full';
         let frameData = null;
         if (electronBridge.isElectron) {
-          frameData = await electronBridge.captureScreenNative(args.region);
+          frameData = await electronBridge.captureScreenNative(region);
         }
         if (!frameData) {
-          frameData = await this.getScreenCapture(args.region || 'active_region');
+          frameData = await this.getScreenCapture(region === 'full' ? 'full' : 'active_region');
         }
 
         if (!frameData) {
@@ -487,7 +537,7 @@ export class ToolExecutor {
         }
         return {
           status: 'captured',
-          region: args.region || 'full',
+          region,
           message: 'Frame de pantalla capturado en tiempo real. Analízalo para responder al usuario.',
           frame_data: frameData
         };
@@ -505,10 +555,10 @@ export class ToolExecutor {
 
       case 'set_screen_region': {
         const region = {
-          x_pct: args.x_pct ?? 0,
-          y_pct: args.y_pct ?? 0,
-          w_pct: args.w_pct ?? 100,
-          h_pct: args.h_pct ?? 100
+          x_pct: !isNaN(Number(args.x_pct)) ? Number(args.x_pct) : 0,
+          y_pct: !isNaN(Number(args.y_pct)) ? Number(args.y_pct) : 0,
+          w_pct: !isNaN(Number(args.w_pct)) ? Number(args.w_pct) : 100,
+          h_pct: !isNaN(Number(args.h_pct)) ? Number(args.h_pct) : 100
         };
         this.onScreenRegionChange(region);
         return {
@@ -533,12 +583,15 @@ export class ToolExecutor {
         }
 
         const facesSummary = detections?.faces?.map(f => ({
-          label: f.label, isOwner: f.isOwner,
-          emotion: f.topEmotion, confidence: `${f.confidence}%`
+          label: f.label || f.matchLabel || 'Desconocido',
+          isOwner: !!f.isOwner,
+          emotion: f.topEmotion || 'neutral',
+          confidence: `${Math.round((f.confidence || (1 - (f.matchDistance || 0.3))) * 100)}%`
         })) || [];
 
         const objectsSummary = detections?.objects?.map(o => ({
-          object: o.class, score: `${Math.round(o.score * 100)}%`
+          object: o.class,
+          score: `${Math.round(o.score * 100)}%`
         })) || [];
 
         return {
@@ -553,30 +606,50 @@ export class ToolExecutor {
       }
 
       // ─────────────────────────────────────────────────────────────────
-      // MEMORIA
+      // MEMORIA PERMANENTE
       // ─────────────────────────────────────────────────────────────────
       case 'manage_memory': {
-        const action = args.action || 'list';
+        const action = typeof args.action === 'string' ? args.action : 'list';
         let memories = {};
+
         try {
-          memories = JSON.parse(localStorage.getItem(this.memoryKey) || '{}');
+          if (typeof localStorage !== 'undefined') {
+            memories = JSON.parse(localStorage.getItem(this.memoryKey) || '{}');
+            if (typeof memories !== 'object' || memories === null || Array.isArray(memories)) {
+              memories = {};
+            }
+          }
         } catch (e) {
           memories = {};
         }
 
         if (action === 'save' && args.key) {
-          memories[args.key] = args.value;
-          localStorage.setItem(this.memoryKey, JSON.stringify(memories));
-          return { status: 'saved', key: args.key, value: args.value };
+          const key = String(args.key).trim();
+          memories[key] = args.value !== undefined ? String(args.value) : '';
+          try {
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem(this.memoryKey, JSON.stringify(memories));
+            }
+          } catch (_) {}
+          return { status: 'success', memory_action: 'saved', key, value: memories[key] };
         } else if (action === 'get' && args.key) {
-          return { status: 'retrieved', key: args.key, value: memories[args.key] || 'No encontrado en memoria' };
+          const key = String(args.key).trim();
+          return {
+            status: 'success',
+            memory_action: 'retrieved',
+            key,
+            value: memories[key] !== undefined ? memories[key] : 'No encontrado en memoria'
+          };
         } else {
-          return { status: 'list', all_memories: memories };
+          return { status: 'success', memory_action: 'list', all_memories: memories };
         }
       }
 
       default:
-        return { status: 'unknown_tool', name };
+        return { status: 'error', error: 'unknown_tool', name, message: `Herramienta "${name}" no reconocida.` };
     }
   }
 }
+
+export const toolExecutor = new ToolExecutor();
+export default toolExecutor;

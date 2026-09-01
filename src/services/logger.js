@@ -1,8 +1,32 @@
 /**
  * Cristi Desktop - Clean Terminal & Diagnostics Logger
  * Bridges frontend logs directly to the user's running terminal (Vite / Electron stdout)
- * and browser console with timestamped, colorized tags and deduplication.
+ * and browser console with timestamped, colorized tags, deduplication, and safe serialization.
  */
+
+function safeSerialize(val) {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+  if (typeof val === 'bigint') return `${val.toString()}n`;
+  if (typeof val === 'symbol' || typeof val === 'function') return val.toString();
+  if (val instanceof Error) return `${val.name}: ${val.message}\n${val.stack || ''}`;
+
+  try {
+    const seen = new WeakSet();
+    return JSON.stringify(val, (key, value) => {
+      if (typeof value === 'bigint') return `${value.toString()}n`;
+      if (typeof value === 'function') return `[Function: ${value.name || 'anonymous'}]`;
+      if (typeof value === 'object' && value !== null) {
+        if (seen.has(value)) return '[Circular]';
+        seen.add(value);
+      }
+      return value;
+    });
+  } catch (err) {
+    return String(val);
+  }
+}
 
 class LoggerService {
   constructor() {
@@ -41,7 +65,7 @@ class LoggerService {
 
   log(level, arg1, arg2, arg3) {
     const { tag, message, data } = this.normalizeArgs(arg1, arg2, arg3);
-    const msgStr = typeof message === 'object' ? JSON.stringify(message) : String(message ?? '');
+    const msgStr = typeof message === 'object' ? safeSerialize(message) : String(message ?? '');
 
     // Deduplication filter (avoids log flooding within 1.5s for identical tag & message)
     const logKey = `${level}:${tag}:${msgStr}`;
@@ -58,10 +82,10 @@ class LoggerService {
     const entry = {
       id: `${now}_${Math.random().toString(36).substr(2, 4)}`,
       timestamp,
-      level,
-      tag: tag.toUpperCase(),
+      level: level || 'info',
+      tag: (tag || 'SYSTEM').toUpperCase(),
       message: msgStr,
-      data: data || null
+      data: data !== undefined ? data : null
     };
 
     // 1. Browser Console Logging with clean CSS tags
@@ -73,7 +97,11 @@ class LoggerService {
       TOOL: '#fbbf24',
       SYSTEM: '#94a3b8',
       SCENE: '#a855f7',
-      ELECTRON: '#06b6d4'
+      ELECTRON: '#06b6d4',
+      CONFIG: '#34d399',
+      PROACTIVE: '#f59e0b',
+      AVATAR: '#ec4899',
+      PROFILER: '#8b5cf6'
     };
     const color = tagColors[entry.tag] || '#a855f7';
 
@@ -107,11 +135,15 @@ class LoggerService {
         fetch('/__log', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(entry),
+          body: safeSerialize(entry),
           mode: 'no-cors'
         }).catch(() => {});
       }
     } catch (_) {}
+  }
+
+  debug(tag, message, data) {
+    this.log('debug', tag, message, data);
   }
 
   info(tag, message, data) {

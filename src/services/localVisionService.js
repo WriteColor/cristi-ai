@@ -56,6 +56,11 @@ export class LocalVisionService {
       logger.info('VISION', 'Iniciando carga de modelos de visión local (COCO-SSD + MoveNet Pose)...');
 
       await tf.setBackend('webgl');
+      if (tf.env) {
+        tf.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 0);
+        tf.env().set('WEBGL_FORCE_F16_TEXTURES', true);
+        tf.env().set('WEBGL_PACK', true);
+      }
       await tf.ready();
 
       const [objModel, poseModel] = await Promise.all([
@@ -144,20 +149,19 @@ export class LocalVisionService {
       // 2. Detect Pose Keypoints via MoveNet
       let poseKeypoints = null;
       if (this.movenetModel) {
+        let expanded = null;
+        let prediction = null;
         try {
-          const tfImg = tf.browser.fromPixels(videoElement);
-          const resized = tf.image.resizeBilinear(tfImg, [192, 192]);
-          const casted = tf.cast(resized, 'int32');
-          const expanded = tf.expandDims(casted, 0);
+          // Wrap tensor transformation in tf.tidy to automatically purge intermediate tensors
+          expanded = tf.tidy(() => {
+            const tfImg = tf.browser.fromPixels(videoElement);
+            const resized = tf.image.resizeBilinear(tfImg, [192, 192]);
+            const casted = tf.cast(resized, 'int32');
+            return tf.expandDims(casted, 0);
+          });
 
-          const prediction = this.movenetModel.predict(expanded);
+          prediction = this.movenetModel.predict(expanded);
           const arrayData = await prediction.array();
-          
-          tfImg.dispose();
-          resized.dispose();
-          casted.dispose();
-          expanded.dispose();
-          prediction.dispose();
 
           if (arrayData && arrayData[0] && arrayData[0][0]) {
             poseKeypoints = arrayData[0][0].map((kp, idx) => ({
@@ -167,7 +171,15 @@ export class LocalVisionService {
               score: kp[2]
             }));
           }
-        } catch (_) {}
+        } catch (_) {
+        } finally {
+          if (expanded) {
+            try { expanded.dispose(); } catch (_) {}
+          }
+          if (prediction) {
+            try { prediction.dispose(); } catch (_) {}
+          }
+        }
       }
 
       const objects = await objectsPromise;
@@ -314,6 +326,18 @@ export class LocalVisionService {
     }
   }
 
+  /**
+   * Returns current TensorFlow.js memory usage telemetry
+   */
+  getMemoryInfo() {
+    try {
+      if (tf && tf.memory) {
+        return tf.memory();
+      }
+    } catch (_) {}
+    return null;
+  }
+
   dispose() {
     this.telemetryListeners.clear();
     this.alertListeners.clear();
@@ -322,7 +346,12 @@ export class LocalVisionService {
       try { this.movenetModel.dispose(); } catch (_) {}
       this.movenetModel = null;
     }
+    if (this.objectModel) {
+      try { this.objectModel.dispose?.(); } catch (_) {}
+      this.objectModel = null;
+    }
     this.isReady = false;
+    this.isInitializing = false;
   }
 }
 

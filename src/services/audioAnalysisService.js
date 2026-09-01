@@ -29,9 +29,12 @@ export class AudioAnalysisService {
     this.lastSpeechActivityTime = 0;
     this.isSpeaking = false;
 
-    // Rhythmic nod impulse accumulator
-    this.energyHistory = [];
-    this.maxEnergyHistory = 15;
+    // Rhythmic nod impulse accumulator (zero-alloc circular buffer & running sum)
+    this.energyHistorySize = 15;
+    this.energyHistory = new Float32Array(this.energyHistorySize);
+    this.energyHistoryIndex = 0;
+    this.energyHistoryCount = 0;
+    this.energyHistorySum = 0;
   }
 
   /**
@@ -63,6 +66,21 @@ export class AudioAnalysisService {
     this.smoothedMouthOpen = 0;
     this.smoothedMouthForm = 0;
     this.isSpeaking = false;
+    this.energyHistory.fill(0);
+    this.energyHistoryIndex = 0;
+    this.energyHistoryCount = 0;
+    this.energyHistorySum = 0;
+
+    // Emit zeroed metrics so avatar lips and visualizer return cleanly to neutral rest position
+    eventBus.emit(EVENTS.AUDIO_ANALYSIS, {
+      volume: 0,
+      mouthOpen: 0,
+      mouthForm: 0,
+      isSpeaking: false,
+      isPeakEnergy: false,
+      spectralCentroid: 0,
+      bands: { low: 0, mid: 0, high: 0 }
+    });
   }
 
   analyzeLoop = () => {
@@ -156,12 +174,16 @@ export class AudioAnalysisService {
       eventBus.emit(EVENTS.SPEECH_END);
     }
 
-    // Detect emphatic speech peaks for head nod triggers
-    this.energyHistory.push(volume);
-    if (this.energyHistory.length > this.maxEnergyHistory) {
-      this.energyHistory.shift();
+    // Detect emphatic speech peaks for head nod triggers (O(1) circular buffer, 0 allocations)
+    const oldEnergy = this.energyHistory[this.energyHistoryIndex];
+    this.energyHistorySum -= oldEnergy;
+    this.energyHistory[this.energyHistoryIndex] = volume;
+    this.energyHistorySum += volume;
+    this.energyHistoryIndex = (this.energyHistoryIndex + 1) % this.energyHistorySize;
+    if (this.energyHistoryCount < this.energyHistorySize) {
+      this.energyHistoryCount++;
     }
-    const avgEnergy = this.energyHistory.reduce((a, b) => a + b, 0) / this.energyHistory.length;
+    const avgEnergy = this.energyHistoryCount > 0 ? this.energyHistorySum / this.energyHistoryCount : 0;
     const isPeakEnergy = volume > 0.45 && volume > avgEnergy * 1.6;
 
     return {
@@ -177,5 +199,20 @@ export class AudioAnalysisService {
         high: highBand
       }
     };
+  }
+
+  destroy() {
+    this.stop();
+    if (this.sourceNode) {
+      try {
+        this.sourceNode.disconnect(this.analyser);
+      } catch (_) {}
+      this.sourceNode = null;
+    }
+    if (this.analyser) {
+      try {
+        this.analyser.disconnect();
+      } catch (_) {}
+    }
   }
 }

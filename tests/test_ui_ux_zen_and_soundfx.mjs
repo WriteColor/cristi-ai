@@ -96,18 +96,26 @@ const settingsSrc = fs.readFileSync('src/components/SettingsModal.jsx', 'utf8');
 assert(settingsSrc.includes('Escape'), 'SettingsModal escucha tecla Escape.');
 assert(settingsSrc.includes('Tab'), 'SettingsModal gestiona navegación con Tab / Focus Trap.');
 assert(settingsSrc.includes('PERSONA_PRESETS'), 'SettingsModal contiene 6 presets de personalidad.');
+assert(settingsSrc.includes('stopPropagation'), 'SettingsModal detiene propagación de Escape.');
 
 const voiceEnrollSrc = fs.readFileSync('src/components/VoiceEnrollmentModal.jsx', 'utf8');
 assert(voiceEnrollSrc.includes('Escape'), 'VoiceEnrollmentModal escucha tecla Escape.');
 assert(voiceEnrollSrc.includes('soundFxService'), 'VoiceEnrollmentModal integrado con soundFxService.');
+assert(voiceEnrollSrc.includes('stopPropagation'), 'VoiceEnrollmentModal detiene propagación de Escape.');
 
 const lockSandboxSrc = fs.readFileSync('src/components/LockScreenSandbox.jsx', 'utf8');
 assert(lockSandboxSrc.includes('Escape'), 'LockScreenSandbox escucha tecla Escape.');
 assert(lockSandboxSrc.includes('soundFxService'), 'LockScreenSandbox integrado con soundFxService.');
+assert(lockSandboxSrc.includes('stopPropagation'), 'LockScreenSandbox detiene propagación de Escape.');
 
 const contextMenuSrc = fs.readFileSync('src/components/ContextMenu.jsx', 'utf8');
 assert(contextMenuSrc.includes('Escape'), 'ContextMenu escucha tecla Escape.');
 assert(contextMenuSrc.includes('soundFxService'), 'ContextMenu integrado con soundFxService.');
+assert(contextMenuSrc.includes('stopPropagation'), 'ContextMenu detiene propagación de Escape.');
+
+const perfHudSrc = fs.readFileSync('src/components/PerformanceHUD.jsx', 'utf8');
+assert(perfHudSrc.includes('Escape'), 'PerformanceHUD escucha tecla Escape.');
+assert(perfHudSrc.includes('stopPropagation'), 'PerformanceHUD detiene propagación de Escape.');
 
 // ── 4. CSS Design System & High-DPI Scaling ─────────────────────────────────
 console.log('\n[4/4] Verificando CSS tokens, scrollbars y High-DPI canvas...');

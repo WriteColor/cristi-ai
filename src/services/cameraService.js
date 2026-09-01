@@ -5,12 +5,13 @@
  */
 
 export class CameraService {
-  constructor({ onFrameCaptured, onError }) {
-    this.onFrameCaptured = onFrameCaptured || (() => {});
+  constructor({ onFrameCaptured, onFrame, onError } = {}) {
+    this.onFrameCaptured = onFrameCaptured || onFrame || (() => {});
     this.onError = onError || console.error;
 
     this.mediaStream = null;
     this.videoElement = null;
+    this.internalVideoElement = null;
     this.canvasElement = null;
     this.canvasCtx = null;
     this.isStreaming = false;
@@ -25,6 +26,7 @@ export class CameraService {
    */
   static async getAvailableDevices() {
     try {
+      if (!navigator?.mediaDevices?.enumerateDevices) return [];
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter((d) => d.kind === 'videoinput');
 
@@ -55,11 +57,18 @@ export class CameraService {
   }
 
   async start(videoPreviewElement = null, preferredDeviceId = null) {
-    if (this.isStreaming && this.currentDeviceId === preferredDeviceId) return;
+    if (this.isStreaming && this.currentDeviceId === preferredDeviceId && (this.videoElement || this.internalVideoElement)) {
+      if (videoPreviewElement && this.videoElement !== videoPreviewElement) {
+        this.attachVideoPreview(videoPreviewElement);
+      }
+      return;
+    }
 
-    if (this.isStreaming) {
+    if (this.isStreaming || this._isStarting) {
       this.stop();
     }
+
+    this._isStarting = true;
 
     try {
       const videoConstraints = {
@@ -69,41 +78,91 @@ export class CameraService {
       };
 
       if (preferredDeviceId) {
-        videoConstraints.deviceId = { exact: preferredDeviceId };
+        // Use 'ideal' constraint to avoid OverconstrainedError if device ID format changes
+        videoConstraints.deviceId = { ideal: preferredDeviceId };
       } else {
         videoConstraints.facingMode = 'user';
       }
 
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: videoConstraints,
-        audio: false
-      });
-
-      this.currentDeviceId = preferredDeviceId;
-
-      if (videoPreviewElement) {
-        this.videoElement = videoPreviewElement;
-      } else {
-        this.videoElement = document.createElement('video');
-        this.videoElement.autoplay = true;
-        this.videoElement.playsInline = true;
-        this.videoElement.muted = true;
+      let stream = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: videoConstraints,
+          audio: false
+        });
+      } catch (constraintErr) {
+        console.warn('getUserMedia con constraints específicos falló, reintentando con fallback básico:', constraintErr);
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
       }
 
-      this.videoElement.srcObject = this.mediaStream;
-      await this.videoElement.play();
+      // If stop() was called while acquiring the stream, immediately release camera hardware
+      if (!this._isStarting) {
+        if (stream) {
+          stream.getTracks().forEach((track) => {
+            try { track.stop(); } catch (_) {}
+          });
+        }
+        return;
+      }
 
-      this.canvasElement = document.createElement('canvas');
-      this.canvasElement.width = 640;
-      this.canvasElement.height = 480;
-      this.canvasCtx = this.canvasElement.getContext('2d');
+      this.mediaStream = stream;
+      this.currentDeviceId = preferredDeviceId;
+
+      // Always create and maintain an internal offscreen video element for headless reliability
+      if (!this.internalVideoElement) {
+        this.internalVideoElement = document.createElement('video');
+        this.internalVideoElement.autoplay = true;
+        this.internalVideoElement.playsInline = true;
+        this.internalVideoElement.muted = true;
+      }
+      this.internalVideoElement.srcObject = this.mediaStream;
+      try {
+        await this.internalVideoElement.play();
+      } catch (playErr) {
+        console.warn('Autoplay aviso elemento offscreen:', playErr);
+      }
+
+      if (videoPreviewElement) {
+        this.attachVideoPreview(videoPreviewElement);
+      } else {
+        this.videoElement = this.internalVideoElement;
+      }
+
+      if (!this.canvasElement) {
+        this.canvasElement = document.createElement('canvas');
+        this.canvasElement.width = 640;
+        this.canvasElement.height = 480;
+        this.canvasCtx = this.canvasElement.getContext('2d');
+      }
 
       this.isStreaming = true;
     } catch (err) {
       this.onError(err);
       this.stop();
       throw err;
+    } finally {
+      this._isStarting = false;
     }
+  }
+
+  attachVideoPreview(videoElement) {
+    if (!videoElement) return;
+    this.videoElement = videoElement;
+    if (this.mediaStream && videoElement.srcObject !== this.mediaStream) {
+      videoElement.srcObject = this.mediaStream;
+      videoElement.play?.().catch((e) => console.warn('Preview video play notice:', e));
+    }
+  }
+
+  getVideoElement() {
+    return this.videoElement || this.internalVideoElement;
+  }
+
+  getMediaStream() {
+    return this.mediaStream;
   }
 
   setIREnhancement(enabled) {
@@ -137,11 +196,20 @@ export class CameraService {
    * Capture a single frame in JPEG base64 with optional IR histogram optimization
    */
   captureFrameJPEG() {
-    if (!this.isStreaming || !this.videoElement || !this.canvasCtx) return null;
+    const video = this.getVideoElement();
+    if (!this.isStreaming || !video || !this.canvasCtx) return null;
+    if (video.readyState < 2) return null;
 
     try {
+      const vw = video.videoWidth || 640;
+      const vh = video.videoHeight || 480;
+      if (this.canvasElement.width !== vw || this.canvasElement.height !== vh) {
+        this.canvasElement.width = vw;
+        this.canvasElement.height = vh;
+      }
+
       this.canvasCtx.drawImage(
-        this.videoElement,
+        video,
         0,
         0,
         this.canvasElement.width,
@@ -153,7 +221,6 @@ export class CameraService {
         const imgData = this.canvasCtx.getImageData(0, 0, this.canvasElement.width, this.canvasElement.height);
         const data = imgData.data;
         for (let i = 0; i < data.length; i += 4) {
-          // Normalize and stretch luminance curve
           data[i] = Math.min(255, data[i] * 1.25);
           data[i + 1] = Math.min(255, data[i + 1] * 1.25);
           data[i + 2] = Math.min(255, data[i + 2] * 1.25);
@@ -171,16 +238,34 @@ export class CameraService {
   }
 
   stop() {
+    this._isStarting = false;
     this.stopPeriodicStreaming();
     this.isStreaming = false;
 
     if (this.mediaStream) {
-      this.mediaStream.getTracks().forEach((track) => track.stop());
+      this.mediaStream.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch (_) {}
+      });
       this.mediaStream = null;
     }
 
-    if (this.videoElement) {
+    if (this.videoElement && this.videoElement !== this.internalVideoElement) {
       this.videoElement.srcObject = null;
+    }
+    if (this.internalVideoElement) {
+      this.internalVideoElement.srcObject = null;
+      try {
+        this.internalVideoElement.pause();
+      } catch (_) {}
+    }
+    this.videoElement = null;
+
+    if (this.canvasCtx && this.canvasElement) {
+      try {
+        this.canvasCtx.clearRect(0, 0, this.canvasElement.width, this.canvasElement.height);
+      } catch (_) {}
     }
   }
 }

@@ -1,112 +1,125 @@
-# Arquitectura de Cristi Desktop (Arquitectura Electron & Desktop Mate)
+# 🏛️ Arquitectura del Sistema e Ingeniería de Rendimiento — Cristi AI Companion
 
-Documento de ingeniería técnica y diseño de flujo de datos de la plataforma **Cristi Desktop**.
+Documento exhaustivo de ingeniería de software, arquitectura de sistemas y diseño de flujo de datos de **Cristi AI (Cristi AI Companion)**.
 
 ---
 
-## 1. Capas del Sistema
+## 1. Diagrama de Arquitectura por Capas
 
 ```
-+-------------------------------------------------------------------------------+
-|                             Cristi Desktop Frontend                           |
-|      React 19 + Vite 8 + PixiJS 7 + pixi-live2d-display (Cubism 4/5 Core)     |
-+-------------------------------------------------------------------------------+
-       |                         |                           |
-       v                         v                           v
-+------------------+    +-------------------+    +----------------------+
-| Live2D Engine    |    | Gemini Live WS    |    | Sensory Vision & Bio |
-| - Registry       |    | - Bidi Protocol   |    | - Voice Biometrics   |
-| - Controller     |    | - 24kHz Audio     |    | - Face-API 128D      |
-| - Adapter        |    | - Function Call   |    | - COCO-SSD           |
-| - DesktopTracker |    | - Barge-In Sync   |    | - Screen Region      |
-| - PointerCapture |    | - S2S Live Stream |    | - Win11 Lock Screen  |
-+------------------+    +-------------------+    +----------------------+
-       |                         |                           |
-       +-------------------------+---------------------------+
-                                 |
-                                 v
-+-------------------------------------------------------------------------------+
-|                     Electron Native Desktop Shell (Mate Pattern)              |
-|  - Transparent Frameless Fullscreen Window (win.setIgnoreMouseEvents)         |
-|  - Selective IPC Click-Through (useClickThrough Hook with forward: true)      |
-|  - Native System Tray, Always-on-Top ('screen-saver' level), Notifications    |
-|  - Full OS API (PowerShell Execution, File System, Clipboard, Screen Capture)  |
-+-------------------------------------------------------------------------------+
++---------------------------------------------------------------------------------------------------+
+|                              CRISTI AI COMPANION UI & ENGINE LAYER                                |
+|         React 19 + Vite 8 + PixiJS 7 + pixi-live2d-display (Cubism 4/5 Core) + Lucide Icons       |
++---------------------------------------------------------------------------------------------------+
+       |                                |                                   |
+       v                                v                                   v
++------------------------+   +------------------------+   +------------------------------------+
+| Live2D Kinetic Engine  |   | Gemini Multimodal Live |   | Sensory Vision & Voice Biometrics  |
+| - Model Registry (8x)  |   | - WebSocket S2S Client |   | - Face-API (128D Multi-Sample)     |
+| - Adaptive 30/60 Ticker|   | - 24kHz PCM Lip-Sync   |   | - MoveNet Multi-Pose Keypoints     |
+| - Texture Zero-Leak GC |   | - 25 Tool Declarations |   | - COCO-SSD Object Recognition      |
+| - DesktopCursorTracker |   | - Instant Barge-In     |   | - Speaker Recognition (Log-Mel)    |
+| - Dynamic Hit-Testing  |   | - Resilient Backoff    |   | - Win11 Lock Screen Notifications  |
++------------------------+   +------------------------+   +------------------------------------+
+       |                                |                                   |
+       +--------------------------------+-----------------------------------+
+                                        |
+                                        v
++---------------------------------------------------------------------------------------------------+
+|                        ENTERPRISE OBSERVABILITY & TELEMETRY ENGINE (F3)                           |
+|  - Real-time TPS / FPS & P99 Frame Pacing   - Process RSS & V8 Heap Memory Inspector              |
+|  - Subsystem Cost Attribution (ms/frame)    - Zero-Allocation Circular Ring Buffers (60s/5m/30m)  |
+|  - Autonomous Anomaly & Memory Stall Detector                                                     |
++---------------------------------------------------------------------------------------------------+
+                                        |
+                                        v
++---------------------------------------------------------------------------------------------------+
+|                             ELECTRON NATIVE DESKTOP SHELL (WINDOWS 11)                            |
+|  - Transparent Frameless Window (win.setIgnoreMouseEvents with selective { forward: true })       |
+|  - Anti-Throttling Chromium Flags (disable-background-timer-throttling, SharedArrayBuffer)         |
+|  - Virtual Desktop Continuity (mainWindow.setVisibleOnAllWorkspaces for Win+Tab switching)        |
+|  - Full OS Privileges (PowerShell Command Executor, File System, Clipboard, Screen Capture)       |
+|  - Windows System Tray Integration & Global Shortcuts Dispatcher (Ctrl+Shift+C, M, S)            |
++---------------------------------------------------------------------------------------------------+
 ```
 
 ---
 
-## 2. Click-Through Selectivo (Estilo Desktop Mate)
+## 2. Electron Native Desktop Shell & Click-Through Selectivo
 
-El sistema de ventana utiliza la técnica de **click-through selectivo** mediante la API nativa de Electron:
+El modo de ventana compañera flotante aprovecha la API de bajo nivel de Electron para ofrecer interacción simultánea con el asistente y con las ventanas del sistema operativo:
 
-1. **Inicialización**:
-   - `mainWindow` se crea como transparente, sin marcos (`frame: false`), ocupando el monitor completo y con `alwaysOnTop: 'screen-saver'`.
-   - Inicia con `mainWindow.setIgnoreMouseEvents(true, { forward: true })`.
-   - El flag `{ forward: true }` instruye a Windows a pasar los clics al escritorio u otras aplicaciones, pero continúa enviando los eventos `mousemove` a la ventana web.
-2. **Hook React `useClickThrough`**:
-   - Todos los componentes interactivos (avatar Live2D, menú contextual, modal de ajustes, widgets, dock inferior) usan `const { interactiveProps } = useClickThrough()`.
-   - `mouseenter` $\rightarrow$ `electronBridge.setIgnoreMouseEvents(false)` (el componente recibe interacción de ratón inmediata).
-   - `mouseleave` $\rightarrow$ `electronBridge.setIgnoreMouseEvents(true, { forward: true })` (el fondo vuelve a ser transparente para interacción con el escritorio y la barra de tareas de Windows).
-3. **Hit-Target Dinámico de Live2D**:
-   - `Live2DCanvas.jsx` sincroniza un div invisible (`.live2d-hit-target`) con el `getBounds()` exacto del modelo Live2D en cada frame a 60 FPS.
-   - El arrastre se realiza con `setPointerCapture` nativo y la rueda de desplazamiento escala el modelo suavemente.
+### A. Inicialización de Ventana
+* La ventana principal (`mainWindow`) se crea como transparente (`transparent: true`), sin bordes (`frame: false`), ocupando el monitor primario y con nivel de elevación `alwaysOnTop: 'screen-saver'`.
+* Se inicializa con `mainWindow.setIgnoreMouseEvents(true, { forward: true })`.
+* El parámetro `{ forward: true }` indica a Windows que redirija los eventos de clic al escritorio o a las aplicaciones detrás, pero **continúa enviando los eventos `mousemove` y `pointermove` a la ventana web**.
 
----
-
-## 3. Flujo del Motor Live2D Universal
-
-1. **`Live2DModelRegistry`**:
-   - Registra descriptores y perfiles de modelos (`*.profile.js`).
-   - Al cargar el archivo `.moc3` y sus texturas en WebGL, realiza introspección en tiempo de ejecución de los parámetros del modelo (`coreModel._parameterIds`), sus rangos numéricos y sus partes (`_partIds`).
-   - Normaliza nombres de parámetros en inglés, estándar y CJK.
-2. **`Live2DAdapter`**:
-   - Mapea identificadores semánticos estándar (`head_angle_x`, `eye_ball_x`, `mouth_open_y`, `breath`) a los parámetros nativos de cada modelo.
-   - Aplica interpolación exponencial suavizada (Lerp físico) en cada frame del ticker.
-   - Aplica reglas de ocultamiento de partes no deseadas (`hiddenParts`).
-3. **`Live2DController`**:
-   - Modela comportamientos orgánicos biológicos: respiración sinusoidal, parpadeo estocástico, microsaccadas oculares, cinética del habla e inclinación de cabeza al hablar.
-4. **`DesktopCursorTracker`**:
-   - Monitorea la posición del cursor respecto a la pantalla global $(screenX, screenY)$ y el rostro del avatar a 60 FPS sin retraso.
+### B. Hook React `useClickThrough`
+* Cada componente interactivo (avatar Live2D, menú contextual, modal de ajustes, widgets y botones) implementa `const { interactiveProps } = useClickThrough()`.
+* **`mouseenter`** $\rightarrow$ `electronBridge.setIgnoreMouseEvents(false)`: el componente captura clics de ratón inmediatamente.
+* **`mouseleave`** $\rightarrow$ `electronBridge.setIgnoreMouseEvents(true, { forward: true })`: el fondo vuelve a permitir clics sobre las aplicaciones del sistema.
+* **Hit-Target Dinámico Live2D:** Un contenedor invisible (`.live2d-hit-target`) sincroniza su posición y dimensiones con el `model.getBounds()` del avatar Live2D en cada cuadro, permitiendo arrastre nativo (`setPointerCapture`) y zoom con la rueda del ratón.
 
 ---
 
-## 4. Motor Físico y Cinemática Avanzada 2.0 (`Live2DPhysicsEngine.js`)
+## 3. Prevención de Throttling & Continuidad en Windows 11
 
-1. **Ecuaciones Armónicas Amortiguadas**:
-   - Simula movimiento pendular elástico ($F = -k \cdot x - c \cdot v + F_{\text{ext}}$) para oscilación natural de cabello (`ParamHairFront`, `ParamHairSide`, `ParamHairBack`), ropa y accesorios.
-2. **Generador Multi-Armónico de Viento**:
-   - Viento ambiental continuo con ráfagas estocásticas aleatorias y turbulencia no periódica.
-3. **Inercia y Fuerzas Centrífugas**:
-   - Los giros de cabeza (`ParamAngleX`, `ParamAngleY`, `ParamAngleZ`) y cuerpo inducen fuerzas de inercia directamente sobre los péndulos físicos.
+Por defecto, Chromium ralentiza los procesos de renderizado y timers cuando una ventana pierde el foco. Cristi AI Companion elimina este comportamiento mediante:
 
----
+```javascript
+// Switches Chromium en electron/main.cjs
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('enable-features', 'SharedArrayBuffer');
 
-## 5. Subsistema de Audio DSP, AudioWorklet & Gemini Live WebSocket
+// Configuración de WebContents
+mainWindow.webContents.setBackgroundThrottling(false);
+mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+```
 
-1. **Captura en Hilo Aislado con AudioWorklet (`AudioInputService.js`)**:
-   - Captura continua a $16\text{ kHz}$ PCM de 16 bits en Little Endian mediante `AudioWorkletNode` dedicado (`cristi-pcm-processor`), eliminando bloqueos de audio ocasionados por renderizado de la UI.
-   - Filtro paso-alto (HPF @ 80 Hz) para suprimir ruidos por viento y vibraciones mecánicas.
-   - Puerta de ruido (*Noise Gate*) adaptativa para amortiguar el ruido de fondo.
-2. **Biometría Vocal & Similitud de Coseno (`SpeakerRecognitionService.js`)**:
-   - Extracción de 80 bandas Log-Mel, 40 coeficientes cepstrales DCT-II y proyección a vectores 192D normalizados con norma L2.
-   - Si una voz desconocida interviene (`score < rejectThreshold`), Cristi silencia inmediatamente su respuesta y muestra una advertencia de seguridad.
-3. **Salida con Buffer de Jitter y Sincronización Labial (`AudioOutputService.js`)**:
-   - Recepción de fragmentos de audio a $24\text{ kHz}$ PCM con un lead-time nominal de 35ms para amortiguar la fluctuación de paquetes de red (*Jitter*).
-   - Extracción espectral multi-banda: frecuencias graves (80–450 Hz) para apertura de mandíbula (`ParamMouthOpenY`) y frecuencias agudas (450–3500 Hz) para ensanchamiento de labios (`ParamMouthForm`).
-4. **Reconexión Resiliente con Exponential Backoff (`GeminiLiveSocket.js`)**:
-   - Reconexión automática de hasta 5 intentos con retroceso exponencial (`Math.pow(1.8, attempts) + jitter`) y preservación del `sessionResumptionHandle`.
+Esto garantiza **60 FPS constantes** cuando el usuario juega a videojuegos en pantalla completa, utiliza programas en otras ventanas o cambia de escritorio virtual (`Win + Tab`).
 
 ---
 
-## 6. Persistencia, Atajos de Teclado & Empaquetado
+## 4. Motor Live2D Adaptativo y Ciclo de Vida con Cero Fugas
 
-1. **Gestor de Configuración Resiliente (`ConfigManager.js`)**:
-   - Auto-guardado de configuración, almacenamiento de historial de snapshots de respaldo en almacenamiento local, exportación e importación directa en formato JSON desde el modal de ajustes.
-2. **Atajos Globales Nativos de Windows**:
-   - `Ctrl + Shift + C`: Boss Key / Modo Residente.
-   - `Ctrl + Shift + M`: Silenciar / Activar micrófono.
-   - `Ctrl + Shift + S`: Captura de pantalla contextual instantánea para visión en Gemini Live.
-3. **Instalador NSIS Standalone**:
-   - Empaquetado automatizado con `electron-builder.config.cjs` generando `Cristi-Desktop-Setup-1.0.0.exe` de 64 bits con accesos directos y desinstalador limpio.
+### A. Ticker Cinemático Adaptativo
+Para reducir el consumo energético en sesiones prolongadas sin sacrificar fluidez:
+* **Modo Activo (Interacción / Conversación):** 60 FPS con sincronización labial espectral y físicas pendulares.
+* **Modo Inactivo (>4.5s sin interacción ni audio):** Capping adaptativo a 30 FPS con cálculo de delta-time continuo. Esto reduce el uso de GPU en un ~65% en reposo.
+* **Boss Key / Oculto:** Detención total de `app.ticker` y cancelación de requestAnimationFrame (0% CPU/GPU).
 
+### B. Destrucción Limpia de Memoria WebGL
+Para evitar acumulaciones de memoria al cambiar de personaje:
+1. Se destruyen las texturas y baseTextures recursivamente: `model.destroy({ children: true, texture: true, baseTexture: true })`.
+2. Se invoca `PIXI.utils.clearTextureCache()` para purgar las referencias internas de WebGL.
+3. Se desregistran todos los listeners de puntero y eventos de pérdida de contexto WebGL (`webglcontextlost` / `webglcontextrestored`).
+
+---
+
+## 5. DSP de Audio, Sincronización Labial y Biometría Vocal
+
+### A. Pipeline de Captura (AudioWorklet @ 16 kHz)
+* El micrófono captura audio mediante un hilo aislado `AudioWorkletNode` (`cristi-pcm-processor`), convirtiendo las muestras a PCM Int16 Little-Endian a 16 kHz.
+* Incorpora un filtro paso-alto (HPF @ 80 Hz) para eliminar vibraciones mecánicas y ruido de ventiladores.
+
+### B. Pipeline de Salida & Lip-Sync (@ 24 kHz)
+* El streaming entrante de Gemini Live se procesa con un buffer de Jitter de 35ms.
+* La apertura de la boca se calcula mediante la energía de bajas frecuencias (80–450 Hz) y la anchura de labios con altas frecuencias (450–3500 Hz).
+* Al terminar cada fragmento, `source.onended` invoca `source.disconnect()` para liberar los buffers de Float32 de la memoria de inmediato.
+
+### C. Biometría Vocal (*Voice ID*)
+* Extracción de 80 filtros Log-Mel y 40 coeficientes DCT-II para proyectar un embedding de 192 dimensiones.
+* Si el coeficiente de similitud de coseno respecto a las muestras del dueño está por debajo del umbral (`rejectThreshold`), Cristi silencia su respuesta por seguridad.
+
+---
+
+## 6. Enterprise Observability & Telemetry HUD (`F3`)
+
+El sistema incluye un analizador de rendimiento de ultra-bajo overhead (`PerformanceProfilerService.js`):
+* **TPS (Ticks Per Second):** Monitorea la frecuencia del bucle principal de actualización.
+* **FPS & P99 Frame Time:** Mide la consistencia de fotogramas y detecta micro-tirones (*frame drops*).
+* **Memoria V8 Heap vs. Proceso RSS:** Monitoreo dual del heap de JavaScript y de la memoria nativa de Windows vía IPC.
+* **Atribución de Tiempos:** Medición en microsegundos de cada subsistema (`live2d`, `audioDsp`, `visionSensory`, `uiReact`).
+* **Buffers Circulares:** Almacena métricas históricas a 60 segundos, 5 minutos y 30 minutos sin realizar reasignaciones dinámicas de arrays.

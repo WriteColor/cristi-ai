@@ -7,15 +7,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Mic,
-  MicOff,
   CheckCircle,
-  AlertTriangle,
   Sparkles,
   ShieldCheck,
-  RotateCcw,
-  Volume2,
   X,
-  Play,
   Square,
   Sliders,
   UserCheck,
@@ -23,7 +18,6 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { speakerRecognitionService } from '../services/audio/SpeakerRecognitionService.js';
-import { logger } from '../services/logger.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';
 import { soundFxService } from '../services/soundFxService.js';
 
@@ -91,6 +85,8 @@ export function VoiceEnrollmentModal({ isOpen, onClose, onEnrolled }) {
     if (!isOpen) return;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
+        e.stopPropagation();
+        e.stopImmediatePropagation?.();
         soundFxService.playClick();
         onClose();
       }
@@ -604,4 +600,4 @@ export function VoiceEnrollmentModal({ isOpen, onClose, onEnrolled }) {
   );
 }
 
-export default VoiceEnrollmentModal;
+export default React.memo(VoiceEnrollmentModal);

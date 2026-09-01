@@ -5,7 +5,6 @@
  */
 
 import { logger } from './logger.js';
-import { eventBus, EVENTS } from './eventBus.js';
 
 export const AI_MODELS_REGISTRY = {
   // 1. Face Detection & Recognition Models (Face-API)

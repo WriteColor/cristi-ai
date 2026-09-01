@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Check, Sparkles } from 'lucide-react';
+import { ChevronDown, Check } from 'lucide-react';
 import { soundFxService } from '../services/soundFxService.js';
 
 export function TacticalDropdown({

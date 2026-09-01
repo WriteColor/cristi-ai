@@ -292,7 +292,7 @@ export class Live2DController {
         this.nextSighInterval = 20000 + Math.random() * 25000; // 20-45s
         this.breathDepthModifier = 1.55;
       }
-      this.breathDepthModifier += (1.0 - this.breathDepthModifier) * (deltaSec * 0.7);
+      this.breathDepthModifier += (1.0 - this.breathDepthModifier) * (1.0 - Math.exp(-0.7 * deltaSec));
 
       const rawBreath = ((baseWave + subHarmonic + microJitter) * 0.5 + 0.5) * this.breathDepthModifier;
       const breathVal = Math.max(0, Math.min(1.0, rawBreath));
@@ -300,8 +300,8 @@ export class Live2DController {
     }
 
     // ── 2. Natural Autonomous Eye Blinking & Reactive Pupil Kinetics ─────────
-    // Smooth pupil aperture towards target
-    this.pupilAperture += (this.targetPupilAperture - this.pupilAperture) * (deltaSec * 4.0);
+    // Smooth pupil aperture towards target (continuous exponential decay)
+    this.pupilAperture += (this.targetPupilAperture - this.pupilAperture) * (1.0 - Math.exp(-4.0 * deltaSec));
 
     if (modelCaps.eyeBlink) {
       this.blinkTimer += deltaMs;
@@ -370,13 +370,13 @@ export class Live2DController {
       };
     }
 
-    // ── 4. Smooth Gaze & Head Orientation ─────────────────────────────────
-    const gazeLerp = Math.min(deltaSec * 5.5, 1.0);
+    // ── 4. Smooth Gaze & Head Orientation (Frame-Rate Independent) ────────
+    const gazeLerp = 1.0 - Math.exp(-5.5 * deltaSec);
     this.currentGaze.x += (this.targetGaze.x - this.currentGaze.x) * gazeLerp;
     this.currentGaze.y += (this.targetGaze.y - this.currentGaze.y) * gazeLerp;
 
-    this.speechHeadBob += (0 - this.speechHeadBob) * (deltaSec * 8.0);
-    this.speechBodySway += (0 - this.speechBodySway) * (deltaSec * 4.0);
+    this.speechHeadBob += (0 - this.speechHeadBob) * (1.0 - Math.exp(-8.0 * deltaSec));
+    this.speechBodySway += (0 - this.speechBodySway) * (1.0 - Math.exp(-4.0 * deltaSec));
 
     const headAngleX = this.currentGaze.x * 24;
     const headAngleY = this.currentGaze.y * 18 + this.speechHeadBob;
@@ -423,7 +423,18 @@ export class Live2DController {
   destroy() {
     this.unsubscribeList.forEach((unsub) => unsub());
     this.unsubscribeList = [];
-    this.adapter = null;
+    if (this.physicsEngine) {
+      this.physicsEngine.destroy();
+    }
+    if (this.adapter) {
+      this.adapter.destroy();
+      this.adapter = null;
+    }
+    this._expressionLockedParams?.clear();
+    this.blinkTimer = 0;
+    this.blinkProgress = -1;
+    this.sighTimer = 0;
+    this.saccadeTimer = 0;
   }
 }
 

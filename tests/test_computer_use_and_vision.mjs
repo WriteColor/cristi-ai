@@ -94,6 +94,9 @@ assert(mainSrc.includes('globalShortcut.register'), 'electron/main.cjs registra 
 assert(mainSrc.includes('CommandOrControl+Shift+C'), 'Atajo Boss Key (Ctrl+Shift+C) configurado.');
 assert(mainSrc.includes('CommandOrControl+Shift+M'), 'Atajo Mute Toggle (Ctrl+Shift+M) configurado.');
 assert(mainSrc.includes('CommandOrControl+Shift+S'), 'Atajo Vision Snapshot (Ctrl+Shift+S) configurado.');
+assert(mainSrc.includes('CommandOrControl+Shift+H'), 'Atajo Zen Mode / Hide UI (Ctrl+Shift+H) configurado.');
+assert(mainSrc.includes('CommandOrControl+Shift+P'), 'Atajo Telemetría Profiler (Ctrl+Shift+P) configurado.');
+assert(mainSrc.includes('CommandOrControl+Shift+A'), 'Atajo Always-On-Top Pin (Ctrl+Shift+A) configurado.');
 assert(mainSrc.includes('timeoutMs'), 'Timeout de 10s configurado en exec-command.');
 assert(mainSrc.includes('capture-screen-native'), 'Handler capture-screen-native configurado.');
 assert(mainSrc.includes('open-path'), 'Handler open-path configurado.');

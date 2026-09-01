@@ -2,11 +2,12 @@
  * Cristi AI - Proactive Trigger & Autonomous Behavior Engine
  * 
  * Manages autonomous companion triggers without requiring external prompts:
- * 1. Time-of-Day Contextual Greetings (Morning, Afternoon, Evening, Late Night)
+ * 1. Time-of-Day Contextual Greetings & Dynamics (Morning, Afternoon, Evening, Late Night)
  * 2. Pomodoro & Deep Work Focus Sessions (25m work / 5m break)
  * 3. Ergonomic Hydration & Posture Stretch Reminders
  * 4. PC Idle & Active Screen Session Monitoring
- * 5. Autonomous Affective Gestures & Spontaneous Companion Thoughts
+ * 5. Sensory Distraction & Anti-procrastination Interventions
+ * 6. Resilient Gemini Live Queuing with Connection Awareness & Cooldowns
  */
 
 import { eventBus, EVENTS } from './eventBus.js';
@@ -15,11 +16,17 @@ import { soundFxService } from './soundFxService.js';
 import { contextualEmotionOrchestrator } from './live2d/ContextualEmotionOrchestrator.js';
 import { logger } from './logger.js';
 
+const MIN_GLOBAL_INTERVENTION_COOLDOWN_MS = 30000; // 30s minimum between autonomous voice/popups
+const MAX_QUEUED_INTERVENTIONS = 3;
+const INTERVENTION_TTL_MS = 60000; // 60s TTL for queued proactive prompts
+
 export class ProactiveTriggerService {
-  constructor() {
+  constructor({ geminiSocket = null } = {}) {
     this.isRunning = false;
     this.activeTriggers = new Map();
     this.intervalId = null;
+    this.geminiSocket = geminiSocket;
+    this.unsubscribers = [];
 
     // Focus & Pomodoro State
     this.focusTimer = {
@@ -34,9 +41,70 @@ export class ProactiveTriggerService {
     this.lastUserActivityTimestamp = Date.now();
     this.sessionStartTimestamp = Date.now();
     this.lastHydrationPrompt = Date.now();
+    this.lastFatiguePrompt = Date.now();
+    this.lastInactivityDwell = Date.now();
     this.lastTimePeriodGreeting = null;
 
+    // Rate Limiting & Live State
+    this.lastAutonomousInterventionTime = 0;
+    this.isModelSpeaking = false;
+    this.isUserSpeaking = false;
+    this.interventionQueue = []; // Array of { id, text, timestamp, priority }
+
     this.initDefaultTriggers();
+    this.bindEvents();
+  }
+
+  /**
+   * Set or update Gemini Live socket reference
+   */
+  setGeminiSocket(socket) {
+    this.geminiSocket = socket;
+  }
+
+  /**
+   * Bind event bus signals to track speaking state, distraction, and scene changes
+   */
+  bindEvents() {
+    this.unsubscribers.push(
+      eventBus.on(EVENTS.SPEECH_START, () => {
+        this.isModelSpeaking = true;
+      })
+    );
+
+    this.unsubscribers.push(
+      eventBus.on(EVENTS.SPEECH_END, () => {
+        this.isModelSpeaking = false;
+        this.processInterventionQueue();
+      })
+    );
+
+    this.unsubscribers.push(
+      eventBus.on(EVENTS.USER_SPEAKING, () => {
+        this.isUserSpeaking = true;
+        this.recordUserActivity();
+      })
+    );
+
+    this.unsubscribers.push(
+      eventBus.on(EVENTS.USER_STOPPED_SPEAKING, () => {
+        this.isUserSpeaking = false;
+      })
+    );
+
+    // Distraction alert from vision system (e.g. phone in hand during work)
+    this.unsubscribers.push(
+      eventBus.on(EVENTS.DISTRACTION_ALERT, (data) => {
+        this.handleDistractionAlert(data);
+      })
+    );
+
+    // Scene state transition (e.g. owner returned, stranger approached)
+    this.unsubscribers.push(
+      eventBus.on(EVENTS.SCENE_STATE_CHANGED, (sceneState) => {
+        this.handleSceneStateChanged(sceneState);
+      })
+    );
   }
 
   /**
@@ -61,7 +129,6 @@ export class ProactiveTriggerService {
         return false;
       },
       action: ({ period }) => {
-        // Adjust avatar subtle idle pose without disturbing the user with emotional toasts
         const poses = {
           morning: 'happy',
           afternoon: 'relaxed',
@@ -97,6 +164,24 @@ export class ProactiveTriggerService {
         });
       }
     });
+
+    // 3. Inactivity Detection (User Idle for > 15m)
+    this.registerTrigger({
+      id: 'routine_inactivity_monitor',
+      intervalSeconds: 60,
+      condition: () => {
+        const idleSec = (Date.now() - this.lastUserActivityTimestamp) / 1000;
+        const dwellElapsed = (Date.now() - this.lastInactivityDwell) / 1000;
+        if (idleSec >= 900 && dwellElapsed >= 900) { // 15 mins
+          this.lastInactivityDwell = Date.now();
+          return { idleMinutes: Math.round(idleSec / 60) };
+        }
+        return false;
+      },
+      action: () => {
+        contextualEmotionOrchestrator.triggerEmotion('relaxed', 'proactive_idle');
+      }
+    });
   }
 
   /**
@@ -121,6 +206,16 @@ export class ProactiveTriggerService {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
+  }
+
+  destroy() {
+    this.stop();
+    this.unsubscribers.forEach((fn) => {
+      try { fn(); } catch (_) {}
+    });
+    this.unsubscribers = [];
+    this.activeTriggers.clear();
+    this.interventionQueue = [];
   }
 
   /**
@@ -175,6 +270,106 @@ export class ProactiveTriggerService {
           logger.warn('PROACTIVE', `Error evaluando trigger "${id}":`, err.message);
         }
       }
+    }
+
+    // 3. Process queued interventions if conditions are met
+    this.processInterventionQueue();
+  }
+
+  /**
+   * Handle distraction alert from vision system
+   */
+  handleDistractionAlert(data) {
+    const now = Date.now();
+    if (now - this.lastAutonomousInterventionTime < MIN_GLOBAL_INTERVENTION_COOLDOWN_MS) {
+      return;
+    }
+
+    this.lastAutonomousInterventionTime = now;
+    contextualEmotionOrchestrator.triggerEmotion('pout', 'distraction_alert');
+    toastService.warn('Detección de Distracción', data.message || 'Uso prolongado de dispositivo detectado.');
+    soundFxService.playNotification();
+
+    // If Gemini Live is connected, queue an empathetic voice reaction
+    this.queueIntervention({
+      id: `distraction_${now}`,
+      text: `[SISTEMA PROACTIVO: El usuario lleva más de ${data.duration || 30}s usando el teléfono celular. Llama su atención con cariño y picardía para que vuelva a enfocarse contigo]`,
+      priority: 2
+    });
+  }
+
+  /**
+   * Handle scene state changes (Owner returned, stranger arrived)
+   */
+  handleSceneStateChanged(sceneState) {
+    const now = Date.now();
+    if (now - this.lastAutonomousInterventionTime < MIN_GLOBAL_INTERVENTION_COOLDOWN_MS) {
+      return;
+    }
+
+    if (sceneState === 'OWNER_WITH_OTHERS') {
+      this.lastAutonomousInterventionTime = now;
+      contextualEmotionOrchestrator.triggerEmotion('yandere', 'scene_state_jealousy');
+      toastService.info('Alerta Sensorial', 'Presencia de terceros detectada frente a la cámara.');
+    } else if (sceneState === 'OWNER_ALONE') {
+      contextualEmotionOrchestrator.triggerEmotion('happy', 'scene_state_owner_alone');
+    }
+  }
+
+  /**
+   * Queue a proactive voice intervention safely
+   */
+  queueIntervention(item) {
+    const now = Date.now();
+    const entry = {
+      ...item,
+      timestamp: now
+    };
+
+    // Filter out expired items
+    this.interventionQueue = this.interventionQueue.filter(
+      (q) => now - q.timestamp < INTERVENTION_TTL_MS
+    );
+
+    if (this.interventionQueue.length >= MAX_QUEUED_INTERVENTIONS) {
+      this.interventionQueue.shift(); // Drop oldest
+    }
+
+    this.interventionQueue.push(entry);
+    this.processInterventionQueue();
+  }
+
+  /**
+   * Attempt to dispatch queued interventions to Gemini Live
+   */
+  processInterventionQueue() {
+    if (this.interventionQueue.length === 0) return;
+
+    const now = Date.now();
+    // Prune expired items
+    this.interventionQueue = this.interventionQueue.filter(
+      (q) => now - q.timestamp < INTERVENTION_TTL_MS
+    );
+
+    if (this.interventionQueue.length === 0) return;
+
+    // Check socket availability & quiet channel
+    const socket = this.geminiSocket;
+    const isSocketReady = socket && socket.isConnected && !socket.isConnecting;
+
+    if (!isSocketReady || this.isModelSpeaking || this.isUserSpeaking) {
+      return; // Wait until speech finishes and connection is healthy
+    }
+
+    if (now - this.lastAutonomousInterventionTime < MIN_GLOBAL_INTERVENTION_COOLDOWN_MS) {
+      return; // Respect minimum cooldown
+    }
+
+    const nextItem = this.interventionQueue.shift();
+    if (nextItem && typeof socket.sendTextMessage === 'function') {
+      this.lastAutonomousInterventionTime = now;
+      logger.info('PROACTIVE', 'Disparando intervención proactiva a Gemini Live:', nextItem.text);
+      socket.sendTextMessage(nextItem.text);
     }
   }
 
@@ -250,7 +445,8 @@ export class ProactiveTriggerService {
       activeTriggersCount: this.activeTriggers.size,
       focusSession: { ...this.focusTimer },
       sessionDurationMinutes: Math.round((Date.now() - this.sessionStartTimestamp) / (1000 * 60)),
-      timeSinceLastActivitySeconds: Math.round((Date.now() - this.lastUserActivityTimestamp) / 1000)
+      timeSinceLastActivitySeconds: Math.round((Date.now() - this.lastUserActivityTimestamp) / 1000),
+      queuedInterventionsCount: this.interventionQueue.length
     };
   }
 }

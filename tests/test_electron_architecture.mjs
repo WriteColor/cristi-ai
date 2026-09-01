@@ -4,7 +4,6 @@
  */
 
 import fs from 'fs';
-import path from 'path';
 
 console.log('================================================================');
 console.log('🧪 CRISTI DESKTOP - VERIFICACIÓN DE ARQUITECTURA ELECTRON (MATE)');
@@ -111,6 +110,11 @@ oldFiles.forEach(f => {
 
 // 7. Check Build Assets & Documentation
 console.log('\n[7/7] Verificando bundle de producción y documentación...');
+if (!fs.existsSync('dist/index.html')) {
+  try {
+    execSync('pnpm run build', { stdio: 'ignore' });
+  } catch (_) {}
+}
 assert(fs.existsSync('dist/index.html'), 'dist/index.html existe');
 const htmlContent = fs.readFileSync('dist/index.html', 'utf8');
 assert(htmlContent.includes('./assets/'), 'dist/index.html usa rutas relativas (base: ./)');

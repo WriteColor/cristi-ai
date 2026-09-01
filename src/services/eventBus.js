@@ -2,9 +2,23 @@
  * Cristi AI - Decoupled Global Event Bus & Signal Hub
  * Enables high-performance, pub/sub reactive communication across AI, Audio,
  * Live2D Avatar, Hardware/Sensors, Game Integration, and UI layers.
+ * 
+ * Features:
+ * - Robust error isolation: Handler errors do not halt notification pipeline
+ * - Zero-leak memory lifecycle: Sets auto-purged on empty, clean unsubscribers returned
+ * - Stream-rate GC optimization: High-frequency events (60Hz) excluded from historyBuffer
+ * - Safe iteration: Snapshot array iteration immune to subscriber mutations during emit
  */
 
-class EventBus {
+const HIGH_FREQUENCY_STREAM_EVENTS = new Set([
+  'audio_analysis',
+  'audio_chunk',
+  'parameter_changed',
+  'gaze_target_changed',
+  'vision_detections_updated'
+]);
+
+export class EventBus {
   constructor() {
     this.listeners = new Map();
     this.historyBuffer = [];
@@ -15,30 +29,45 @@ class EventBus {
    * Subscribe to an event
    * @param {string} event - Event name (e.g. 'audio_start', 'speech_end', 'sensor_event')
    * @param {Function} callback - Handler function
-   * @returns {Function} Unsubscribe function
+   * @returns {Function} Clean unsubscribe function
    */
   on(event, callback) {
-    if (typeof callback !== 'function') return () => {};
+    if (!event || typeof callback !== 'function') return () => {};
 
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set());
     }
     this.listeners.get(event).add(callback);
 
-    return () => this.off(event, callback);
+    let unsubscribed = false;
+    return () => {
+      if (unsubscribed) return;
+      unsubscribed = true;
+      this.off(event, callback);
+    };
   }
 
   /**
    * Subscribe to an event once
    * @param {string} event 
    * @param {Function} callback 
-   * @returns {Function} Unsubscribe function
+   * @returns {Function} Clean unsubscribe function
    */
   once(event, callback) {
-    const wrapper = (data) => {
+    if (!event || typeof callback !== 'function') return () => {};
+
+    let executed = false;
+    const wrapper = (data, timestamp) => {
+      if (executed) return;
+      executed = true;
       this.off(event, wrapper);
-      callback(data);
+      try {
+        callback(data, timestamp);
+      } catch (err) {
+        console.error(`[EventBus] Error in once-handler for event "${event}":`, err);
+      }
     };
+
     return this.on(event, wrapper);
   }
 
@@ -48,11 +77,59 @@ class EventBus {
    * @param {Function} callback 
    */
   off(event, callback) {
-    if (!this.listeners.has(event)) return;
-    this.listeners.get(event).delete(callback);
-    if (this.listeners.get(event).size === 0) {
+    if (!event || !this.listeners.has(event)) return;
+    const set = this.listeners.get(event);
+    set.delete(callback);
+    if (set.size === 0) {
       this.listeners.delete(event);
     }
+  }
+
+  /**
+   * Alias for off()
+   */
+  removeListener(event, callback) {
+    return this.off(event, callback);
+  }
+
+  /**
+   * Remove all listeners for a given event, or all listeners if no event specified
+   * @param {string} [event] 
+   */
+  removeAllListeners(event) {
+    if (event) {
+      this.listeners.delete(event);
+    } else {
+      this.listeners.clear();
+    }
+  }
+
+  /**
+   * Check if any listeners exist for an event
+   * @param {string} event 
+   * @returns {boolean}
+   */
+  hasListeners(event) {
+    return (this.listeners.get(event)?.size || 0) > 0;
+  }
+
+  /**
+   * Count active listeners for an event
+   * @param {string} event 
+   * @returns {number}
+   */
+  listenerCount(event) {
+    return this.listeners.get(event)?.size || 0;
+  }
+
+  /**
+   * Get raw array of active listeners for an event
+   * @param {string} event 
+   * @returns {Array<Function>}
+   */
+  rawListeners(event) {
+    const set = this.listeners.get(event);
+    return set ? Array.from(set) : [];
   }
 
   /**
@@ -61,21 +138,25 @@ class EventBus {
    * @param {any} data 
    */
   emit(event, data = null) {
+    if (!event) return;
     const timestamp = Date.now();
-    const eventRecord = { event, data, timestamp };
 
-    // Maintain circular debug buffer
-    this.historyBuffer.push(eventRecord);
-    if (this.historyBuffer.length > this.maxHistory) {
-      this.historyBuffer.shift();
+    // Only record non-stream discrete events to debug history buffer (avoids GC churn)
+    if (!HIGH_FREQUENCY_STREAM_EVENTS.has(event)) {
+      this.historyBuffer.push({ event, data, timestamp });
+      if (this.historyBuffer.length > this.maxHistory) {
+        this.historyBuffer.shift();
+      }
     }
 
-    if (!this.listeners.has(event)) return;
+    const set = this.listeners.get(event);
+    if (!set || set.size === 0) return;
 
-    const handlers = Array.from(this.listeners.get(event));
-    for (const handler of handlers) {
+    // Snapshot iteration to prevent concurrent modification bugs
+    const handlers = Array.from(set);
+    for (let i = 0; i < handlers.length; i++) {
       try {
-        handler(data, timestamp);
+        handlers[i](data, timestamp);
       } catch (err) {
         console.error(`[EventBus] Error in handler for event "${event}":`, err);
       }
@@ -83,7 +164,7 @@ class EventBus {
   }
 
   /**
-   * Clear all listeners
+   * Clear all listeners and history
    */
   clear() {
     this.listeners.clear();
@@ -119,6 +200,8 @@ export const EVENTS = {
   // Live2D Avatar & Dynamics
   MODEL_LOADING: 'model_loading',
   MODEL_LOADED: 'model_loaded',
+  MODEL_LOAD_FALLBACK: 'model_load_fallback',
+  MODEL_LOAD_ERROR: 'model_load_error',
   MODEL_CHANGED: 'model_changed',
   EMOTION_CHANGED: 'emotion_changed',
   EXPRESSION_CHANGED: 'expression_changed',
@@ -157,3 +240,5 @@ export const EVENTS = {
   WIDGET_TRIGGERED: 'widget_triggered',
   WIDGET_DISMISSED: 'widget_dismissed'
 };
+
+export default eventBus;

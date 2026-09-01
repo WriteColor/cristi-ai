@@ -17,7 +17,7 @@ import { loadGraphModel } from '@tensorflow/tfjs-converter';
 import * as faceapi from '@vladmandic/face-api';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import { VISION_CONFIG } from '../config/visionConfig.js';
-import { logger } from './logger.js';
+import { performanceProfiler } from './profiler/PerformanceProfilerService.js';
 
 const STORAGE_OWNER_SAMPLES = 'cristi_ai_owner_samples_v2';
 const STORAGE_OWNER_NAME = 'cristi_ai_owner_name_v2';
@@ -125,8 +125,13 @@ export class VisionDetectionService {
     this.isLoading = true;
 
     try {
-      // Ensure TensorFlow.js backend is fully initialized
+      // Ensure TensorFlow.js backend is fully initialized with zero texture hoarding and FP16
       try {
+        if (tf.env) {
+          tf.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 0);
+          tf.env().set('WEBGL_FORCE_F16_TEXTURES', true);
+          tf.env().set('WEBGL_PACK', true);
+        }
         await tf.ready();
       } catch (_) {}
 
@@ -178,9 +183,14 @@ export class VisionDetectionService {
   /**
    * Add a new reference sample descriptor (e.g. "Con lentes", "Sin lentes", "Perfil")
    */
-  async addOwnerSample(videoElement, sampleLabel = 'Muestra') {
+  async addOwnerSample(videoElementOrGetter, sampleLabel = 'Muestra') {
     if (!this.isModelsLoaded) {
       await this.loadModels();
+    }
+
+    const videoElement = typeof videoElementOrGetter === 'function' ? videoElementOrGetter() : videoElementOrGetter;
+    if (!videoElement || videoElement.readyState < 2) {
+      throw new Error('La cámara aún se está inicializando. Por favor espera un instante y reintenta.');
     }
 
     const detection = await faceapi
@@ -236,22 +246,41 @@ export class VisionDetectionService {
   /**
    * Start the real-time detection and tracking loop
    */
-  start(videoElement, overlayCanvas = null) {
+  async start(videoElementOrGetter, overlayCanvasOrGetter = null) {
+    this.videoSource = videoElementOrGetter;
+    this.canvasSource = overlayCanvasOrGetter;
+
     if (this.isRunning) return;
     this.isRunning = true;
+
+    if (!this.isModelsLoaded && !this.isLoading) {
+      await this.loadModels();
+    }
 
     const detectFrame = async () => {
       if (!this.isRunning) return;
 
-      await this.processVideoFrame(videoElement, overlayCanvas);
-      this.animationFrameId = requestAnimationFrame(detectFrame);
+      try {
+        const video = typeof this.videoSource === 'function' ? this.videoSource() : this.videoSource;
+        const canvas = typeof this.canvasSource === 'function' ? this.canvasSource() : this.canvasSource;
+
+        if (video && video.readyState >= 2) {
+          await this.processVideoFrame(video, canvas);
+        }
+      } catch (err) {
+        console.warn('Frame processing tick notice:', err);
+      }
+
+      if (this.isRunning) {
+        this.animationFrameId = requestAnimationFrame(detectFrame);
+      }
     };
 
     this.animationFrameId = requestAnimationFrame(detectFrame);
   }
 
-  startTracking(videoElement, overlayCanvas = null) {
-    return this.start(videoElement, overlayCanvas);
+  startTracking(videoElementOrGetter, overlayCanvasOrGetter = null) {
+    return this.start(videoElementOrGetter, overlayCanvasOrGetter);
   }
 
   stop() {
@@ -260,10 +289,67 @@ export class VisionDetectionService {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
+
+    // Clean up HUD overlay canvas so no frozen bounding boxes remain
+    try {
+      const canvas = typeof this.canvasSource === 'function' ? this.canvasSource() : this.canvasSource;
+      if (canvas && canvas.getContext) {
+        const ctx = canvas.getContext('2d');
+        ctx?.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    } catch (_) {}
+
+    this.videoSource = null;
+    this.canvasSource = null;
+
+    this.currentDetections = {
+      faces: [],
+      objects: [],
+      pose: null,
+      phoneInHand: false,
+      closestDistance: null,
+      phoneUsageSeconds: 0,
+      sceneState: 'NO_ONE',
+      summary: ''
+    };
   }
 
   stopTracking() {
     return this.stop();
+  }
+
+  /**
+   * Safely unload neural network weights and release WebGL memory
+   */
+  unloadModels() {
+    this.stop();
+    if (this.movenetModel) {
+      try { this.movenetModel.dispose(); } catch (_) {}
+      this.movenetModel = null;
+    }
+    if (this.cocoModel) {
+      try { this.cocoModel.dispose?.(); } catch (_) {}
+      this.cocoModel = null;
+    }
+    this.faceMatcher = null;
+    this.isModelsLoaded = false;
+    this.isLoading = false;
+  }
+
+  dispose() {
+    this.unloadModels();
+  }
+
+  /**
+   * Returns current TensorFlow.js memory telemetry (numTensors, numBytes, etc.)
+   */
+  getMemoryInfo() {
+    try {
+      if (tf && tf.memory) {
+        return tf.memory();
+      }
+    } catch (_) {}
+    return null;
   }
 
   async processVideoFrame(videoElement, overlayCanvas = null) {
@@ -275,13 +361,14 @@ export class VisionDetectionService {
     const elapsedSec = (now - this.lastProcessTime) / 1000;
     this.lastProcessTime = now;
 
-    try {
-      const displaySize = {
-        width: videoElement.videoWidth || 640,
-        height: videoElement.videoHeight || 480
-      };
+    return performanceProfiler.measure('visionSensory', async () => {
+      try {
+        const displaySize = {
+          width: videoElement.videoWidth || 640,
+          height: videoElement.videoHeight || 480
+        };
 
-      // 1. Run Face API, Object Detection & MoveNet Pose in Parallel
+        // 1. Run Face API, Object Detection & MoveNet Pose in Parallel
       const [faceDetections, objectDetections] = await Promise.all([
         faceapi
           .detectAllFaces(videoElement, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.45 }))
@@ -293,20 +380,19 @@ export class VisionDetectionService {
 
       let poseKeypoints = null;
       if (this.movenetModel) {
+        let expanded = null;
+        let prediction = null;
         try {
-          const tfImg = tf.browser.fromPixels(videoElement);
-          const resized = tf.image.resizeBilinear(tfImg, [192, 192]);
-          const casted = tf.cast(resized, 'int32');
-          const expanded = tf.expandDims(casted, 0);
+          // Wrap preprocessing in tf.tidy to automatically collect intermediate tensors
+          expanded = tf.tidy(() => {
+            const tfImg = tf.browser.fromPixels(videoElement);
+            const resized = tf.image.resizeBilinear(tfImg, [192, 192]);
+            const casted = tf.cast(resized, 'int32');
+            return tf.expandDims(casted, 0);
+          });
 
-          const prediction = this.movenetModel.predict(expanded);
+          prediction = this.movenetModel.predict(expanded);
           const arrayData = await prediction.array();
-
-          tfImg.dispose();
-          resized.dispose();
-          casted.dispose();
-          expanded.dispose();
-          prediction.dispose();
 
           if (arrayData && arrayData[0] && arrayData[0][0]) {
             poseKeypoints = arrayData[0][0].map((kp, idx) => ({
@@ -316,7 +402,16 @@ export class VisionDetectionService {
               score: kp[2]
             }));
           }
-        } catch (_) {}
+        } catch (_) {
+          // MoveNet inference fallback notice
+        } finally {
+          if (expanded) {
+            try { expanded.dispose(); } catch (_) {}
+          }
+          if (prediction) {
+            try { prediction.dispose(); } catch (_) {}
+          }
+        }
       }
 
       // 2. Identify Faces (Owner vs Stranger)
@@ -464,7 +559,7 @@ export class VisionDetectionService {
       this.currentDetections = {
         faces: processedFaces,
         objects: objectDetections,
-        pose: mainPose,
+        pose: poseKeypoints,
         phoneInHand,
         closestDistance: closestDistance === Infinity ? null : Math.round(closestDistance),
         phoneUsageSeconds: Math.round(this.phoneUsageDurationSeconds),
@@ -483,6 +578,7 @@ export class VisionDetectionService {
     } catch (err) {
       console.error('Error en processVideoFrame:', err);
     }
+    });
   }
 
   /**

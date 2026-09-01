@@ -4,7 +4,7 @@
  * without coupling the core AI or animation logic to specific parameter IDs.
  */
 
-import { ALL_MODEL_PROFILES, MODEL_PROFILES_MAP } from './models/index.js';
+import { ALL_MODEL_PROFILES } from './models/index.js';
 
 export class Live2DModelRegistry {
   constructor() {

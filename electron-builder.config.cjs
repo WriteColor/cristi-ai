@@ -1,19 +1,23 @@
 'use strict';
 
 module.exports = {
-  appId: 'com.cristi.desktop',
-  productName: 'Cristi Desktop',
-  copyright: 'Copyright © 2026 Cristi AI Team',
+  appId: 'com.cristi.companion',
+  productName: 'Cristi AI Companion',
+  copyright: 'Copyright © 2026 Write_Color',
   directories: {
     output: 'release',
     buildResources: 'resources',
   },
+  compression: 'maximum',
+  asar: true,
   files: [
     'dist/**/*',
     'electron/**/*',
-    'public/**/*',
-    'resources/**/*',
     'package.json',
+    '!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}',
+    '!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}',
+    '!**/node_modules/*.d.ts',
+    '!**/node_modules/.bin',
   ],
   win: {
     target: [
@@ -23,8 +27,9 @@ module.exports = {
       },
     ],
     icon: 'resources/icons/icon.ico',
-    requestedExecutionLevel: 'asInvoker',
-    artifactName: 'Cristi-Desktop-Setup-${version}.${ext}',
+    requestedExecutionLevel: 'requireAdministrator',
+    forceCodeSigning: false,
+    artifactName: 'Cristi-AI-Companion-Setup-${version}.${ext}',
   },
   nsis: {
     oneClick: false,
@@ -33,25 +38,13 @@ module.exports = {
     allowElevation: true,
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
-    shortcutName: 'Cristi Desktop',
+    shortcutName: 'Cristi AI Companion',
     installerIcon: 'resources/icons/icon.ico',
     uninstallerIcon: 'resources/icons/icon.ico',
-    uninstallDisplayName: 'Cristi Desktop',
+    uninstallDisplayName: 'Cristi AI Companion',
     deleteAppDataOnUninstall: false,
     runAfterFinish: true,
+    differentialPackage: true,
   },
-  publish: [
-    {
-      provider: 'generic',
-      url: 'https://releases.cristi.ai/download',
-    },
-  ],
-  extraResources: [
-    {
-      from: 'public/',
-      to: 'public/',
-      filter: ['**/*'],
-    },
-  ],
 };
 

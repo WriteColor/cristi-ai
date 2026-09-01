@@ -10,9 +10,21 @@
  */
 
 export class SpeechRecognitionService {
-  constructor({ onInterimText, onFinalText, onError, onStatusChange, lang = 'es-ES' }) {
+  constructor({
+    onInterimText,
+    onFinalText,
+    onResult,
+    onSpeechStart,
+    onSpeechEnd,
+    onError,
+    onStatusChange,
+    lang = 'es-ES'
+  } = {}) {
     this.onInterimText = onInterimText || (() => {});
     this.onFinalText = onFinalText || (() => {});
+    this.onResult = onResult || null;
+    this.onSpeechStart = onSpeechStart || (() => {});
+    this.onSpeechEnd = onSpeechEnd || (() => {});
     this.onError = onError || (() => {});
     this.onStatusChange = onStatusChange || (() => {});
     this.lang = lang;
@@ -21,15 +33,19 @@ export class SpeechRecognitionService {
     this.isListening = false;
     this.shouldStayActive = false;
     this.silenceTimer = null;
+    this.restartTimer = null;
     this.currentInterim = '';
 
     this.initRecognition();
   }
 
   initRecognition() {
-    const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognitionClass = typeof window !== 'undefined'
+      ? (window.SpeechRecognition || window.webkitSpeechRecognition)
+      : null;
+
     if (!SpeechRecognitionClass) {
-      console.warn('Web Speech API no disponible en este navegador.');
+      console.warn('[SpeechRecognition] Web Speech API no disponible en este entorno.');
       return;
     }
 
@@ -43,6 +59,7 @@ export class SpeechRecognitionService {
       this.recognition.onstart = () => {
         this.isListening = true;
         this.onStatusChange(true);
+        this.onSpeechStart();
       };
 
       this.recognition.onresult = (event) => {
@@ -61,6 +78,9 @@ export class SpeechRecognitionService {
         if (interimTranscript) {
           this.currentInterim = interimTranscript;
           this.onInterimText(interimTranscript);
+          if (this.onResult) {
+            this.onResult(interimTranscript, false);
+          }
 
           // If user pauses after speaking an interim sentence for > 1200ms, finalize it
           clearTimeout(this.silenceTimer);
@@ -69,6 +89,9 @@ export class SpeechRecognitionService {
               const pendingText = this.currentInterim.trim();
               this.currentInterim = '';
               this.onFinalText(pendingText);
+              if (this.onResult) {
+                this.onResult(pendingText, true);
+              }
             }
           }, 1200);
         }
@@ -76,30 +99,38 @@ export class SpeechRecognitionService {
         if (finalTranscript && finalTranscript.trim().length > 0) {
           clearTimeout(this.silenceTimer);
           this.currentInterim = '';
-          this.onFinalText(finalTranscript.trim());
+          const trimmed = finalTranscript.trim();
+          this.onFinalText(trimmed);
+          if (this.onResult) {
+            this.onResult(trimmed, true);
+          }
         }
       };
 
       this.recognition.onerror = (event) => {
-        if (event.error === 'no-speech') {
-          // Normal silence, no action needed
+        if (event.error === 'no-speech' || event.error === 'aborted') {
+          // Normal silence / cancel, no action needed
           return;
         }
-        if (event.error === 'aborted') {
-          return;
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          console.warn('[SpeechRecognition] Permiso denegado para reconocimiento de voz.');
+          this.shouldStayActive = false;
+        } else {
+          console.warn('[SpeechRecognition] Notice:', event.error);
         }
-        console.warn('Speech Recognition Notice:', event.error);
         this.onError(event);
       };
 
       this.recognition.onend = () => {
         this.isListening = false;
         this.onStatusChange(false);
+        this.onSpeechEnd();
 
         // Auto-restart if session is still active
         if (this.shouldStayActive) {
-          setTimeout(() => {
-            if (this.shouldStayActive && !this.isListening) {
+          if (this.restartTimer) clearTimeout(this.restartTimer);
+          this.restartTimer = setTimeout(() => {
+            if (this.shouldStayActive && !this.isListening && this.recognition) {
               try {
                 this.recognition.start();
               } catch (e) {}
@@ -108,7 +139,7 @@ export class SpeechRecognitionService {
         }
       };
     } catch (err) {
-      console.error('Error al inicializar reconocimiento de voz:', err);
+      console.error('[SpeechRecognition] Error al inicializar:', err);
     }
   }
 
@@ -120,6 +151,10 @@ export class SpeechRecognitionService {
   }
 
   start() {
+    if (!this.isSupported()) return;
+    if (!this.recognition) {
+      this.initRecognition();
+    }
     if (!this.recognition) return;
     this.shouldStayActive = true;
     if (!this.isListening) {
@@ -134,6 +169,10 @@ export class SpeechRecognitionService {
   stop() {
     this.shouldStayActive = false;
     clearTimeout(this.silenceTimer);
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = null;
+    }
     if (this.recognition && this.isListening) {
       try {
         this.recognition.stop();
@@ -141,9 +180,21 @@ export class SpeechRecognitionService {
     }
     this.isListening = false;
     this.onStatusChange(false);
+    this.onSpeechEnd();
+  }
+
+  destroy() {
+    this.stop();
+    if (this.recognition) {
+      this.recognition.onstart = null;
+      this.recognition.onresult = null;
+      this.recognition.onerror = null;
+      this.recognition.onend = null;
+      this.recognition = null;
+    }
   }
 
   isSupported() {
-    return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+    return typeof window !== 'undefined' && Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
   }
 }

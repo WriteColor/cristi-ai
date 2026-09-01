@@ -26,6 +26,7 @@ export { ConfigManager, configManager } from './configManager.js';
 export { SoundFxService, soundFxService } from './soundFxService.js';
 export { ProactiveTriggerService, proactiveTriggerService } from './proactiveTriggerService.js';
 export { SceneManager, sceneManager } from './sceneManager.js';
+export { PerformanceProfilerService, performanceProfiler } from './profiler/PerformanceProfilerService.js';
 export { logger } from './logger.js';
 
 

@@ -340,7 +340,7 @@ export class Live2DAdapter {
           nextVal = bezier.targetVal;
         }
       } else {
-        // 2. Exponential Lerp
+        // 2. Exponential Lerp - frame-rate normalized for 60Hz-240Hz
         let speed = this.speeds.custom;
         const lower = paramId.toLowerCase();
         if (lower.includes('mouth')) speed = this.speeds.mouth;
@@ -352,7 +352,8 @@ export class Live2DAdapter {
         else if (lower.includes('breath')) speed = this.speeds.breath;
         else if (lower.includes('hair') || lower.includes('cloth') || lower.includes('ribbon') || lower.includes('tail')) speed = this.speeds.physics;
 
-        const factor = Math.min(speed * deltaTime * 1.5, 1.0);
+        const dtSec = Math.max(0, (deltaTime * 16.6667) / 1000);
+        const factor = 1.0 - Math.exp(-speed * 90.0 * dtSec);
         nextVal = currentVal + (targetVal - currentVal) * factor;
       }
 
@@ -367,6 +368,18 @@ export class Live2DAdapter {
         }
       } catch (_) {}
     }
+  }
+
+  /**
+   * Release references and clear transition maps
+   */
+  destroy() {
+    this.currentValues.clear();
+    this.targetValues.clear();
+    this.bezierTransitions.clear();
+    this.model = null;
+    this.mapping = {};
+    this.profile = null;
   }
 }
 
