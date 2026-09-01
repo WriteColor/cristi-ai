@@ -14,7 +14,6 @@ export class SystemTrayService {
     onToggleViewMode,
     onToggleAlwaysOnTop,
     onOpenVoiceEnrollment,
-    onOpenLockSandbox,
     onExitApp
   } = {}) {
     this.onRestoreWindow = onRestoreWindow || (() => {});
@@ -22,7 +21,6 @@ export class SystemTrayService {
     this.onToggleViewMode = onToggleViewMode || (() => {});
     this.onToggleAlwaysOnTop = onToggleAlwaysOnTop || (() => {});
     this.onOpenVoiceEnrollment = onOpenVoiceEnrollment || (() => {});
-    this.onOpenLockSandbox = onOpenLockSandbox || (() => {});
     this.onExitApp = onExitApp || (() => {});
     this.isInitialized = false;
   }

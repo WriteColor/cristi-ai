@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-01T02:14:09.425Z",
+  "timestamp": "2026-09-01T02:41:37.344Z",
   "profilerVersion": "2.0.0-spark",
   "environment": {
     "os": "win32",
@@ -19,19 +19,19 @@
     },
     "mspt": {
       "min": 0.01,
-      "avg": 4.22,
+      "avg": 4.27,
       "p50": 4.2,
       "p90": 4.3,
       "p95": 4.3,
-      "p99": 8.19,
-      "max": 8.4
+      "p99": 8.12,
+      "max": 41.6
     },
     "frameBudgetMs": 16.6667,
     "totalActiveTickCostMs": 5.42,
     "idleBudgetRemainingMs": 11.25,
-    "sparkline": " ▇▇▇▇▇▇▇▇█▇▇▇▇▇▇█▇▇▇▇▇█▇▇▇▇▇▇▇",
-    "droppedTicks": 0,
-    "totalTicksSampled": 712
+    "sparkline": " ▇▇▇▇▇█▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇█▇▇▇▇",
+    "droppedTicks": 1,
+    "totalTicksSampled": 703
   },
   "subsystems": {
     "SYS-01": {
@@ -228,18 +228,26 @@
     }
   },
   "lagSpikes": {
-    "totalDetected": 0,
+    "totalDetected": 1,
     "criticalCount": 0,
-    "warningCount": 0,
-    "incidents": []
+    "warningCount": 1,
+    "incidents": [
+      {
+        "type": "FRAME_DROP_HITCH",
+        "subsystemId": "SYS-02",
+        "durationMs": 41.6,
+        "timestamp": 1112757,
+        "attribution": "Frame duration took 41.60ms (> 33.3ms threshold)"
+      }
+    ]
   },
   "memory": {
-    "jsHeapUsedMB": 47.14,
-    "jsHeapTotalMB": 48.39,
-    "heapUtilizationPct": 97.4,
+    "jsHeapUsedMB": 89.81,
+    "jsHeapTotalMB": 91.92,
+    "heapUtilizationPct": 97.7,
     "processWorkingSetMB": 215.4
   },
   "healthVerdict": "PERFECT_60FPS",
-  "profilerRunDurationMs": 3533,
+  "profilerRunDurationMs": 3500,
   "mode": "LIVE_CDP"
 }

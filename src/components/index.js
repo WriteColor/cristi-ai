@@ -14,8 +14,6 @@ export { SubtitleOverlay } from './SubtitleOverlay.jsx';
 export { ErrorBoundary } from './ErrorBoundary.jsx';
 export { ToastContainer } from './ToastContainer.jsx';
 export { DesktopWidgets } from './DesktopWidgets.jsx';
-export { LockScreenWidget } from './LockScreenWidget.jsx';
-export { LockScreenSandbox } from './LockScreenSandbox.jsx';
 export { VoiceEnrollmentModal } from './VoiceEnrollmentModal.jsx';
 export { SpeakerDiagnosticsHUD } from './SpeakerDiagnosticsHUD.jsx';
 export { BackgroundScene } from './BackgroundScene.jsx';

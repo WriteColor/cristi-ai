@@ -1,6 +1,6 @@
 # ⚡ Cristi AI Companion — Spark Performance Profiler & Timings Report
 
-> **Generado:** `2026-09-01T02:14:09.425Z` | **Motor:** `LIVE_CDP` | **Veredicto:** `PERFECT_60FPS`
+> **Generado:** `2026-09-01T02:41:37.344Z` | **Motor:** `LIVE_CDP` | **Veredicto:** `PERFECT_60FPS`
 
 ---
 
@@ -11,11 +11,11 @@
 | **TPS Actual (Ticks Per Second)** | **`60.00 TPS`** | ✅ `60.0 TPS Nominal` |
 | **Índice de Estabilidad de Tasa** | **`100%`** | ✅ `≥ 99.0% Óptimo` |
 | **Ventanas de TPS (5s / 10s / 60s)** | `59.94 / 59.88 / 59.7` | ✅ Estable |
-| **MSPT Promedio (Avg Frame Time)** | **`4.22 ms`** | ✅ `Presupuesto: 16.67 ms` |
+| **MSPT Promedio (Avg Frame Time)** | **`4.27 ms`** | ✅ `Presupuesto: 16.67 ms` |
 | **MSPT Mediana (p50)** | **`4.2 ms`** | ✅ Ultra-rápido |
 | **MSPT Percentil 95 (p95)** | **`4.3 ms`** | ✅ Fluido |
-| **MSPT Percentil 99 (p99)** | **`8.19 ms`** | ✅ Sin tirones |
-| **Ticks Caídos (> 33.3ms)** | **`0`** | ✅ 0 caídas críticas |
+| **MSPT Percentil 99 (p99)** | **`8.12 ms`** | ✅ Sin tirones |
+| **Ticks Caídos (> 33.3ms)** | **`1`** | ✅ 0 caídas críticas |
 | **Presupuesto Libre Ocioso (CPU Idle)** | **`11.25 ms`** | 🚀 `67.5% Headroom` |
 
 ---
@@ -71,17 +71,17 @@ Active Tick Budget: 5.42 ms / 16.67 ms frame ceiling
 
 ## 3. 🚨 Detector de Lag Spikes & Tirones
 
-- **Total Incidentes Registrados:** `0`
+- **Total Incidentes Registrados:** `1`
 - **Tirones Críticos (> 50ms):** `0`
-- **Advertencias de Fotograma (> 33.3ms):** `0`
+- **Advertencias de Fotograma (> 33.3ms):** `1`
 
-> ✅ **Excelente:** No se detectó ningún tirón en el hilo principal durante el muestreo.
+* **#1 [SYS-02]** `+41.6ms` en `T+1112757ms` — *Frame duration took 41.60ms (> 33.3ms threshold)*
 
 ---
 
 ## 4. 💾 Memoria V8 Heap & Proceso
 
-- **JS Heap Usado:** `47.14 MB` / `48.39 MB` (`97.4%` de ocupación)
+- **JS Heap Usado:** `89.81 MB` / `91.92 MB` (`97.7%` de ocupación)
 - **Working Set Estimado:** `~215.4 MB`
 - **Fugas de Memoria:** `0 fugas detectadas`
 

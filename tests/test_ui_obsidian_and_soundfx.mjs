@@ -112,10 +112,6 @@ const voiceEnrollSrc = fs.readFileSync('src/components/VoiceEnrollmentModal.jsx'
 assert(voiceEnrollSrc.includes('e.key === \'Escape\''), 'VoiceEnrollmentModal escucha tecla Escape.');
 assert(voiceEnrollSrc.includes('stopPropagation'), 'VoiceEnrollmentModal detiene propagación de Escape.');
 
-const lockSandboxSrc = fs.readFileSync('src/components/LockScreenSandbox.jsx', 'utf8');
-assert(lockSandboxSrc.includes('e.key === \'Escape\''), 'LockScreenSandbox escucha tecla Escape.');
-assert(lockSandboxSrc.includes('stopPropagation'), 'LockScreenSandbox detiene propagación de Escape.');
-
 const contextMenuSrc = fs.readFileSync('src/components/ContextMenu.jsx', 'utf8');
 assert(contextMenuSrc.includes('e.key === \'Escape\''), 'ContextMenu escucha tecla Escape.');
 assert(contextMenuSrc.includes('stopPropagation'), 'ContextMenu detiene propagación de Escape.');

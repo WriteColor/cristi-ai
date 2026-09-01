@@ -11,8 +11,6 @@ import {
   ScreenRegionPicker,
   ToastContainer,
   DesktopWidgets,
-  LockScreenWidget,
-  LockScreenSandbox,
   VoiceEnrollmentModal,
   SpeakerDiagnosticsHUD,
   BackgroundScene,
@@ -35,7 +33,6 @@ import {
   live2dModelRegistry,
   contextualEmotionOrchestrator,
   electronBridge,
-  lockScreenService,
   clickThroughService,
   speakerRecognitionService,
   modelManager,
@@ -139,8 +136,6 @@ export function App() {
   });
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false);
   const [isClickThroughEnabled, setIsClickThroughEnabled] = useState(true);
-  const [isLockScreenActive, setIsLockScreenActive] = useState(false);
-  const [isLockSandboxOpen, setIsLockSandboxOpen] = useState(false);
   const [isVoiceEnrollmentOpen, setIsVoiceEnrollmentOpen] = useState(false);
   const [speakerDecision, setSpeakerDecision] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
@@ -161,7 +156,6 @@ export function App() {
   const isAnyModalOpen = Boolean(
     isSettingsOpen ||
     isVoiceEnrollmentOpen ||
-    isLockSandboxOpen ||
     isRegionPickerOpen ||
     contextMenu.isOpen ||
     isPerformanceHudOpen
@@ -252,8 +246,6 @@ export function App() {
           setIsRegionPickerOpen(false);
         } else if (isVoiceEnrollmentOpen) {
           setIsVoiceEnrollmentOpen(false);
-        } else if (isLockSandboxOpen) {
-          setIsLockSandboxOpen(false);
         } else if (isSettingsOpen) {
           setIsSettingsOpen(false);
         } else if (isPerformanceHudOpen) {
@@ -296,7 +288,6 @@ export function App() {
     contextMenu.isOpen,
     isRegionPickerOpen,
     isVoiceEnrollmentOpen,
-    isLockSandboxOpen,
     isSettingsOpen,
     isPerformanceHudOpen
   ]);
@@ -335,9 +326,6 @@ export function App() {
           },
           onOpenVoiceEnrollment: () => {
             setIsVoiceEnrollmentOpen(true);
-          },
-          onOpenLockSandbox: () => {
-            setIsLockSandboxOpen(true);
           }
         });
 
@@ -407,12 +395,6 @@ export function App() {
       setSpeakerDecision(telemetry.lastDecision);
     });
 
-    // Initialize Windows 11 Lock Screen Service
-    lockScreenService.init();
-    const unsubLock = lockScreenService.onStateChange((isLocked) => {
-      setIsLockScreenActive(isLocked);
-    });
-
     if (typeof window !== 'undefined') {
       window.__cristiEventBus = eventBus;
       window.__cristiOpenVoiceEnrollment = () => setIsVoiceEnrollmentOpen(true);
@@ -424,7 +406,6 @@ export function App() {
       if (systemTrayRef.current?._unsubShortcuts) {
         systemTrayRef.current._unsubShortcuts();
       }
-      unsubLock();
       unsubSpeaker();
     };
   }, []);
@@ -916,9 +897,6 @@ export function App() {
       closeSettings: () => setIsSettingsOpen(false),
       openContextMenu: (x, y) => handleModelContextMenu({ clientX: x || 300, clientY: y || 200 }),
       closeContextMenu: () => setContextMenu({ isOpen: false, x: 0, y: 0, modelBounds: null }),
-      openLockSandbox: () => setIsLockSandboxOpen(true),
-      closeLockSandbox: () => setIsLockSandboxOpen(false),
-      toggleLockScreen: () => setIsLockScreenActive((prev) => !prev),
       openPerformanceHUD: () => setIsPerformanceHudOpen(true),
       closePerformanceHUD: () => setIsPerformanceHudOpen(false),
       openRegionPicker: () => setIsRegionPickerOpen(true),
@@ -926,7 +904,6 @@ export function App() {
       getModalStates: () => ({
         isSettingsOpen,
         isContextMenuOpen: contextMenu.isOpen,
-        isLockSandboxOpen,
         isRegionPickerOpen,
         isPerformanceHudOpen,
         isVoiceEnrollmentOpen
@@ -977,7 +954,6 @@ export function App() {
     setSubtitleText,
     isSettingsOpen,
     contextMenu,
-    isLockSandboxOpen,
     isRegionPickerOpen,
     isPerformanceHudOpen,
     isVoiceEnrollmentOpen
@@ -1073,8 +1049,6 @@ export function App() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       window.__cristiOpenContextMenu = (x, y) => handleModelContextMenu({ clientX: x || 300, clientY: y || 200 });
-      window.__cristiToggleLockScreen = () => setIsLockScreenActive((prev) => !prev);
-      window.__cristiOpenLockSandbox = () => setIsLockSandboxOpen(true);
     }
   }, [handleModelContextMenu]);
 
@@ -1240,9 +1214,6 @@ export function App() {
         onToggleWidgets={() => setShowWidgets((prev) => !prev)}
         isClickThroughEnabled={isClickThroughEnabled}
         onToggleClickThrough={() => setIsClickThroughEnabled((prev) => !prev)}
-        isLockScreenActive={isLockScreenActive}
-        onToggleLockScreen={() => setIsLockScreenActive((prev) => !prev)}
-        onOpenLockSandbox={() => setIsLockSandboxOpen(true)}
         onOpenVoiceEnrollment={() => setIsVoiceEnrollmentOpen(true)}
         onOpenSpeakerHUD={() => setIsVoiceEnrollmentOpen(true)}
         onTogglePerformanceHUD={() => setIsPerformanceHudOpen((prev) => !prev)}
@@ -1264,28 +1235,13 @@ export function App() {
         <SpeakerDiagnosticsHUD onOpenEnrollment={() => setIsVoiceEnrollmentOpen(true)} />
       )}
 
-      {/* 8. Specialized Windows 11 Lock Screen Tactical Companion */}
-      <LockScreenWidget
-        isLocked={isLockScreenActive}
-        isListening={isListening}
-        isSpeaking={isSpeaking}
-        activeModelName={live2dModelRegistry.getModel(config.live2dModelId)?.name || 'Cristi AI'}
-      />
-
-      {/* 9. Windows 11 Lock Screen Sandbox Simulator */}
-      <LockScreenSandbox
-        isOpen={isLockSandboxOpen}
-        onClose={() => setIsLockSandboxOpen(false)}
-        activeModelName={live2dModelRegistry.getModel(config.live2dModelId)?.name || 'Cristi AI'}
-      />
-
-      {/* 10. Multi-Sample Voice Enrollment & Biometric Calibration Modal */}
+      {/* 8. Multi-Sample Voice Enrollment & Biometric Calibration Modal */}
       <VoiceEnrollmentModal
         isOpen={isVoiceEnrollmentOpen}
         onClose={() => setIsVoiceEnrollmentOpen(false)}
       />
 
-      {/* 11. Horizontal Settings Modal */}
+      {/* 9. Horizontal Settings Modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -1293,13 +1249,13 @@ export function App() {
         onSaveConfig={handleSaveConfig}
       />
 
-      {/* 12. Enterprise Performance & Telemetry HUD (Toggle with F3) */}
+      {/* 10. Enterprise Performance & Telemetry HUD (Toggle with F3) */}
       <PerformanceHUD
         isVisible={isPerformanceHudOpen}
         onClose={() => setIsPerformanceHudOpen(false)}
       />
 
-      {/* 13. Futuristic Minimalist HUD Toast Notifications */}
+      {/* 11. Futuristic Minimalist HUD Toast Notifications */}
       <ToastContainer />
     </div>
   );

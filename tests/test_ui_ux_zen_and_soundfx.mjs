@@ -103,11 +103,6 @@ assert(voiceEnrollSrc.includes('Escape'), 'VoiceEnrollmentModal escucha tecla Es
 assert(voiceEnrollSrc.includes('soundFxService'), 'VoiceEnrollmentModal integrado con soundFxService.');
 assert(voiceEnrollSrc.includes('stopPropagation'), 'VoiceEnrollmentModal detiene propagación de Escape.');
 
-const lockSandboxSrc = fs.readFileSync('src/components/LockScreenSandbox.jsx', 'utf8');
-assert(lockSandboxSrc.includes('Escape'), 'LockScreenSandbox escucha tecla Escape.');
-assert(lockSandboxSrc.includes('soundFxService'), 'LockScreenSandbox integrado con soundFxService.');
-assert(lockSandboxSrc.includes('stopPropagation'), 'LockScreenSandbox detiene propagación de Escape.');
-
 const contextMenuSrc = fs.readFileSync('src/components/ContextMenu.jsx', 'utf8');
 assert(contextMenuSrc.includes('Escape'), 'ContextMenu escucha tecla Escape.');
 assert(contextMenuSrc.includes('soundFxService'), 'ContextMenu integrado con soundFxService.');

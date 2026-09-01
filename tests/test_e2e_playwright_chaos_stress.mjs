@@ -328,8 +328,8 @@ async function runChaosStressSuite() {
   console.log('🧪 PRUEBA 2: Tormenta de Modales y Navegación React 19');
   console.log('------------------------------------------------------------------------');
 
-  // 2A. Concurrent Modal Burst Storm (SettingsModal, ContextMenu, LockScreenSandbox, PerformanceHUD, ScreenRegionPicker)
-  console.log('  ▶ [2A] Ejecutando tormenta concurrente de apertura/cierre de 5 modales...');
+  // 2A. Concurrent Modal Burst Storm (SettingsModal, ContextMenu, PerformanceHUD, ScreenRegionPicker)
+  console.log('  ▶ [2A] Ejecutando tormenta concurrente de apertura/cierre de modales...');
   const modalBurstStartTime = performance.now();
 
   for (let i = 0; i < 20; i++) {
@@ -338,18 +338,16 @@ async function runChaosStressSuite() {
       if (!app) return;
 
       // Concurrent interleaved triggers
-      if (iter % 5 === 0) app.openSettings();
-      if (iter % 5 === 1) app.openContextMenu(400 + iter * 10, 300 + iter * 5);
-      if (iter % 5 === 2) app.openLockSandbox();
-      if (iter % 5 === 3) app.openPerformanceHUD();
-      if (iter % 5 === 4) app.openRegionPicker();
+      if (iter % 4 === 0) app.openSettings();
+      if (iter % 4 === 1) app.openContextMenu(400 + iter * 10, 300 + iter * 5);
+      if (iter % 4 === 2) app.openPerformanceHUD();
+      if (iter % 4 === 3) app.openRegionPicker();
 
       // Interleaved rapid closes
       if (iter % 2 === 0) {
         app.closeSettings();
         app.closeContextMenu();
       } else {
-        app.closeLockSandbox();
         app.closePerformanceHUD();
         app.closeRegionPicker();
       }
@@ -362,7 +360,6 @@ async function runChaosStressSuite() {
     const app = window.__cristiApp;
     app.closeSettings();
     app.closeContextMenu();
-    app.closeLockSandbox();
     app.closePerformanceHUD();
     app.closeRegionPicker();
   });
@@ -407,11 +404,10 @@ async function runChaosStressSuite() {
   // 2C. Hierarchical Escape Key Stack Test
   console.log('\n  ▶ [2C] Probando la pila de resolución jerárquica con tecla Escape...');
   
-  // Open layers: Settings -> PerformanceHUD -> LockSandbox -> ScreenRegionPicker -> ContextMenu
+  // Open layers: Settings -> PerformanceHUD -> ScreenRegionPicker -> ContextMenu
   await page.evaluate(() => {
     window.__cristiApp.openSettings();
     window.__cristiApp.openPerformanceHUD();
-    window.__cristiApp.openLockSandbox();
     window.__cristiApp.openRegionPicker();
     window.__cristiApp.openContextMenu(500, 300);
   });
@@ -429,25 +425,19 @@ async function runChaosStressSuite() {
   const escapeState2 = await page.evaluate(() => window.__cristiApp.getModalStates());
   console.log('     • Escape #2 (ScreenRegionPicker cerrado):', !escapeState2.isRegionPickerOpen ? '✅ PASS' : '❌ FAIL');
 
-  // Step 3: Escape closes LockSandbox
+  // Step 3: Escape closes SettingsModal
   await page.keyboard.press('Escape');
   await page.waitForTimeout(250);
   const escapeState3 = await page.evaluate(() => window.__cristiApp.getModalStates());
-  console.log('     • Escape #3 (LockSandbox cerrado):', !escapeState3.isLockSandboxOpen ? '✅ PASS' : '❌ FAIL');
+  console.log('     • Escape #3 (SettingsModal cerrado):', !escapeState3.isSettingsOpen ? '✅ PASS' : '❌ FAIL');
 
-  // Step 4: Escape closes SettingsModal
+  // Step 4: Escape closes PerformanceHUD
   await page.keyboard.press('Escape');
   await page.waitForTimeout(250);
   const escapeState4 = await page.evaluate(() => window.__cristiApp.getModalStates());
-  console.log('     • Escape #4 (SettingsModal cerrado):', !escapeState4.isSettingsOpen ? '✅ PASS' : '❌ FAIL');
+  console.log('     • Escape #4 (PerformanceHUD cerrado):', !escapeState4.isPerformanceHudOpen ? '✅ PASS' : '❌ FAIL');
 
-  // Step 5: Escape closes PerformanceHUD
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(250);
-  const escapeState5 = await page.evaluate(() => window.__cristiApp.getModalStates());
-  console.log('     • Escape #5 (PerformanceHUD cerrado):', !escapeState5.isPerformanceHudOpen ? '✅ PASS' : '❌ FAIL');
-
-  const allModalsClean = Object.values(escapeState5).every(v => v === false);
+  const allModalsClean = Object.values(escapeState4).every(v => v === false);
   console.log(`     ✓ Pila de Escape jerárquica: ${allModalsClean ? '100% PURGADA Y LIMPIA' : 'ERRORES RESIDUALES'}`);
   await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'chaos_06_escape_hierarchy_cleared.png') });
 

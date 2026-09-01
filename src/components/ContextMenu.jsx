@@ -47,7 +47,6 @@ export function ContextMenu({
   onToggleScreenWatch,
   onOpenSettings,
   onOpenRegionPicker,
-  onOpenLockSandbox,
   onOpenVoiceEnrollment,
   onOpenSpeakerHUD,
   onTogglePerformanceHUD,
@@ -393,19 +392,6 @@ export function ContextMenu({
             >
               <Monitor size={12} />
               <span>Capturar Región</span>
-            </button>
-
-            <button
-              type="button"
-              className="ctx-action-item"
-              onClick={() => {
-                soundFxService.playClick();
-                onOpenLockSandbox?.();
-                onClose();
-              }}
-            >
-              <ShieldCheck size={12} />
-              <span>Sandbox Bloqueo</span>
             </button>
 
             <button

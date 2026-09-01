@@ -73,8 +73,6 @@ const interactiveComponents = [
   'SpeakerDiagnosticsHUD.jsx',
   'ToastContainer.jsx',
   'DesktopWidgets.jsx',
-  'LockScreenWidget.jsx',
-  'LockScreenSandbox.jsx',
   'ScreenRegionPicker.jsx'
 ];
 

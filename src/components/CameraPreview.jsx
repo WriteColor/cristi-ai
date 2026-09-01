@@ -32,6 +32,7 @@ export const CameraPreview = React.memo(function CameraPreview({
   onClearAllSamples,
   onClose
 }) {
+  const { interactiveProps } = useClickThrough();
   const [isEnrolling, setIsEnrolling] = useState(false);
   const [customLabel, setCustomLabel] = useState('Con Lentes');
   const [enrollFeedback, setEnrollFeedback] = useState(null);
@@ -108,8 +109,6 @@ export const CameraPreview = React.memo(function CameraPreview({
       bg: 'rgba(180, 83, 9, 0.9)'
     };
   }
-
-  const { interactiveProps } = useClickThrough();
 
   return (
     <div className={`camera-pip expanded ${showManager ? 'with-manager' : ''}`} {...interactiveProps}>

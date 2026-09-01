@@ -19,7 +19,7 @@ export { Live2DModelRegistry, live2dModelRegistry, Live2DAdapter, Live2DControll
 export { ExternalDeviceManager, externalDeviceManager } from './externalDevices/index.js';
 export { GameIntegrationManager, gameIntegrationManager } from './gameIntegration/index.js';
 export { ToastService, toastService, toast } from './toastService.js';
-export { ClickThroughService, clickThroughService, ElectronBridge, electronBridge, LockScreenService, lockScreenService } from './desktop/index.js';
+export { ClickThroughService, clickThroughService, ElectronBridge, electronBridge } from './desktop/index.js';
 export { SpeakerRecognitionService, speakerRecognitionService } from './audio/SpeakerRecognitionService.js';
 export { ModelManager, modelManager } from './modelManager.js';
 export { ConfigManager, configManager } from './configManager.js';
