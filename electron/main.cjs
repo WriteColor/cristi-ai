@@ -975,8 +975,6 @@ ipcMain.handle('get-app-version', () => {
 });
 
 // ── Settings Multi-Window Management ───────────────────────────────────────
-let settingsWindow = null;
-
 function createSettingsWindow() {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     if (settingsWindow.isMinimized()) settingsWindow.restore();
@@ -1015,7 +1013,7 @@ function createSettingsWindow() {
   }
 
   if (isDev) {
-    const devUrl = `${VITE_DEV_SERVER_URL}/settings.html`;
+    const devUrl = `${RENDERER_URL}/settings.html`;
     settingsWindow.loadURL(devUrl).catch(() => {
       settingsWindow.loadFile(path.join(__dirname, '../dist/settings.html')).catch(() => {});
     });
