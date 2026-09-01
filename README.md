@@ -4,7 +4,7 @@
 
 ![Cristi AI Companion Banner](docs/assets/cristi-banner.jpg)
 
-**Plataforma de compañera de escritorio y asistente agéntica virtual de alto rendimiento construida con Electron 32 + React 19 + Vite 8. Impulsada por Google Gemini Multimodal Live API (gemini-3.1-flash-live-preview, gemini-3-flash-preview y gemini-2.5-flash-native-audio-preview), motor universal de avatares Live2D Cubism con físicas cinéticas invariantes, seguimiento del cursor por todo el escritorio (*Desktop-Wide Tracking*), biometría vocal, visión sensorial, control agéntico del sistema y observabilidad en tiempo real.**
+**Plataforma de compañera de escritorio y asistente agéntica virtual de alto rendimiento construida con Electron 32 + React 19 + Vite 8. Impulsada por Google Gemini Multimodal Live API (`gemini-3.1-flash-live-preview`, `gemini-3-flash-preview` y `gemini-2.5-flash-native-audio-preview`), motor universal de avatares Live2D Cubism con físicas cinéticas invariantes, seguimiento del cursor por todo el escritorio (*Desktop-Wide Tracking*), biometría vocal, visión sensorial, control agéntico del sistema y observabilidad en tiempo real.**
 
 [![Author](https://img.shields.io/badge/Author-Write__Color-FF69B4?logo=visual-studio-code&logoColor=white)](https://github.com/WriteColor)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -20,7 +20,7 @@
 ---
 
 ## 📑 Tabla de Contenidos
-1. [Instalación Rápida en 1 Clic (setup.bat / setup.ps1)](#-instalación-rápida-en-1-clic-setupbat--setupps1)
+1. [Instalación Rápida en 1 Clic (`setup.bat` / `setup.ps1`)](#-instalación-rápida-en-1-clic-setupbat--setupps1)
 2. [Arquitectura y Modelos de Inteligencia Artificial](#-arquitectura-y-modelos-de-inteligencia-artificial)
 3. [Catálogo Oficial de las 30 Voces Neuronales de Gemini](#-catálogo-oficial-de-las-30-voces-neuronales-de-gemini)
 4. [Catálogo Oficial de los 8 Modelos Live2D Cubism](#-catálogo-oficial-de-los-8-modelos-live2d-cubism)
@@ -35,26 +35,26 @@
 
 ---
 
-## ⚡ Instalación Rápida en 1 Clic (setup.bat / setup.ps1)
+## ⚡ Instalación Rápida en 1 Clic (`setup.bat` / `setup.ps1`)
 
 Para configurar todo el entorno automáticamente sin pasos manuales ni posibilidad de fallo:
 
-* **Windows Explorer:** Haz doble clic en [setup.bat](setup.bat).
-* **PowerShell:** Ejecuta .\setup.ps1.
+* **Windows Explorer:** Haz doble clic en [`setup.bat`](setup.bat).
+* **PowerShell:** Ejecuta `.\setup.ps1`.
 
-El instalador automático se encarga de habilitar pnpm, instalar dependencias, descargar el motor de Electron, verificar iconos estáticos y validar los 8 modelos de Live2D y 14 redes neuronales.
+El instalador automático se encarga de habilitar `pnpm`, instalar dependencias, descargar el motor de Electron, verificar iconos estáticos y validar los 8 modelos de Live2D y 14 redes neuronales.
 
 ---
 
 ## 🧠 Arquitectura y Modelos de Inteligencia Artificial
 
-Cristi AI Companion se comunica directamente mediante **WebSocket bidireccional S2S (BidiGenerateContent)** con la API en tiempo real de Google Gemini:
+Cristi AI Companion se comunica directamente mediante **WebSocket bidireccional S2S (`BidiGenerateContent`)** con la API en tiempo real de Google Gemini:
 
 | Modelo | ID de API | Especialidad y Capacidades | Latencia / Audio |
 |---|---|---|---|
-| ⭐ **Gemini 3.1 Flash Live (Predeterminado)** | gemini-3.1-flash-live-preview | Diálogo conversacional de ultra-baja latencia voz a voz, comprensión espacial, visión continua y síntesis afectiva. | ~300ms / 24 kHz |
-| 🎮 **Gemini 3 Flash (Control Total de PC)** | gemini-3-flash-preview | Razonamiento agéntico avanzado para operar la computadora, inspeccionar archivos, ejecutar scripts nativos y automatización. | ~450ms / 24 kHz |
-| 🎙️ **Gemini 2.5 Flash Native Audio** | gemini-2.5-flash-native-audio-preview-12-2025 | Síntesis afectiva y compatibilidad para sesiones conversacionales estándar con modulación emocional. | ~400ms / 24 kHz |
+| ⭐ **Gemini 3.1 Flash Live (Predeterminado)** | `gemini-3.1-flash-live-preview` | Diálogo conversacional de ultra-baja latencia voz a voz, comprensión espacial, visión continua y síntesis afectiva. | ~300ms / 24 kHz |
+| 🎮 **Gemini 3 Flash (Control Total de PC)** | `gemini-3-flash-preview` | Razonamiento agéntico avanzado para operar la computadora, inspeccionar archivos, ejecutar scripts nativos y automatización. | ~450ms / 24 kHz |
+| 🎙️ **Gemini 2.5 Flash Native Audio** | `gemini-2.5-flash-native-audio-preview-12-2025` | Síntesis afectiva y compatibilidad para sesiones conversacionales estándar con modulación emocional. | ~400ms / 24 kHz |
 
 ---
 
@@ -108,47 +108,47 @@ Todos los avatares se cargan mediante WebGL 2.0 y PixiJS v7, desacoplados del ci
 
 | Avatar | ID Interno | Origen / Estilo | Características Técnicas |
 |---|---|---|---|
-| 🖤 **Cristi Gótica (Yandere)** | yanderegirl | Original Cristi AI | 13 parámetros cinéticos, físicas de cabello, expresiones lush, yandere, crazy, mad. |
-| 👘 **Ice Girl (Cheongsam)** | icegirl | Traje Oriental Tradicional | Orejas de gato, alas animadas, ojos de corazón y corona. |
-| 🌸 **Hiyori Momose** | hiyori | Oficial Live2D Cubism Pro | 8 grupos de movimiento, físicas avanzadas de tela y cabello. |
-| 🎀 **Miara** | miara | Oficial Live2D Cubism Pro | Gestos de saludo, poses dinámicas y seguimiento ocular. |
-| 🛡️ **Toki** | 	oki | Blue Archive | Modo combate, compostura militar y seguimiento de mirada completo. |
-| 🦈 **Ellen Joe** | ellen | Zenless Zone Zero | Maid tiburón con cola animada, tijeras y físicas elásticas. |
-| 🐀 **Jane Doe** | jane_doe | Zenless Zone Zero | Agente encubierta con cinemática corporal refinada. |
-| 🍵 **Ruan Mei** | uan_mei | Honkai: Star Rail | Erudita con instrumento tradicional y túnica con físicas de viento. |
+| 🖤 **Cristi Gótica (Yandere)** | `yanderegirl` | Original Cristi AI | 13 parámetros cinéticos, físicas de cabello, expresiones `blush`, `yandere`, `crazy`, `mad`. |
+| 👘 **Ice Girl (Cheongsam)** | `icegirl` | Traje Oriental Tradicional | Orejas de gato, alas animadas, ojos de corazón y corona. |
+| 🌸 **Hiyori Momose** | `hiyori` | Oficial Live2D Cubism Pro | 8 grupos de movimiento, físicas avanzadas de tela y cabello. |
+| 🎀 **Miara** | `miara` | Oficial Live2D Cubism Pro | Gestos de saludo, poses dinámicas y seguimiento ocular. |
+| 🛡️ **Toki** | `toki` | Blue Archive | Modo combate, compostura militar y seguimiento de mirada completo. |
+| 🦈 **Ellen Joe** | `ellen` | Zenless Zone Zero | Maid tiburón con cola animada, tijeras y físicas elásticas. |
+| 🐀 **Jane Doe** | `jane_doe` | Zenless Zone Zero | Agente encubierta con cinemática corporal refinada. |
+| 🍵 **Ruan Mei** | `ruan_mei` | Honkai: Star Rail | Erudita con instrumento tradicional y túnica con físicas de viento. |
 
 ---
 
 ## 🛠️ Catálogo de las 26 Herramientas Agénticas
 
-Cristi puede operar e interactuar de forma autónoma mediante llamadas a funciones:
+Cristi puede operar e interactuar de forma autónoma mediante llamadas a funciones de Gemini Live:
 
-1. **	rigger_companion_gesture**: Expresa emociones faciales en el avatar Live2D activo (love, lush, yandere, etc.).
-2. **	rigger_model_motion**: Ejecuta animaciones o poses corporales registradas en el modelo.
-3. **move_avatar**: Desplaza al avatar por el escritorio (	op-left, ottom-right, center, etc.).
-4. **get_current_time_and_date**: Consulta la hora exacta, zona horaria y calendario local.
-5. **get_weather**: Obtiene el pronóstico meteorológico de cualquier ubicación.
-6. **system_diagnostics**: Consulta telemetría en tiempo real: CPU, RAM, FPS, Audio y Cámara.
-7. **execute_system_command**: Ejecuta comandos nativos en PowerShell o CMD en Windows.
-8. **list_running_processes**: Enumera procesos activos en el Administrador de Tareas.
-9. **kill_process**: Finaliza procesos bloqueados por PID o nombre.
-10. **ead_system_file**: Lee archivos locales de texto o código.
-11. **write_system_file**: Crea o sobreescribe archivos en el disco local.
-12. **list_directory_contents**: Explora directorios del sistema de archivos.
-13. **create_directory**: Crea carpetas y rutas de almacenamiento.
-14. **open_file_or_url**: Abre carpetas en el Explorador de Windows o enlaces en el navegador predeterminado.
-15. **get_clipboard_content**: Lee el contenido de texto del portapapeles.
-16. **set_clipboard_content**: Escribe datos en el portapapeles de Windows.
-17. **get_system_specs**: Consulta hardware (GPU, CPU, monitores y memoria total).
-18. **computer_action**: Realiza clics de ratón en coordenadas, pulsa teclas o tipea texto (*Computer Use* nativo).
-19. **screen_snapshot**: Captura fotogramas completos o regionales a 60 FPS mediante la API nativa de Electron.
-20. **show_desktop_widget**: Despliega widgets informativos o temporizadores en pantalla.
-21. **manage_notes**: Guarda y consulta notas de memoria a largo plazo.
-22. **manage_timers_reminders**: Configura alarmas, temporizadores Pomodoro y recordatorios.
-23. **control_media_player**: Controla reproducción multimedia en Windows.
-24. **set_screen_scene**: Conmuta entre fondos procedurales, shaders o transparentes.
-25. **switch_live2d_avatar**: Cambia dinámicamente entre los 8 modelos de Live2D.
-26. **switch_ai_voice**: Cambia la voz neuronal activa entre las 30 disponibles.
+1. **`trigger_companion_gesture`**: Expresa emociones faciales en el avatar Live2D activo (`love`, `blush`, `yandere`, etc.).
+2. **`trigger_model_motion`**: Ejecuta animaciones o poses corporales registradas en el modelo.
+3. **`move_avatar`**: Desplaza al avatar por el escritorio (`top-left`, `bottom-right`, `center`, etc.).
+4. **`get_current_time_and_date`**: Consulta la hora exacta, zona horaria y calendario local.
+5. **`get_weather`**: Obtiene el pronóstico meteorológico de cualquier ubicación.
+6. **`system_diagnostics`**: Consulta telemetría en tiempo real: CPU, RAM, FPS, Audio y Cámara.
+7. **`execute_system_command`**: Ejecuta comandos nativos en PowerShell o CMD en Windows.
+8. **`list_running_processes`**: Enumera procesos activos en el Administrador de Tareas.
+9. **`kill_process`**: Finaliza procesos bloqueados por PID o nombre.
+10. **`read_system_file`**: Lee archivos locales de texto o código.
+11. **`write_system_file`**: Crea o sobreescribe archivos en el disco local.
+12. **`list_directory_contents`**: Explora directorios del sistema de archivos.
+13. **`create_directory`**: Crea carpetas y rutas de almacenamiento.
+14. **`open_file_or_url`**: Abre carpetas en el Explorador de Windows o enlaces en el navegador predeterminado.
+15. **`get_clipboard_content`**: Lee el contenido de texto del portapapeles.
+16. **`set_clipboard_content`**: Escribe datos en el portapapeles de Windows.
+17. **`get_system_specs`**: Consulta hardware (GPU, CPU, monitores y memoria total).
+18. **`computer_action`**: Realiza clics de ratón en coordenadas, pulsa teclas o tipea texto (*Computer Use* nativo).
+19. **`screen_snapshot`**: Captura fotogramas completos o regionales a 60 FPS mediante la API nativa de Electron.
+20. **`show_desktop_widget`**: Despliega widgets informativos o temporizadores en pantalla.
+21. **`manage_notes`**: Guarda y consulta notas de memoria a largo plazo.
+22. **`manage_timers_reminders`**: Configura alarmas, temporizadores Pomodoro y recordatorios.
+23. **`control_media_player`**: Controla reproducción multimedia en Windows.
+24. **`set_screen_scene`**: Conmuta entre fondos procedurales, shaders o transparentes.
+25. **`switch_live2d_avatar`**: Cambia dinámicamente entre los 8 modelos de Live2D.
+26. **`switch_ai_voice`**: Cambia la voz neuronal activa entre las 30 disponibles.
 
 ---
 
@@ -156,9 +156,9 @@ Cristi puede operar e interactuar de forma autónoma mediante llamadas a funcion
 
 Cristi AI Companion **no depende de servidores de actualización externos en internet**:
 
-1. Al compilar una nueva versión con pnpm app:build, el instalador generado (Cristi-AI-Companion-Setup-X.Y.Z.exe) se guarda en la carpeta local elease/.
+1. Al compilar una nueva versión con `pnpm app:build`, el instalador generado (`Cristi-AI-Companion-Setup-X.Y.Z.exe`) se guarda en la carpeta local `release/`.
 2. La aplicación instalada detecta automáticamente en disco si existe una versión superior en la carpeta del proyecto.
-3. Desde la pestaña **Ajustes $\rightarrow$ Actualizaciones**, basta con presionar **"Reiniciar e Instalar Actualización"** para actualizar la app localmente con privilegios de Administrador.
+3. Desde la pestaña **Ajustes → Actualizaciones**, basta con presionar **"Reiniciar e Instalar Actualización"** para actualizar la app localmente con privilegios de Administrador.
 
 ---
 
@@ -166,18 +166,18 @@ Cristi AI Companion **no depende de servidores de actualización externos en int
 
 | Atajo / Control | Tipo | Acción / Comportamiento |
 |---|---|---|
-| **Ctrl + Shift + C** | Global (Sistema) | **Boss Key / Modo Residente**: Oculta o muestra a Cristi al instante (0% GPU/CPU al ocultarse). |
-| **Ctrl + Shift + H** | Global (Sistema) | **Ocultar / Mostrar UI (Modo Zen Global)**: Alterna la interfaz visible desde cualquier app. |
-| **Ctrl + Shift + P** | Global (Sistema) | **Telemetría & Profiler (HUD Global)**: Abre/Cierra el panel de FPS y memoria desde cualquier ventana. |
-| **Ctrl + Shift + A** | Global (Sistema) | **Fijar Siempre Visible (Always-on-Top)**: Conmuta el anclaje de ventana prioritario. |
-| **Ctrl + Shift + M** | Global (Sistema) | **Silenciar Micrófono**: Activa o silencia la captura de voz con confirmación sonora. |
-| **Ctrl + Shift + S** | Global (Sistema) | **Visión Instantánea**: Captura la pantalla activa y la envía a Gemini Live. |
-| **F3** | Interfaz (App) | **Performance Profiler HUD**: Alterna el panel de telemetría de rendimiento y TPS. |
-| **H / h** | Interfaz (App) | **Modo Zen Local**: Oculta los controles flotantes. |
-| **Escape** | Interfaz (App) | **Cerrar Modales**: Cierra cualquier menú contextual, modal de ajustes o diálogo. |
+| **`Ctrl + Shift + C`** | Global (Sistema) | **Boss Key / Modo Residente**: Oculta o muestra a Cristi al instante (0% GPU/CPU al ocultarse). |
+| **`Ctrl + Shift + H`** | Global (Sistema) | **Ocultar / Mostrar UI (Modo Zen Global)**: Alterna la interfaz visible desde cualquier app. |
+| **`Ctrl + Shift + P`** | Global (Sistema) | **Telemetría & Profiler (HUD Global)**: Abre/Cierra el panel de FPS y memoria desde cualquier ventana. |
+| **`Ctrl + Shift + A`** | Global (Sistema) | **Fijar Siempre Visible (Always-on-Top)**: Conmuta el anclaje de ventana prioritario. |
+| **`Ctrl + Shift + M`** | Global (Sistema) | **Silenciar Micrófono**: Activa o silencia la captura de voz con confirmación sonora. |
+| **`Ctrl + Shift + S`** | Global (Sistema) | **Visión Instantánea**: Captura la pantalla activa y la envía a Gemini Live. |
+| **`F3`** | Interfaz (App) | **Performance Profiler HUD**: Alterna el panel de telemetría de rendimiento y TPS. |
+| **`H` / `h`** | Interfaz (App) | **Modo Zen Local**: Oculta los controles flotantes. |
+| **`Escape`** | Interfaz (App) | **Cerrar Modales**: Cierra cualquier menú contextual, modal de ajustes o diálogo. |
 | **Clic Izquierdo** | Ratón sobre Avatar | Dispara una **reacción emocional aleatoria** adaptada al personaje activo. |
 | **Clic Izq. + Arrastre** | Ratón sobre Avatar | **Mueve a Cristi** por cualquier parte de tu monitor con arrastre nativo. |
-| **Rueda del Ratón** | Ratón sobre Avatar | **Escalado dinámico** suave del modelo ( .25x a 4.0x). |
+| **Rueda del Ratón** | Ratón sobre Avatar | **Escalado dinámico** suave del modelo (`0.25x` a `4.0x`). |
 | **Clic Derecho** | Ratón sobre Avatar | Despliega el **Menú Contextual Táctico Obsidian**. |
 
 ---
@@ -185,7 +185,7 @@ Cristi AI Companion **no depende de servidores de actualización externos en int
 ## 🔒 Seguridad y Protección de Claves de API
 
 * **Cero Hardcoding:** El código fuente no contiene claves de API ni credenciales privadas.
-* **Almacenamiento Seguro:** La clave VITE_GEMINI_API_KEY se carga únicamente desde tu archivo .env local (ignorado en .gitignore) o mediante el almacenamiento cifrado de configuración del usuario en su equipo.
+* **Almacenamiento Seguro:** La clave `VITE_GEMINI_API_KEY` se carga únicamente desde tu archivo `.env` local (ignorado en `.gitignore`) o mediante el almacenamiento cifrado de configuración del usuario en su equipo.
 * **Obtención de Clave Gratuita:** Puedes generar tu API Key gratuita en [Google AI Studio](https://aistudio.google.com/).
 
 ---
@@ -194,41 +194,41 @@ Cristi AI Companion **no depende de servidores de actualización externos en int
 
 ### 1. Requisitos Previos
 * **Windows 10 / 11 (64-bit)**
-* **Node.js**: Versión LTS 20.x, 22.x o 24.x ([Descargar Node.js](https://nodejs.org/))
+* **Node.js**: Versión LTS `v20.x`, `v22.x` o `v24.x` ([Descargar Node.js](https://nodejs.org/))
 * **pnpm**: Gestor de paquetes obligatorio. Actívalo con Corepack:
-  `powershell
+  ```powershell
   corepack enable
   corepack prepare pnpm@latest --activate
-  `
+  ```
 
 ### 2. Clonar e Instalar Dependencias
-`powershell
+```powershell
 git clone https://github.com/WriteColor/cristi-ai.git "Cristi AI"
 cd "Cristi AI"
 pnpm install
-`
+```
 
 ### 3. Inicializar y Validar el Entorno
-`powershell
+```powershell
 pnpm run setup:env
-`
+```
 
 ### 4. Configurar la API Key
-Crea tu archivo .env en la raíz del proyecto:
-`env
+Crea tu archivo `.env` en la raíz del proyecto:
+```env
 VITE_GEMINI_API_KEY=tu_clave_de_aistudio_aqui
-`
+```
 
 ### 5. Iniciar en Modo Desarrollo
-`powershell
+```powershell
 pnpm run app:dev
-`
+```
 
 ### 6. Compilar el Instalador de Producción (.exe)
-`powershell
+```powershell
 pnpm run app:build
-`
-El instalador NSIS standalone (Cristi-AI-Companion-Setup-1.0.0.exe) se generará en la carpeta elease/.
+```
+El instalador NSIS standalone (`Cristi-AI-Companion-Setup-1.0.0.exe`) se generará en la carpeta `release/`.
 
 ---
 
@@ -236,11 +236,11 @@ El instalador NSIS standalone (Cristi-AI-Companion-Setup-1.0.0.exe) se generará
 
 Ejecuta la suite maestra de 12 pruebas automatizadas para certificar la integridad del sistema:
 
-`powershell
+```powershell
 pnpm run test:diagnostics
-`
+```
 
-`
+```
 ================================================================
 📊 RESUMEN DE LA EJECUCIÓN MAESTRA DE DIAGNÓSTICOS
 ================================================================
@@ -261,13 +261,13 @@ pnpm run test:diagnostics
 │ 11      │ 'Live2D Asset Integrity'                 │ 'PASS' │ '18ms'   │ '8 modelos registrados'  │
 └─────────┴──────────────────────────────────────────┴────────┴──────────┴──────────────────────────┘
 🎉 12/12 SUITES COMPLETADAS CON ÉXITO (100% PASS)
-`
+```
 
 ---
 
 ## 🏛️ Estructura del Repositorio
 
-`
+```
 Cristi AI/
 ├── electron/                       # Proceso principal nativo de Electron
 │   ├── main.cjs                    # Ventana transparente, atajos globales, IPC, actualizador local
@@ -295,7 +295,7 @@ Cristi AI/
 ├── CONTRIBUTING.md                  # Guía para contribuidores open-source
 ├── LICENSE                         # Licencia MIT oficial
 └── package.json                    # Manifiesto de paquetes y scripts de pnpm
-`
+```
 
 ---
 
