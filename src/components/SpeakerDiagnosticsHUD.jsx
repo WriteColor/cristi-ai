@@ -117,4 +117,4 @@ export function SpeakerDiagnosticsHUD({ onOpenEnrollment }) {
   );
 }
 
-export default SpeakerDiagnosticsHUD;
+export default React.memo(SpeakerDiagnosticsHUD);

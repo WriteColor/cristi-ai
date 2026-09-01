@@ -13,8 +13,22 @@ export const electronBridge = {
     return !!(getApi()?.isElectron);
   },
 
+  _interactionLockCount: 0,
   _lastIgnore: null,
   _lastForward: null,
+
+  acquireInteractionLock() {
+    this._interactionLockCount++;
+    if (this._interactionLockCount > 0) {
+      this.setIgnoreMouseEvents(false);
+    }
+  },
+
+  releaseInteractionLock() {
+    if (this._interactionLockCount > 0) {
+      this._interactionLockCount--;
+    }
+  },
 
   /**
    * Toggle window click-through mode.
@@ -24,6 +38,9 @@ export const electronBridge = {
    * @param {{ forward?: boolean }} [options] - forward:true keeps mousemove delivery
    */
   setIgnoreMouseEvents(ignore, options = {}) {
+    if (ignore === true && this._interactionLockCount > 0) {
+      return; // Blocked by InteractionLock
+    }
     const forward = Boolean(options?.forward);
     if (this._lastIgnore === ignore && this._lastForward === forward) {
       return; // Skip redundant IPC message

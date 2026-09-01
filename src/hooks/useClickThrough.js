@@ -14,6 +14,7 @@ export function useClickThrough() {
   }, []);
 
   const disableInteraction = useCallback(() => {
+    if (electronBridge._interactionLockCount > 0) return;
     electronBridge.setIgnoreMouseEvents(true, { forward: true });
   }, []);
 

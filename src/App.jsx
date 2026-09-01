@@ -155,6 +155,20 @@ export function App() {
   const [isUiVisible, setIsUiVisible] = useState(true);
   const autoHideTimerRef = useRef(null);
 
+  // --- Interaction Lock for Modals ---
+  const isAnyModalOpen = isSettingsOpen || isVoiceEnrollmentOpen || isLockSandboxOpen || isRegionPickerOpen || contextMenu.isOpen || isPerformanceHudOpen;
+
+  useEffect(() => {
+    if (isAnyModalOpen) {
+      electronBridge.acquireInteractionLock();
+    }
+    return () => {
+      if (isAnyModalOpen) {
+        electronBridge.releaseInteractionLock();
+      }
+    };
+  }, [isAnyModalOpen]);
+
   // --- Service References ---
   const socketRef = useRef(null);
   const audioInRef = useRef(null);

@@ -180,7 +180,18 @@ ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
   try {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win || win.isDestroyed()) return;
-    win.setIgnoreMouseEvents(Boolean(ignore), (options && typeof options === 'object') ? options : {});
+
+    const ignoreBool = Boolean(ignore);
+    const forwardBool = Boolean(options && options.forward);
+
+    if (win._lastIgnore === ignoreBool && win._lastForward === forwardBool) {
+      return; // Deduplicate call in main process
+    }
+
+    win._lastIgnore = ignoreBool;
+    win._lastForward = forwardBool;
+
+    win.setIgnoreMouseEvents(ignoreBool, (options && typeof options === 'object') ? options : {});
   } catch (err) {
     console.error('[Main] Error setting ignore mouse events:', err);
   }

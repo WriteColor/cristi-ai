@@ -18,8 +18,8 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { speakerRecognitionService } from '../services/audio/SpeakerRecognitionService.js';
-import { useClickThrough } from '../hooks/useClickThrough.js';
 import { soundFxService } from '../services/soundFxService.js';
+import { useClickThrough } from '../hooks/useClickThrough.js';
 
 const ENROLLMENT_PHRASES = [
   {
@@ -43,13 +43,13 @@ const ENROLLMENT_PHRASES = [
 ];
 
 export function VoiceEnrollmentModal({ isOpen, onClose, onEnrolled }) {
+  const { interactiveProps } = useClickThrough();
   const [activeTab, setActiveTab] = useState('enroll'); // 'enroll' | 'test' | 'settings'
   const [ownerName, setOwnerName] = useState('Mi Dueño');
   const [currentStep, setCurrentStep] = useState(0);
   const [recordedSamples, setRecordedSamples] = useState([]);
   const [isRecordingSample, setIsRecordingSample] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
-  const [volumeLevel, setVolumeLevel] = useState(0);
   const [isEnrolling, setIsEnrolling] = useState(false);
   const [enrollSuccess, setEnrollSuccess] = useState(false);
   const [enrollError, setEnrollError] = useState(null);
@@ -65,9 +65,8 @@ export function VoiceEnrollmentModal({ isOpen, onClose, onEnrolled }) {
   const mediaStreamRef = useRef(null);
   const processorRef = useRef(null);
   const timerRef = useRef(null);
-  const modalCardRef = useRef(null);
-
-  const { interactiveProps } = useClickThrough();
+  const volumeBarRef = useRef(null);
+  const testVolumeBarRef = useRef(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -78,6 +77,9 @@ export function VoiceEnrollmentModal({ isOpen, onClose, onEnrolled }) {
         setMatchThreshold(profile.matchThreshold);
         setRejectThreshold(profile.rejectThreshold);
       }
+    } else {
+      // Cleanup on close
+      cleanupAudioResources();
     }
   }, [isOpen]);
 
@@ -92,8 +94,34 @@ export function VoiceEnrollmentModal({ isOpen, onClose, onEnrolled }) {
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      cleanupAudioResources();
+    };
   }, [isOpen, onClose]);
+
+  const cleanupAudioResources = () => {
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(t => t.stop());
+      mediaStreamRef.current = null;
+    }
+    if (audioContextRef.current) {
+      if (audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close().catch(console.error);
+      }
+      audioContextRef.current = null;
+    }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (volumeBarRef.current) volumeBarRef.current.style.width = '0%';
+    if (testVolumeBarRef.current) testVolumeBarRef.current.style.width = '0%';
+  };
 
   const startSampleRecording = async () => {
     try {
@@ -118,10 +146,13 @@ export function VoiceEnrollmentModal({ isOpen, onClose, onEnrolled }) {
         copy.set(input);
         audioChunksRef.current.push(copy);
 
-        // Volume meter
+        // Volume meter via ref (no re-render)
         let sum = 0;
         for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
-        setVolumeLevel(Math.min(1, Math.sqrt(sum / input.length) * 5));
+        const volume = Math.min(1, Math.sqrt(sum / input.length) * 5);
+        if (volumeBarRef.current) {
+          volumeBarRef.current.style.width = `${volume * 100}%`;
+        }
       };
 
       source.connect(processor);
@@ -141,19 +172,10 @@ export function VoiceEnrollmentModal({ isOpen, onClose, onEnrolled }) {
     setIsRecordingSample(false);
     clearInterval(timerRef.current);
 
-    if (processorRef.current) {
-      processorRef.current.disconnect();
-      processorRef.current = null;
-    }
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(t => t.stop());
-      mediaStreamRef.current = null;
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-    setVolumeLevel(0);
+    // Wait, cleanupAudioResources cleans up everything. But we need to keep the audioChunksRef before cleaning up?
+    // cleanupAudioResources doesn't clear audioChunksRef.
+
+    cleanupAudioResources();
 
     // Merge audio chunks
     const totalLength = audioChunksRef.current.reduce((acc, c) => acc + c.length, 0);
@@ -237,7 +259,10 @@ export function VoiceEnrollmentModal({ isOpen, onClose, onEnrolled }) {
 
         let sum = 0;
         for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
-        setVolumeLevel(Math.min(1, Math.sqrt(sum / input.length) * 5));
+        const volume = Math.min(1, Math.sqrt(sum / input.length) * 5);
+        if (testVolumeBarRef.current) {
+          testVolumeBarRef.current.style.width = `${volume * 100}%`;
+        }
       };
 
       source.connect(processor);
@@ -250,19 +275,8 @@ export function VoiceEnrollmentModal({ isOpen, onClose, onEnrolled }) {
 
   const stopLiveTest = () => {
     setIsTesting(false);
-    if (processorRef.current) {
-      processorRef.current.disconnect();
-      processorRef.current = null;
-    }
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(t => t.stop());
-      mediaStreamRef.current = null;
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-    setVolumeLevel(0);
+    
+    cleanupAudioResources();
 
     const totalLength = audioChunksRef.current.reduce((acc, c) => acc + c.length, 0);
     if (totalLength < 16000 * 0.8) {
@@ -288,8 +302,8 @@ export function VoiceEnrollmentModal({ isOpen, onClose, onEnrolled }) {
   if (!isOpen) return null;
 
   return (
-    <div className="voice-enrollment-backdrop" {...interactiveProps}>
-      <div className="voice-enrollment-modal">
+    <div className="voice-enrollment-backdrop">
+      <div className="voice-enrollment-modal" {...interactiveProps}>
         {/* Tech Corner Crosshairs */}
         <span className="hud-corner hud-corner-tl" />
         <span className="hud-corner hud-corner-tr" />
@@ -395,7 +409,7 @@ export function VoiceEnrollmentModal({ isOpen, onClose, onEnrolled }) {
                   <span className="rec-pulse-dot" />
                   <span className="rec-time-text">Grabando... {recordingSeconds}s</span>
                   <div className="rec-volume-bar-track">
-                    <div className="rec-volume-bar-fill" style={{ width: `${volumeLevel * 100}%` }} />
+                    <div className="rec-volume-bar-fill" ref={volumeBarRef} style={{ width: '0%' }} />
                   </div>
                 </div>
               )}
@@ -470,7 +484,7 @@ export function VoiceEnrollmentModal({ isOpen, onClose, onEnrolled }) {
 
               {isTesting && (
                 <div className="test-volume-meter">
-                  <div className="test-meter-fill" style={{ width: `${volumeLevel * 100}%` }} />
+                  <div className="test-meter-fill" ref={testVolumeBarRef} style={{ width: '0%' }} />
                 </div>
               )}
             </div>
