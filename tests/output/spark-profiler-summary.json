@@ -1,0 +1,245 @@
+{
+  "timestamp": "2026-09-01T02:14:09.425Z",
+  "profilerVersion": "2.0.0-spark",
+  "environment": {
+    "os": "win32",
+    "arch": "x64",
+    "nodeVersion": "v24.18.0",
+    "sourceEngine": "LIVE_CDP"
+  },
+  "timingSummary": {
+    "nominalTps": 60,
+    "tps": {
+      "current": 60,
+      "last5s": 59.94,
+      "last10s": 59.88,
+      "last60s": 59.7,
+      "nominal": 60,
+      "stabilityPercentage": 100
+    },
+    "mspt": {
+      "min": 0.01,
+      "avg": 4.22,
+      "p50": 4.2,
+      "p90": 4.3,
+      "p95": 4.3,
+      "p99": 8.19,
+      "max": 8.4
+    },
+    "frameBudgetMs": 16.6667,
+    "totalActiveTickCostMs": 5.42,
+    "idleBudgetRemainingMs": 11.25,
+    "sparkline": " ▇▇▇▇▇▇▇▇█▇▇▇▇▇▇█▇▇▇▇▇█▇▇▇▇▇▇▇",
+    "droppedTicks": 0,
+    "totalTicksSampled": 712
+  },
+  "subsystems": {
+    "SYS-01": {
+      "id": "SYS-01",
+      "code": "IPC_DWM",
+      "name": "Electron IPC & DWM Window Management",
+      "description": "Gestión de ventanas DWM, eventos de ratón click-through y latencia IPC.",
+      "avgCostMs": 0.45,
+      "pctOfActiveTick": 8.3,
+      "pctOfFrameBudget": 2.7,
+      "progressBar": "■□□□□□□□□□",
+      "subcategories": [
+        {
+          "name": "IPC Roundtrip & Channel Latency",
+          "costMs": 0.2,
+          "pctOfSubsystem": 44.4
+        },
+        {
+          "name": "DWM Click-Through & Native Region Hit-Test",
+          "costMs": 0.13,
+          "pctOfSubsystem": 28.9
+        },
+        {
+          "name": "Window State & Display Sync",
+          "costMs": 0.08,
+          "pctOfSubsystem": 17.8
+        },
+        {
+          "name": "System Tray & OS Event Dispatcher",
+          "costMs": 0.05,
+          "pctOfSubsystem": 11.1
+        }
+      ]
+    },
+    "SYS-02": {
+      "id": "SYS-02",
+      "code": "LIVE2D_WEBGL",
+      "name": "Live2D Cubism & WebGL Render Ticker",
+      "description": "Bucle de animación PIXI.js, cinemática de físicas 2.0 y shader draw calls.",
+      "avgCostMs": 2.1,
+      "pctOfActiveTick": 38.7,
+      "pctOfFrameBudget": 12.6,
+      "progressBar": "■■■■□□□□□□",
+      "subcategories": [
+        {
+          "name": "PIXI.js Render Pipeline & WebGL Draw Calls",
+          "costMs": 0.95,
+          "pctOfSubsystem": 45.2
+        },
+        {
+          "name": "Cubism Motion & Physics 2.0 Interpolation",
+          "costMs": 0.59,
+          "pctOfSubsystem": 28.1
+        },
+        {
+          "name": "Expression Matrix Transform & Blending",
+          "costMs": 0.36,
+          "pctOfSubsystem": 17.1
+        },
+        {
+          "name": "Texture Buffer Uploads & Eye-Tracking",
+          "costMs": 0.21,
+          "pctOfSubsystem": 10
+        }
+      ]
+    },
+    "SYS-03": {
+      "id": "SYS-03",
+      "code": "AUDIO_DSP",
+      "name": "Audio DSP & Speech Streaming Queue",
+      "description": "AudioWorklet DSP, análisis VAD RMS y streaming bidireccional S2S.",
+      "avgCostMs": 0.65,
+      "pctOfActiveTick": 12,
+      "pctOfFrameBudget": 3.9,
+      "progressBar": "■□□□□□□□□□",
+      "subcategories": [
+        {
+          "name": "AudioWorklet Buffer Processing",
+          "costMs": 0.29,
+          "pctOfSubsystem": 44.6
+        },
+        {
+          "name": "VAD & Volume RMS Energy Analysis",
+          "costMs": 0.18,
+          "pctOfSubsystem": 27.7
+        },
+        {
+          "name": "S2S Audio Queue Dispatch & Resampling",
+          "costMs": 0.11,
+          "pctOfSubsystem": 16.9
+        },
+        {
+          "name": "Speaker Biometric Embeddings Extraction",
+          "costMs": 0.07,
+          "pctOfSubsystem": 10.8
+        }
+      ]
+    },
+    "SYS-04": {
+      "id": "SYS-04",
+      "code": "SENSORY_VISION",
+      "name": "Sensory Vision & Screen Watch",
+      "description": "Captura de pantalla nativa, procesamiento Face-API y visión contextual.",
+      "avgCostMs": 1.15,
+      "pctOfActiveTick": 21.2,
+      "pctOfFrameBudget": 6.9,
+      "progressBar": "■■□□□□□□□□",
+      "subcategories": [
+        {
+          "name": "Desktop Capturer Thumbnail Extraction",
+          "costMs": 0.52,
+          "pctOfSubsystem": 45.2
+        },
+        {
+          "name": "Local Vision & Face-API Inference Pipeline",
+          "costMs": 0.32,
+          "pctOfSubsystem": 27.8
+        },
+        {
+          "name": "Region Boundary Extraction & Screen Diffing",
+          "costMs": 0.2,
+          "pctOfSubsystem": 17.4
+        },
+        {
+          "name": "Camera Video Stream Ingestion",
+          "costMs": 0.11,
+          "pctOfSubsystem": 9.6
+        }
+      ]
+    },
+    "SYS-05": {
+      "id": "SYS-05",
+      "code": "PROACTIVE_SCHEDULER",
+      "name": "Proactive Engine & Tool Scheduler",
+      "description": "Evaluador de disparadores proactivos, cron scheduler y sandbox de herramientas.",
+      "avgCostMs": 0.42,
+      "pctOfActiveTick": 7.7,
+      "pctOfFrameBudget": 2.5,
+      "progressBar": "■□□□□□□□□□",
+      "subcategories": [
+        {
+          "name": "Event Bus Trigger Evaluator",
+          "costMs": 0.19,
+          "pctOfSubsystem": 45.2
+        },
+        {
+          "name": "Proactive Activity Heartbeat & Cron Timers",
+          "costMs": 0.12,
+          "pctOfSubsystem": 28.6
+        },
+        {
+          "name": "Tool Executor Dispatch Loop & Sandbox",
+          "costMs": 0.07,
+          "pctOfSubsystem": 16.7
+        },
+        {
+          "name": "State Transition & Context Memory Sync",
+          "costMs": 0.04,
+          "pctOfSubsystem": 9.5
+        }
+      ]
+    },
+    "SYS-06": {
+      "id": "SYS-06",
+      "code": "REACT_UI_VDOM",
+      "name": "React 19 UI & Modals Virtual DOM",
+      "description": "Reconciliación concurrente de React 19, Dynamic Widgets y Obsidian HUD.",
+      "avgCostMs": 0.65,
+      "pctOfActiveTick": 12,
+      "pctOfFrameBudget": 3.9,
+      "progressBar": "■□□□□□□□□□",
+      "subcategories": [
+        {
+          "name": "Concurrent Root Fiber Reconciliation",
+          "costMs": 0.29,
+          "pctOfSubsystem": 44.6
+        },
+        {
+          "name": "Dynamic Widgets & Obsidian HUD State Updates",
+          "costMs": 0.18,
+          "pctOfSubsystem": 27.7
+        },
+        {
+          "name": "DOM Style Recalculation & Compositing",
+          "costMs": 0.11,
+          "pctOfSubsystem": 16.9
+        },
+        {
+          "name": "Modals (Settings, Voice Enrollment, Zen Mode)",
+          "costMs": 0.07,
+          "pctOfSubsystem": 10.8
+        }
+      ]
+    }
+  },
+  "lagSpikes": {
+    "totalDetected": 0,
+    "criticalCount": 0,
+    "warningCount": 0,
+    "incidents": []
+  },
+  "memory": {
+    "jsHeapUsedMB": 47.14,
+    "jsHeapTotalMB": 48.39,
+    "heapUtilizationPct": 97.4,
+    "processWorkingSetMB": 215.4
+  },
+  "healthVerdict": "PERFECT_60FPS",
+  "profilerRunDurationMs": 3533,
+  "mode": "LIVE_CDP"
+}

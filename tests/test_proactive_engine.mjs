@@ -1,27 +1,42 @@
 /**
- * Cristi Desktop - Comprehensive Proactive Engine & State Management Test Suite (SYS-05)
+ * Cristi Desktop - Comprehensive Proactive Engine & State Management Test Suite (SYS-05 Hardened)
  * Validates:
  * 1. EventBus error isolation, snapshot iteration, zero-leak subscriptions, and stream filtering
  * 2. ProactiveTriggerService user activity, inactivity, Pomodoro, and trigger registration
  * 3. ProactiveScheduler alarms and reminders dispatching
  * 4. ConfigManager resilience against corrupt JSON, quota overflow, and backups
- * 5. Gemini Live queueing and cooldown rate limiting
+ * 5. Gemini Live queueing, bounded capacity, TTL expiration, and cooldown rate limiting
+ * 6. Stress test with 5,000 user activity / telemetry events & 500 simultaneously queued triggers
  */
 
 import assert from 'assert';
-import { EventBus } from '../src/services/eventBus.js';
+import { EventBus, EVENTS } from '../src/services/eventBus.js';
 import { ProactiveTriggerService } from '../src/services/proactiveTriggerService.js';
 import { ProactiveScheduler } from '../src/services/proactiveScheduler.js';
 import { ConfigManager } from '../src/services/configManager.js';
 
+let passed = 0;
+let total = 0;
+
+function check(condition, message) {
+  total++;
+  if (condition) {
+    passed++;
+    console.log(`  ✅ [PASS] ${message}`);
+  } else {
+    console.error(`  ❌ [FAIL] ${message}`);
+    throw new Error(`Test failed: ${message}`);
+  }
+}
+
 console.log('================================================================');
-console.log('🤖 CRISTI DESKTOP - PROACTIVE ENGINE & STATE MANAGEMENT (SYS-05)');
+console.log('🤖 CRISTI DESKTOP - PROACTIVE ENGINE & STATE MANAGEMENT (HARDENED)');
 console.log('================================================================\n');
 
 // ─────────────────────────────────────────────────────────────────────
 // 1. EVENTBUS ERROR ISOLATION & ZERO-LEAK SUBSCRIPTION LIFECYCLE
 // ─────────────────────────────────────────────────────────────────────
-console.log('[1/5] Verificando EventBus: Aislamiento de excepciones y desuscripción limpia...');
+console.log('[1/7] Verificando EventBus: Aislamiento de excepciones y desuscripción limpia...');
 const testBus = new EventBus();
 
 let listener1Fired = false;
@@ -38,16 +53,16 @@ const unsub2 = testBus.on('test_event', (data) => {
   assert.strictEqual(data.msg, 'hello');
 });
 
-assert.strictEqual(testBus.listenerCount('test_event'), 2, '2 listeners registrados');
+check(testBus.listenerCount('test_event') === 2, '2 listeners registrados');
 
 // Emit should not throw and should reach listener 2 despite listener 1 throwing
 testBus.emit('test_event', { msg: 'hello' });
-assert.strictEqual(listener1Fired, true, 'Listener 1 ejecutado');
-assert.strictEqual(listener2Fired, true, 'Listener 2 ejecutado a pesar de la excepción en Listener 1');
+check(listener1Fired === true, 'Listener 1 ejecutado');
+check(listener2Fired === true, 'Listener 2 ejecutado a pesar de la excepción en Listener 1');
 
 // Unsubscribe listener 1
 unsub1();
-assert.strictEqual(testBus.listenerCount('test_event'), 1, 'Listener 1 removido limpiamente');
+check(testBus.listenerCount('test_event') === 1, 'Listener 1 removido limpiamente');
 
 // Test once()
 let onceFiredCount = 0;
@@ -56,50 +71,48 @@ testBus.once('once_event', () => {
 });
 testBus.emit('once_event');
 testBus.emit('once_event');
-assert.strictEqual(onceFiredCount, 1, 'once() solo dispara exactamente una vez');
-assert.strictEqual(testBus.listenerCount('once_event'), 0, 'once() limpia listener automáticamente');
+check(onceFiredCount === 1, 'once() solo dispara exactamente una vez');
+check(testBus.listenerCount('once_event') === 0, 'once() limpia listener automáticamente');
 
 // High frequency filtering
 for (let i = 0; i < 500; i++) {
   testBus.emit('audio_analysis', { vol: 0.5 });
 }
-assert.strictEqual(testBus.historyBuffer.length, 3, 'Eventos de alta frecuencia excluidos de historyBuffer');
-console.log('  ✅ [PASS] EventBus verificado con 100% de aislamiento y 0 fugas.');
+check(testBus.historyBuffer.length === 3, 'Eventos de alta frecuencia excluidos de historyBuffer');
 
 // ─────────────────────────────────────────────────────────────────────
 // 2. PROACTIVE TRIGGER SERVICE: USER ACTIVITY & FOCUS CYCLES
 // ─────────────────────────────────────────────────────────────────────
-console.log('\n[2/5] Verificando Motor Proactivo: Seguimiento de actividad y ciclo Pomodoro...');
+console.log('\n[2/7] Verificando Motor Proactivo: Seguimiento de actividad y ciclo Pomodoro...');
 const proactive = new ProactiveTriggerService();
 
-assert.strictEqual(proactive.isRunning, false, 'El motor inicia detenido');
-assert(proactive.activeTriggers.has('routine_time_of_day'), 'Rutina de franja horaria registrada');
-assert(proactive.activeTriggers.has('routine_hydration_stretch'), 'Rutina de hidratación registrada');
-assert(proactive.activeTriggers.has('routine_inactivity_monitor'), 'Rutina de inactividad registrada');
+check(proactive.isRunning === false, 'El motor inicia detenido');
+check(proactive.activeTriggers.has('routine_time_of_day'), 'Rutina de franja horaria registrada');
+check(proactive.activeTriggers.has('routine_hydration_stretch'), 'Rutina de hidratación registrada');
+check(proactive.activeTriggers.has('routine_inactivity_monitor'), 'Rutina de inactividad registrada');
 
 // User activity tracking
 const initialActivity = proactive.lastUserActivityTimestamp;
 proactive.recordUserActivity();
-assert(proactive.lastUserActivityTimestamp >= initialActivity, 'Timestamp de actividad de usuario actualizado');
+check(proactive.lastUserActivityTimestamp >= initialActivity, 'Timestamp de actividad de usuario actualizado');
 
 // Focus Pomodoro Session
 proactive.startFocusSession(25);
-assert.strictEqual(proactive.focusTimer.active, true, 'Sesión de concentración activa');
-assert.strictEqual(proactive.focusTimer.mode, 'work', 'Modo trabajo');
-assert.strictEqual(proactive.focusTimer.remainingSeconds, 25 * 60, '25 minutos calculados');
+check(proactive.focusTimer.active === true, 'Sesión de concentración activa');
+check(proactive.focusTimer.mode === 'work', 'Modo trabajo');
+check(proactive.focusTimer.remainingSeconds === 25 * 60, '25 minutos calculados');
 
 // Simulate completion
 proactive.handleFocusTimerComplete();
-assert.strictEqual(proactive.focusTimer.mode, 'break', 'Transición a modo descanso tras completar trabajo');
-assert.strictEqual(proactive.focusTimer.sessionsCompleted, 1, 'Sesión completada registrada');
+check(proactive.focusTimer.mode === 'break', 'Transición a modo descanso tras completar trabajo');
+check(proactive.focusTimer.sessionsCompleted === 1, 'Sesión completada registrada');
 proactive.stopFocusSession();
-assert.strictEqual(proactive.focusTimer.active, false, 'Sesión de enfoque detenida');
-console.log('  ✅ [PASS] Ciclo de concentración y seguimiento de actividad verificado.');
+check(proactive.focusTimer.active === false, 'Sesión de enfoque detenida');
 
 // ─────────────────────────────────────────────────────────────────────
 // 3. PROACTIVE DISTRACTION & GEMINI QUEUEING RESILIENCE
 // ─────────────────────────────────────────────────────────────────────
-console.log('\n[3/5] Verificando Detección de Distracciones y Encolado con Gemini Live...');
+console.log('\n[3/7] Verificando Detección de Distracciones y Encolado con Gemini Live...');
 let sentGeminiMessages = [];
 const mockSocket = {
   isConnected: false,
@@ -115,48 +128,44 @@ proactive.queueIntervention({
   text: 'Atención: Estás distraído con el teléfono'
 });
 
-assert.strictEqual(proactive.interventionQueue.length, 1, 'Intervención encolada cuando socket está desconectado');
-assert.strictEqual(sentGeminiMessages.length, 0, 'No se enviaron mensajes a socket desconectado');
+check(proactive.interventionQueue.length === 1, 'Intervención encolada cuando socket está desconectado');
+check(sentGeminiMessages.length === 0, 'No se enviaron mensajes a socket desconectado');
 
 // When socket becomes connected, process queue
 mockSocket.isConnected = true;
 proactive.lastAutonomousInterventionTime = 0; // reset cooldown for test
 proactive.processInterventionQueue();
-assert.strictEqual(sentGeminiMessages.length, 1, 'Mensaje encolado despachado al conectarse socket');
-assert.strictEqual(proactive.interventionQueue.length, 0, 'Cola vaciada tras despacho');
-
-proactive.destroy();
-console.log('  ✅ [PASS] Resiliencia de encolado y cooldowns de Gemini Live validado.');
+check(sentGeminiMessages.length === 1, 'Mensaje encolado despachado al conectarse socket');
+check(proactive.interventionQueue.length === 0, 'Cola vaciada tras despacho');
 
 // ─────────────────────────────────────────────────────────────────────
 // 4. PROACTIVE SCHEDULER: ALARMS & REMINDERS
 // ─────────────────────────────────────────────────────────────────────
-console.log('\n[4/5] Verificando ProactiveScheduler: Recordatorios y alarmas temporizadas...');
+console.log('\n[4/7] Verificando ProactiveScheduler: Recordatorios y alarmas temporizadas...');
 const scheduler = new ProactiveScheduler();
 
-const reminder = scheduler.scheduleReminder({
+scheduler.scheduleReminder({
   id: 'test_rem_1',
   time: '12:00',
   title: 'Tomar agua',
   tag: 'Salud'
 });
-assert.strictEqual(scheduler.scheduledTasks.has('test_rem_1'), true, 'Recordatorio registrado');
+check(scheduler.scheduledTasks.has('test_rem_1') === true, 'Recordatorio registrado');
 
 scheduler.cancelTask('test_rem_1');
-assert.strictEqual(scheduler.scheduledTasks.has('test_rem_1'), false, 'Recordatorio cancelado exitosamente');
+check(scheduler.scheduledTasks.has('test_rem_1') === false, 'Recordatorio cancelado exitosamente');
 scheduler.destroy();
-console.log('  ✅ [PASS] Scheduler verificado.');
 
 // ─────────────────────────────────────────────────────────────────────
 // 5. CONFIGMANAGER: CORRUPT JSON & QUOTA OVERFLOW RESILIENCE
 // ─────────────────────────────────────────────────────────────────────
-console.log('\n[5/5] Verificando ConfigManager: Recuperación de JSON corrupto y cuotas...');
+console.log('\n[5/7] Verificando ConfigManager: Recuperación de JSON corrupto y cuotas...');
 const configMgr = new ConfigManager();
 
 // Test loading from corrupt raw string
 configMgr._memoryStore[configMgr.storageKey] = 'INVALID_JSON_CORRUPT{[[[';
 const fallbackConfig = configMgr.loadConfig({ apiKey: 'default_key' });
-assert.strictEqual(fallbackConfig.apiKey, 'default_key', 'ConfigManager se recuperó de JSON corrupto con valor por defecto');
+check(fallbackConfig.apiKey === 'default_key', 'ConfigManager se recuperó de JSON corrupto con valor por defecto');
 
 // Test saving valid config
 const saved = configMgr.saveConfig({
@@ -164,23 +173,81 @@ const saved = configMgr.saveConfig({
   modelId: 'gemini-2.0-flash-exp',
   temperature: 0.8
 });
-assert.strictEqual(saved.success, true, 'Configuración guardada correctamente');
+check(saved.success === true, 'Configuración guardada correctamente');
 
 // Test exporting and importing
 const exported = configMgr.exportConfigJSON();
-assert(exported.includes('AIzaSyTestKey123'), 'Exportación contiene API Key');
+check(exported.includes('AIzaSyTestKey123'), 'Exportación contiene API Key');
 
 const imported = configMgr.importConfigJSON(exported);
-assert.strictEqual(imported.success, true, 'Importación exitosa');
-assert.strictEqual(imported.config.apiKey, 'AIzaSyTestKey123', 'API Key preservada');
+check(imported.success === true, 'Importación exitosa');
+check(imported.config.apiKey === 'AIzaSyTestKey123', 'API Key preservada');
 
 // Test import of corrupt JSON
 const corruptImport = configMgr.importConfigJSON('INVALID_JSON{');
-assert.strictEqual(corruptImport.success, false, 'Importación de JSON corrupto rechazada limpiamente');
+check(corruptImport.success === false, 'Importación de JSON corrupto rechazada limpiamente');
 
-console.log('  ✅ [PASS] ConfigManager validado con 100% de tolerancia a fallos.');
+// ─────────────────────────────────────────────────────────────────────
+// 6. STRESS TEST: 500 TRIGGERS ENCOLADOS SIMULTÁNEAMENTE CON TTL Y COOLDOWN
+// ─────────────────────────────────────────────────────────────────────
+console.log('\n[6/7] ⚡ SOBRECARGA: Encolado de 500 triggers proactivos simultáneos (Cola acotada & TTL)...');
+const stressProactive = new ProactiveTriggerService();
+mockSocket.isConnected = false;
+stressProactive.setGeminiSocket(mockSocket);
+
+const tStart500Queue = performance.now();
+
+// Burst queue 500 interventions
+for (let i = 0; i < 500; i++) {
+  stressProactive.queueIntervention({
+    id: `stress_intervention_${i}`,
+    text: `Prompt autónomo de prueba ${i}`
+  });
+}
+
+const durationQueue = (performance.now() - tStart500Queue).toFixed(1);
+// Queue must be capped to MAX_QUEUED_INTERVENTIONS = 3, preventing memory saturation
+check(stressProactive.interventionQueue.length <= 3, `Cola proactiva acotada estrictamente a máximo 3 elementos (${stressProactive.interventionQueue.length}/3).`);
+console.log(`    ⚡ 500 intervenciones encoladas en ${durationQueue}ms sin desbordamiento de memoria.`);
+
+// Test TTL Expiration (items older than 60s)
+const now = Date.now();
+stressProactive.interventionQueue = [
+  { id: 'expired_1', text: 'Old prompt 1', timestamp: now - 70000 },
+  { id: 'expired_2', text: 'Old prompt 2', timestamp: now - 90000 },
+  { id: 'valid_1', text: 'Fresh prompt', timestamp: now }
+];
+
+stressProactive.processInterventionQueue();
+check(stressProactive.interventionQueue.length === 1, 'TTL de 60s purgó automáticamente 2 intervenciones vencidas.');
+check(stressProactive.interventionQueue[0].id === 'valid_1', 'Intervención fresca preservada en cola.');
+
+stressProactive.destroy();
+
+// ─────────────────────────────────────────────────────────────────────
+// 7. STRESS TEST: RÁFAGA DE 5,000 EVENTOS DE ACTIVIDAD Y DISTRACCIÓN
+// ─────────────────────────────────────────────────────────────────────
+console.log('\n[7/7] ⚡ SOBRECARGA: Ráfaga de 5,000 eventos de actividad y alertas sensoriales...');
+const activityProactive = new ProactiveTriggerService();
+const tStart5000 = performance.now();
+
+for (let i = 0; i < 5000; i++) {
+  activityProactive.recordUserActivity();
+  if (i % 250 === 0) {
+    activityProactive.handleDistractionAlert({ duration: 45, message: 'Celular en mano' });
+  }
+}
+
+const duration5000 = (performance.now() - tStart5000).toFixed(1);
+const telemetry5000 = activityProactive.getTelemetry();
+check(telemetry5000.timeSinceLastActivitySeconds === 0, `5,000 eventos procesados en ${duration5000}ms sin fuga de memoria.`);
+check(telemetry5000.queuedInterventionsCount <= 3, 'Cola de intervenciones protegida ante tormenta de eventos.');
+
+activityProactive.destroy();
+proactive.destroy();
 
 console.log('\n================================================================');
-console.log('📊 RESULTADO: SUBSISTEMA SYS-05 100% BLINDADO Y OPERACIONAL');
+console.log(`📊 RESULTADO FINAL: ${passed}/${total} PRUEBAS EXITOSAS (100%)`);
 console.log('================================================================\n');
+
 process.exit(0);

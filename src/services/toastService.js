@@ -90,6 +90,14 @@ export class ToastService {
     return this.show({ title, description, type: 'warning', ...options });
   }
 
+  warn(title, description, options = {}) {
+    return this.warning(title, description, options);
+  }
+
+  warn(title, description, options = {}) {
+    return this.warning(title, description, options);
+  }
+
   error(title, description, options = {}) {
     return this.show({ title, description, type: 'error', duration: 6000, ...options });
   }

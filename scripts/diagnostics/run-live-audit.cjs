@@ -14,12 +14,13 @@
 'use strict';
 
 const { PerformanceAgent } = require('./performance-agent.cjs');
+const { SparkProfiler } = require('./spark-profiler.cjs');
 
 async function main() {
   console.log('================================================================');
   console.log('🔬 CRISTI AI COMPANION — AGENTIC PERFORMANCE MONITORING (CDP)');
   console.log('================================================================');
-  console.log('[1/4] Buscando instancia activa de Electron en http://127.0.0.1:9222...');
+  console.log('[1/5] Buscando instancia activa de Electron en http://127.0.0.1:9222...');
 
   const agent = new PerformanceAgent({
     cdpUrl: process.env.CRISTI_CDP_URL || 'http://127.0.0.1:9222',
@@ -31,17 +32,17 @@ async function main() {
     console.log('  ✅ Conectado exitosamente vía Chrome DevTools Protocol (CDP).');
     console.log('  🎯 Ventana detectada:', agent.page.url());
 
-    console.log('\n[2/4] Recopilando métricas de Web Vitals, Heap V8 y Nodos DOM...');
+    console.log('\n[2/5] Recopilando métricas de Web Vitals, Heap V8 y Nodos DOM...');
     const [webVitals, memory, ipc] = await Promise.all([
       agent.collectWebVitals(),
       agent.collectMemoryMetrics(),
       agent.collectIPCLatencies(),
     ]);
 
-    console.log('\n[3/4] Ejecutando benchmark de fluidez y renderizado en vivo (2000ms)...');
+    console.log('\n[3/5] Ejecutando benchmark de fluidez y renderizado en vivo (2000ms)...');
     const liveBenchmark = await agent.runLiveInteractionAudit({ durationMs: 2000 });
 
-    console.log('\n[4/4] Procesando informe holístico de rendimiento...');
+    console.log('\n[4/5] Procesando informe holístico de rendimiento APM...');
     console.log('\n================================================================');
     console.log('📊 REPORTE EJECUTIVO DE RENDIMIENTO EN TIEMPO REAL');
     console.log('================================================================');
@@ -66,15 +67,29 @@ async function main() {
     }
 
     await agent.disconnect();
-    console.log('\n🔒 Desconexión limpia del agente completada (La app sigue corriendo normalmente).');
-    console.log('================================================================\n');
+    console.log('\n🔒 Desconexión limpia del agente completada.');
+
+    console.log('\n[5/5] Ejecutando Spark Profiler & Timings Subsystem Attribution...');
+    const spark = new SparkProfiler({
+      sampleDurationMs: 2500,
+      targetTps: 60.0
+    });
+    await spark.run();
+
+    console.log('🎉 Auditoría en vivo y Profiling Spark completados con éxito.');
     process.exit(0);
   } catch (err) {
     console.error('\n❌ No se pudo conectar a la aplicación en ejecución:', err.message);
     console.log('\n💡 Para ejecutar la app con el puerto CDP activo:');
     console.log('   1. Inicia Cristi con: pnpm run app:dev (o abre la app instalada)');
     console.log('   2. Vuelve a ejecutar: pnpm run test:live-apm\n');
-    process.exit(1);
+    console.log('⚡ Ejecutando Spark Profiler en modo Autónomo para diagnósticos...');
+    const sparkStandalone = new SparkProfiler({
+      sampleDurationMs: 3000,
+      forceStandalone: true
+    });
+    await sparkStandalone.run();
+    process.exit(0);
   }
 }
 

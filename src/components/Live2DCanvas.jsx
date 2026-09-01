@@ -611,21 +611,21 @@ export const Live2DCanvas = React.memo(forwardRef(function Live2DCanvas(
         // Expose to window for testing / automation
         if (typeof window !== 'undefined') {
           window.__cristiAvatar = {
-            model,
-            adapter,
-            controller,
+            get model() { return modelRef.current || model; },
+            get adapter() { return adapterRef.current || adapter; },
+            get controller() { return controllerRef.current || controller; },
             orchestrator: contextualEmotionOrchestrator,
             registry: live2dModelRegistry,
-            setGaze: (x, y) => controller.setGazeTarget(x, y),
-            setEmotion: (emo) => controller.setEmotion(emo),
+            setGaze: (x, y) => (controllerRef.current || controller)?.setGazeTarget(x, y),
+            setEmotion: (emo) => (controllerRef.current || controller)?.setEmotion(emo),
             triggerEmotion: (emo, src) => contextualEmotionOrchestrator.triggerEmotion(emo, src),
-            setExpression: (exp) => adapter.setExpression(exp),
-            setMotion: (group, index) => model.motion(group, index),
-            setMotionByGroup: (group, index) => adapter.setMotionByGroup(group, index),
-            setHead: (x, y, z) => adapter.setHeadAngle(x, y, z),
-            setBody: (x, y, z) => adapter.setBodyAngle(x, y, z),
-            setMouth: (o, f) => adapter.setMouth(o, f),
-            setCheeks: (b) => adapter.setCheeks(b)
+            setExpression: (exp) => (adapterRef.current || adapter)?.setExpression(exp),
+            setMotion: (group, index) => (modelRef.current || model)?.motion(group, index),
+            setMotionByGroup: (group, index) => (adapterRef.current || adapter)?.setMotionByGroup(group, index),
+            setHead: (x, y, z) => (adapterRef.current || adapter)?.setHeadAngle(x, y, z),
+            setBody: (x, y, z) => (adapterRef.current || adapter)?.setBodyAngle(x, y, z),
+            setMouth: (o, f) => (adapterRef.current || adapter)?.setMouth(o, f),
+            setCheeks: (b) => (adapterRef.current || adapter)?.setCheeks(b)
           };
         }
 

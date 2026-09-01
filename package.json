@@ -16,6 +16,7 @@
     "postinstall": "node scripts/postinstall-setup.cjs",
     "test:diagnostics": "node tests/run_all_diagnostics.mjs",
     "test:live-apm": "node scripts/diagnostics/run-live-audit.cjs",
+    "test:spark": "node scripts/diagnostics/spark-profiler.cjs",
     "test": "node tests/run_all_diagnostics.mjs"
   },
   "dependencies": {

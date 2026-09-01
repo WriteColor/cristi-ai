@@ -853,6 +853,57 @@ export function App() {
     }
   }, [isConnected, isConnecting, isMuted, isCameraActive, config, setSubtitleText]);
 
+  // --- Configuration Persistence and Live Updates ---
+  const handleSaveConfig = useCallback((newConfig) => {
+    setConfig(newConfig);
+    try {
+      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(newConfig));
+      configManager.saveConfig(newConfig);
+    } catch (e) {}
+
+    // Update active Live2D model in runtime if changed
+    if (newConfig.live2dModelId) {
+      if (window.__cristiAvatar?.loadModel) {
+        window.__cristiAvatar.loadModel(newConfig.live2dModelId);
+      }
+      if (live2dRef.current?.switchModel) {
+        live2dRef.current.switchModel(newConfig.live2dModelId);
+      }
+    }
+  }, []);
+
+  const handleSwitchLive2DModel = useCallback((modelId) => {
+    const nextConfig = { ...config, live2dModelId: modelId };
+    handleSaveConfig(nextConfig);
+    toastService.info('Personaje Live2D', `Modelo cambiado a: ${live2dModelRegistry.getModel(modelId)?.name || modelId}`);
+  }, [config, handleSaveConfig]);
+
+  const handleSwitchAiModel = useCallback((modelId) => {
+    const nextConfig = { ...config, modelId };
+    handleSaveConfig(nextConfig);
+    toastService.info('Modelo IA', `Motor cambiado a: ${modelId}`);
+  }, [config, handleSaveConfig]);
+
+  const handleSwitchVoice = useCallback((voiceName) => {
+    const nextConfig = { ...config, voiceName };
+    handleSaveConfig(nextConfig);
+    toastService.info('Voz de Cristi', `Timbre cambiado a: ${voiceName}`);
+  }, [config, handleSaveConfig]);
+
+  // --- Right-Click Context Menu Handler ---
+  const handleModelContextMenu = useCallback((e, bounds) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (e && e.stopPropagation) e.stopPropagation();
+    const posX = e?.clientX !== undefined ? e.clientX : (window.innerWidth / 2);
+    const posY = e?.clientY !== undefined ? e.clientY : (window.innerHeight / 2);
+    setContextMenu({
+      isOpen: true,
+      x: posX,
+      y: posY,
+      modelBounds: bounds || null
+    });
+  }, []);
+
   // --- Expose Automation Hooks & Test Bridge ---
   useEffect(() => {
     window.__cristiApp = {
@@ -863,6 +914,23 @@ export function App() {
       setSubtitle: (t) => setSubtitleText(t),
       openSettings: () => setIsSettingsOpen(true),
       closeSettings: () => setIsSettingsOpen(false),
+      openContextMenu: (x, y) => handleModelContextMenu({ clientX: x || 300, clientY: y || 200 }),
+      closeContextMenu: () => setContextMenu({ isOpen: false, x: 0, y: 0, modelBounds: null }),
+      openLockSandbox: () => setIsLockSandboxOpen(true),
+      closeLockSandbox: () => setIsLockSandboxOpen(false),
+      toggleLockScreen: () => setIsLockScreenActive((prev) => !prev),
+      openPerformanceHUD: () => setIsPerformanceHudOpen(true),
+      closePerformanceHUD: () => setIsPerformanceHudOpen(false),
+      openRegionPicker: () => setIsRegionPickerOpen(true),
+      closeRegionPicker: () => setIsRegionPickerOpen(false),
+      getModalStates: () => ({
+        isSettingsOpen,
+        isContextMenuOpen: contextMenu.isOpen,
+        isLockSandboxOpen,
+        isRegionPickerOpen,
+        isPerformanceHudOpen,
+        isVoiceEnrollmentOpen
+      }),
       eventBus,
       toast,
       toastService,
@@ -895,7 +963,25 @@ export function App() {
       delete window.__triggerGesture;
       delete window.__setSubtitle;
     };
-  }, [handleToggleConnection, isConnected, isConnecting, isSpeaking, isListening, config, currentGesture, userTranscript, modelTranscript, setSubtitleText]);
+  }, [
+    handleToggleConnection,
+    handleSaveConfig,
+    isConnected,
+    isConnecting,
+    isSpeaking,
+    isListening,
+    config,
+    currentGesture,
+    userTranscript,
+    modelTranscript,
+    setSubtitleText,
+    isSettingsOpen,
+    contextMenu,
+    isLockSandboxOpen,
+    isRegionPickerOpen,
+    isPerformanceHudOpen,
+    isVoiceEnrollmentOpen
+  ]);
 
   // --- Reactive Synchronization for Microphone Mute State (Shortcuts, Tray, UI) ---
   useEffect(() => {
@@ -984,64 +1070,13 @@ export function App() {
     });
   }, []);
 
-  // --- Configuration Persistence and Live Updates ---
-  const handleSaveConfig = (newConfig) => {
-    setConfig(newConfig);
-    try {
-      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(newConfig));
-      configManager.saveConfig(newConfig);
-    } catch (e) {}
-
-    // Update active Live2D model in runtime if changed
-    if (newConfig.live2dModelId) {
-      if (window.__cristiAvatar?.loadModel) {
-        window.__cristiAvatar.loadModel(newConfig.live2dModelId);
-      }
-      if (live2dRef.current?.switchModel) {
-        live2dRef.current.switchModel(newConfig.live2dModelId);
-      }
-    }
-  };
-
-  const handleSwitchLive2DModel = (modelId) => {
-    const nextConfig = { ...config, live2dModelId: modelId };
-    handleSaveConfig(nextConfig);
-    toastService.info('Personaje Live2D', `Modelo cambiado a: ${live2dModelRegistry.getModel(modelId)?.name || modelId}`);
-  };
-
-  const handleSwitchAiModel = (modelId) => {
-    const nextConfig = { ...config, modelId };
-    handleSaveConfig(nextConfig);
-    toastService.info('Modelo IA', `Motor cambiado a: ${modelId}`);
-  };
-
-  const handleSwitchVoice = (voiceName) => {
-    const nextConfig = { ...config, voiceName };
-    handleSaveConfig(nextConfig);
-    toastService.info('Voz de Cristi', `Timbre cambiado a: ${voiceName}`);
-  };
-
-  // --- Right-Click Context Menu Handler ---
-  const handleModelContextMenu = (e, bounds) => {
-    if (e && e.preventDefault) e.preventDefault();
-    if (e && e.stopPropagation) e.stopPropagation();
-    const posX = e?.clientX !== undefined ? e.clientX : (window.innerWidth / 2);
-    const posY = e?.clientY !== undefined ? e.clientY : (window.innerHeight / 2);
-    setContextMenu({
-      isOpen: true,
-      x: posX,
-      y: posY,
-      modelBounds: bounds || null
-    });
-  };
-
   useEffect(() => {
     if (typeof window !== 'undefined') {
       window.__cristiOpenContextMenu = (x, y) => handleModelContextMenu({ clientX: x || 300, clientY: y || 200 });
       window.__cristiToggleLockScreen = () => setIsLockScreenActive((prev) => !prev);
       window.__cristiOpenLockSandbox = () => setIsLockSandboxOpen(true);
     }
-  }, []);
+  }, [handleModelContextMenu]);
 
   const handleTriggerRandomGesture = () => {
     const gestures = ['happy', 'blush', 'wink', 'dance', 'yandere', 'mad', 'surprised'];

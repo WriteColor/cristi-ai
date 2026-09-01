@@ -56,7 +56,7 @@ registerProcessor('cristi-pcm-processor', CristiPcmProcessor);
 `;
 
 export class AudioInputService {
-  constructor({ onAudioChunk, onAudioData, onRawPCMChunk, onVolumeChange, onError }) {
+  constructor({ onAudioChunk, onAudioData, onRawPCMChunk, onVolumeChange, onError } = {}) {
     this.onAudioChunk = onAudioChunk || onAudioData || (() => {});
     this.onRawPCMChunk = onRawPCMChunk || (() => {});
     this.onVolumeChange = onVolumeChange || (() => {});
