@@ -757,3 +757,276 @@ body {
   background: rgba(51, 65, 85, 0.9);
   color: var(--text-main);
 }
+
+/* ── Voice & Biometrics Subtabs & Suites ─────────────────────────────────── */
+.settings-voice-subtabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: var(--border-subtle);
+  padding-bottom: 10px;
+}
+
+.settings-voice-subtab-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  background: rgba(30, 41, 59, 0.5);
+  border: var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.settings-voice-subtab-btn:hover {
+  background: rgba(51, 65, 85, 0.8);
+  color: var(--text-main);
+}
+.settings-voice-subtab-btn.active {
+  background: var(--accent-purple-dim);
+  border-color: var(--accent-purple);
+  color: #fff;
+}
+
+.settings-badge-subtab-active {
+  padding: 1px 6px;
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid var(--accent-emerald);
+  border-radius: 4px;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--accent-emerald);
+}
+
+.settings-enrollment-methods-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.settings-enroll-card {
+  padding: 16px;
+  background: var(--bg-card);
+  border: var(--border-subtle);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-enroll-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.settings-enroll-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+.settings-enroll-card-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* VU Meter */
+.settings-vu-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.settings-vu-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+.settings-vu-bar-bg {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.settings-vu-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #10b981 0%, #a855f7 70%, #f43f5e 100%);
+  border-radius: 3px;
+  transition: width 0.05s ease-out;
+}
+.settings-vu-bar-fill.live-test {
+  background: linear-gradient(90deg, #38bdf8 0%, #a855f7 100%);
+}
+
+.settings-samples-chips {
+  display: flex;
+  gap: 6px;
+}
+.settings-sample-chip {
+  flex: 1;
+  padding: 4px 8px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+.settings-sample-chip.filled {
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid var(--accent-purple);
+  color: var(--accent-purple-light);
+  font-weight: 600;
+}
+
+.settings-enroll-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.settings-btn-action-primary {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #9333ea 0%, #7e22ce 100%);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.12s ease;
+}
+.settings-btn-action-primary:hover { opacity: 0.92; }
+
+.settings-btn-action-danger {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(244, 63, 94, 0.85);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-btn-action-success {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Audio Dropzone */
+.settings-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px 14px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1.5px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.12s ease;
+}
+.settings-dropzone:hover {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: var(--accent-sky);
+}
+.settings-dropzone-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.settings-dropzone-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.settings-processing-indicator {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--accent-sky);
+  text-align: center;
+}
+
+/* Test Result Card */
+.settings-test-result-card {
+  padding: 12px 14px;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.settings-test-result-card.match {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+.settings-test-result-card.mismatch {
+  background: rgba(244, 63, 94, 0.12);
+  border: 1px solid rgba(244, 63, 94, 0.4);
+}
+.settings-test-result-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.settings-test-result-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+.settings-test-result-metrics {
+  display: flex;
+  gap: 14px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.settings-test-result-metrics strong {
+  color: var(--text-main);
+  font-family: var(--font-mono);
+}
+
+.settings-thresholds-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 8px;
+}
+.settings-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(244, 63, 94, 0.15);
+  border: 1px solid var(--accent-rose);
+  border-radius: 6px;
+  color: #fecdd3;
+  font-size: 11px;
+}

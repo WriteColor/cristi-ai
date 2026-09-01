@@ -106,13 +106,23 @@ export default function SettingsApp() {
   const [customSceneUrl, setCustomSceneUrl] = useState(() => sceneManager.getScene().customUrl);
   const [availableScenes, setAvailableScenes] = useState(() => sceneManager.getAvailableScenes());
 
-  // Biometrics & Voice Enrollment in-panel state
-  const [voiceOwnerName, setVoiceOwnerName] = useState('Mi Dueño');
+  // Voice Sub-Tab & Biometrics in-panel state
+  const [voiceSubTab, setVoiceSubTab] = useState('timbre'); // 'timbre' | 'enrollment' | 'tester'
+  const [voiceOwnerName, setVoiceOwnerName] = useState(() => speakerRecognitionService.getProfileInfo()?.name || 'Mi Dueño');
   const [hasVoiceProfile, setHasVoiceProfile] = useState(() => speakerRecognitionService.hasEnrolledProfile());
   const [matchThreshold, setMatchThreshold] = useState(() => speakerRecognitionService.matchThreshold);
   const [rejectThreshold, setRejectThreshold] = useState(() => speakerRecognitionService.rejectThreshold);
+  
+  // Voice Recording state
+  const [recordedSamples, setRecordedSamples] = useState([]);
   const [isRecordingSample, setIsRecordingSample] = useState(false);
-  const [voiceToast, setVoiceToast] = useState(null);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [isProcessingAudio, setIsProcessingAudio] = useState(false);
+  const [enrollError, setEnrollError] = useState(null);
+
+  // Live Voice Tester State
+  const [isTestingVoice, setIsTestingVoice] = useState(false);
+  const [testResult, setTestResult] = useState(null);
 
   // Auto-Updater State
   const [appVersion, setAppVersion] = useState('1.0.0');
@@ -125,6 +135,58 @@ export default function SettingsApp() {
 
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
+  const voiceFileInputRef = useRef(null);
+
+  // Audio Engine References
+  const audioChunksRef = useRef([]);
+  const audioContextRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const processorRef = useRef(null);
+  const timerRef = useRef(null);
+  const volumeBarRef = useRef(null);
+  const testVolumeBarRef = useRef(null);
+
+  // Cleanup all audio resources
+  const cleanupAudio = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
+    if (audioContextRef.current) {
+      if (audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close().catch(() => {});
+      }
+      audioContextRef.current = null;
+    }
+    setIsRecordingSample(false);
+    setIsTestingVoice(false);
+    if (volumeBarRef.current) volumeBarRef.current.style.width = '0%';
+    if (testVolumeBarRef.current) testVolumeBarRef.current.style.width = '0%';
+  };
+
+  // Global Escape key listener to close settings and restore Cristi
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        soundFxService.playClick();
+        cleanupAudio();
+        electronBridge.closeSettingsWindow();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      cleanupAudio();
+    };
+  }, []);
 
   // Sync initial config from Electron Main if available
   useEffect(() => {
@@ -252,6 +314,202 @@ export default function SettingsApp() {
     broadcastConfig({ voiceName: id });
   };
 
+  // --- Voice Biometrics Live Recording Handlers ---
+  const handleStartSampleRecording = async () => {
+    try {
+      setEnrollError(null);
+      audioChunksRef.current = [];
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      });
+      mediaStreamRef.current = stream;
+
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AudioCtx({ sampleRate: 16000 });
+      audioContextRef.current = ctx;
+
+      const source = ctx.createMediaStreamSource(stream);
+      const processor = ctx.createScriptProcessor(2048, 1, 1);
+      processorRef.current = processor;
+
+      processor.onaudioprocess = (e) => {
+        const input = e.inputBuffer.getChannelData(0);
+        audioChunksRef.current.push(new Float32Array(input));
+
+        let sum = 0;
+        for (let i = 0; i < input.length; i += 4) sum += input[i] * input[i];
+        const rms = Math.sqrt(sum / (input.length / 4));
+        const pct = Math.min(100, Math.round(rms * 400));
+        if (volumeBarRef.current) {
+          volumeBarRef.current.style.width = `${pct}%`;
+        }
+      };
+
+      source.connect(processor);
+      processor.connect(ctx.destination);
+
+      setIsRecordingSample(true);
+      setRecordingSeconds(0);
+
+      timerRef.current = setInterval(() => {
+        setRecordingSeconds((prev) => {
+          if (prev >= 4) {
+            handleStopSampleRecording();
+            return 4;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+    } catch (err) {
+      setEnrollError(`No se pudo acceder al micrófono: ${err.message}`);
+    }
+  };
+
+  const handleStopSampleRecording = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setIsRecordingSample(false);
+
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
+
+    if (audioChunksRef.current.length > 0) {
+      const totalLen = audioChunksRef.current.reduce((acc, chunk) => acc + chunk.length, 0);
+      const merged = new Float32Array(totalLen);
+      let offset = 0;
+      for (const chunk of audioChunksRef.current) {
+        merged.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      setRecordedSamples((prev) => [...prev, merged]);
+      soundFxService.playNotification();
+    }
+  };
+
+  const handleCompleteEnrollment = () => {
+    if (recordedSamples.length === 0) {
+      setEnrollError('Debes grabar al menos 1 muestra de audio.');
+      return;
+    }
+    soundFxService.playConnect();
+    const success = speakerRecognitionService.enrollSpeaker(voiceOwnerName || 'Mi Dueño', recordedSamples);
+    if (success) {
+      setHasVoiceProfile(true);
+      setRecordedSamples([]);
+      soundFxService.playLevelUp();
+      toastService.success(`¡Perfil biométrico de "${voiceOwnerName || 'Mi Dueño'}" creado con éxito!`);
+    } else {
+      setEnrollError('No se pudo procesar la huella vocal. Intenta hablar más fuerte o reducir el ruido.');
+    }
+  };
+
+  const handleAudioFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setEnrollError(null);
+      setIsProcessingAudio(true);
+      const arrayBuffer = await file.arrayBuffer();
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AudioCtx({ sampleRate: 16000 });
+      const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+      const channelData = audioBuffer.getChannelData(0);
+
+      const success = speakerRecognitionService.enrollSpeaker(voiceOwnerName || 'Mi Dueño', [channelData]);
+      if (success) {
+        setHasVoiceProfile(true);
+        soundFxService.playLevelUp();
+        toastService.success(`¡Voz del dueño "${voiceOwnerName || 'Mi Dueño'}" registrada exitosamente desde archivo!`);
+      } else {
+        setEnrollError('No se detectó suficiente energía vocal en el archivo subido.');
+      }
+      ctx.close();
+    } catch (err) {
+      setEnrollError(`Error al procesar el archivo: ${err.message}`);
+    } finally {
+      setIsProcessingAudio(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleStartLiveVoiceTest = async () => {
+    try {
+      setIsTestingVoice(true);
+      setTestResult(null);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+      });
+      mediaStreamRef.current = stream;
+
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AudioCtx({ sampleRate: 16000 });
+      audioContextRef.current = ctx;
+
+      const source = ctx.createMediaStreamSource(stream);
+      const processor = ctx.createScriptProcessor(2048, 1, 1);
+      processorRef.current = processor;
+
+      const testBuffer = [];
+      processor.onaudioprocess = (e) => {
+        const input = e.inputBuffer.getChannelData(0);
+        testBuffer.push(new Float32Array(input));
+
+        let sum = 0;
+        for (let i = 0; i < input.length; i += 4) sum += input[i] * input[i];
+        const rms = Math.sqrt(sum / (input.length / 4));
+        const pct = Math.min(100, Math.round(rms * 400));
+        if (testVolumeBarRef.current) {
+          testVolumeBarRef.current.style.width = `${pct}%`;
+        }
+
+        if (testBuffer.length >= 16) { // ~2 seconds
+          const totalLen = testBuffer.reduce((a, b) => a + b.length, 0);
+          const merged = new Float32Array(totalLen);
+          let off = 0;
+          for (const b of testBuffer) {
+            merged.set(b, off);
+            off += b.length;
+          }
+          const result = speakerRecognitionService.verifySpeaker(merged);
+          setTestResult(result);
+          testBuffer.length = 0;
+        }
+      };
+
+      source.connect(processor);
+      processor.connect(ctx.destination);
+    } catch (err) {
+      setIsTestingVoice(false);
+      toastService.error(`Error al iniciar prueba: ${err.message}`);
+    }
+  };
+
+  const handleStopLiveVoiceTest = () => {
+    setIsTestingVoice(false);
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+    if (testVolumeBarRef.current) testVolumeBarRef.current.style.width = '0%';
+  };
+
   const handleSaveAndApply = async () => {
     soundFxService.playConnect();
     broadcastConfig();
@@ -260,6 +518,7 @@ export default function SettingsApp() {
 
   const handleCloseWindow = () => {
     soundFxService.playClick();
+    cleanupAudio();
     electronBridge.closeSettingsWindow();
   };
 
@@ -515,110 +774,351 @@ export default function SettingsApp() {
                 <p className="settings-section-desc">Selecciona el timbre de voz de Gemini y calibra el reconocimiento biométrico para que Cristi solo te responda a ti.</p>
               </div>
 
-              {/* Gemini Standard Voices */}
-              <div className="settings-field-group">
-                <label className="settings-field-label">
+              {/* Sub-Tabs Selector */}
+              <div className="settings-voice-subtabs">
+                <button
+                  type="button"
+                  className={`settings-voice-subtab-btn ${voiceSubTab === 'timbre' ? 'active' : ''}`}
+                  onClick={() => {
+                    soundFxService.playClick();
+                    cleanupAudio();
+                    setVoiceSubTab('timbre');
+                  }}
+                >
                   <Volume2 size={13} />
-                  <span>Timbre de Voz en Tiempo Real (Gemini Live)</span>
-                </label>
-                <div className="settings-voice-grid">
-                  {GEMINI_STANDARD_VOICES.map((v) => {
-                    const isSelected = voiceName === v.id;
-                    return (
-                      <div
-                        key={v.id}
-                        className={`settings-voice-card ${isSelected ? 'selected' : ''}`}
-                        onClick={() => handleSelectVoice(v.id)}
-                      >
-                        <div className="settings-voice-header">
-                          <span className="settings-voice-name">{v.name}</span>
-                          <span className="settings-voice-gender">{v.gender}</span>
-                          {isSelected && <span className="settings-badge-active">ACTIVO</span>}
-                        </div>
-                        <p className="settings-voice-desc">{v.description}</p>
-                      </div>
-                    );
-                  })}
-                </div>
+                  <span>Timbre de Voz (Gemini)</span>
+                </button>
+                <button
+                  type="button"
+                  className={`settings-voice-subtab-btn ${voiceSubTab === 'enrollment' ? 'active' : ''}`}
+                  onClick={() => {
+                    soundFxService.playClick();
+                    cleanupAudio();
+                    setVoiceSubTab('enrollment');
+                  }}
+                >
+                  <ShieldCheck size={13} />
+                  <span>Registro Biométrico del Dueño</span>
+                  {hasVoiceProfile && <span className="settings-badge-subtab-active">ACTIVO</span>}
+                </button>
+                <button
+                  type="button"
+                  className={`settings-voice-subtab-btn ${voiceSubTab === 'tester' ? 'active' : ''}`}
+                  onClick={() => {
+                    soundFxService.playClick();
+                    cleanupAudio();
+                    setVoiceSubTab('tester');
+                  }}
+                >
+                  <Activity size={13} />
+                  <span>Probador de Voz en Vivo</span>
+                </button>
               </div>
 
-              {/* Biometric Voice Profile */}
-              <div className="settings-field-group" style={{ marginTop: '16px' }}>
-                <label className="settings-field-label">
-                  <ShieldCheck size={13} />
-                  <span>Perfil Biométrico Vocal del Dueño</span>
-                </label>
-                <div className="settings-biometrics-card">
-                  <div className="settings-biometrics-header">
-                    <div>
-                      <span className="settings-biometrics-title">
-                        {hasVoiceProfile ? `✓ Perfil Activo (${speakerRecognitionService.getProfileInfo()?.name || 'Mi Dueño'})` : 'Sin Perfil Registrado'}
-                      </span>
-                      <p className="settings-biometrics-subtitle">
-                        {hasVoiceProfile
-                          ? `Registrado con ${speakerRecognitionService.getProfileInfo()?.sampleCount || 1} muestra(s) biométrica(s).`
-                          : 'Registra tu voz para que Cristi filtre ruidos y voces de terceros.'}
-                      </p>
-                    </div>
-                    {hasVoiceProfile && (
-                      <button
-                        type="button"
-                        className="settings-btn-reset-danger"
-                        onClick={() => {
-                          soundFxService.playClick();
-                          speakerRecognitionService.clearProfile();
-                          setHasVoiceProfile(false);
-                          toastService.success('Perfil biométrico borrado.');
-                        }}
-                      >
-                        Borrar Perfil
-                      </button>
-                    )}
+              {/* SUBTAB 1: TIMBRES DE VOZ */}
+              {voiceSubTab === 'timbre' && (
+                <div className="settings-field-group" style={{ marginTop: '14px' }}>
+                  <label className="settings-field-label">
+                    <Volume2 size={13} />
+                    <span>Catálogo de Timbres Disponibles en Tiempo Real</span>
+                  </label>
+                  <div className="settings-voice-grid">
+                    {GEMINI_STANDARD_VOICES.map((v) => {
+                      const isSelected = voiceName === v.id;
+                      return (
+                        <div
+                          key={v.id}
+                          className={`settings-voice-card ${isSelected ? 'selected' : ''}`}
+                          onClick={() => handleSelectVoice(v.id)}
+                        >
+                          <div className="settings-voice-header">
+                            <span className="settings-voice-name">{v.name}</span>
+                            <span className="settings-voice-gender">{v.gender}</span>
+                            {isSelected && <span className="settings-badge-active">ACTIVO</span>}
+                          </div>
+                          <p className="settings-voice-desc">{v.description}</p>
+                        </div>
+                      );
+                    })}
                   </div>
+                </div>
+              )}
+
+              {/* SUBTAB 2: REGISTRO BIOMÉTRICO (MIC O ARCHIVO) */}
+              {voiceSubTab === 'enrollment' && (
+                <div className="settings-enrollment-suite" style={{ marginTop: '14px' }}>
+                  {/* Status Banner */}
+                  <div className="settings-biometrics-card">
+                    <div className="settings-biometrics-header">
+                      <div>
+                        <span className="settings-biometrics-title">
+                          {hasVoiceProfile ? `✓ Perfil Activo: ${speakerRecognitionService.getProfileInfo()?.name || voiceOwnerName}` : '⚠️ Sin Perfil Biométrico Registrado'}
+                        </span>
+                        <p className="settings-biometrics-subtitle">
+                          {hasVoiceProfile
+                            ? `Protegido con ${speakerRecognitionService.getProfileInfo()?.sampleCount || 1} muestra(s) biométrica(s). Solo responderá a tu voz.`
+                            : 'Registra tu voz para que Cristi ignore ruidos, familiares o voces de terceros en streaming.'}
+                        </p>
+                      </div>
+                      {hasVoiceProfile && (
+                        <button
+                          type="button"
+                          className="settings-btn-reset-danger"
+                          onClick={() => {
+                            soundFxService.playClick();
+                            cleanupAudio();
+                            speakerRecognitionService.clearProfile();
+                            setHasVoiceProfile(false);
+                            setRecordedSamples([]);
+                            toastService.success('Perfil biométrico borrado.');
+                          }}
+                        >
+                          Borrar Perfil
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Owner Name Input */}
+                    <div className="settings-field-group" style={{ marginTop: '8px' }}>
+                      <label className="settings-field-label">
+                        <User size={13} />
+                        <span>Nombre del Dueño Registrado:</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={voiceOwnerName}
+                        onChange={(e) => setVoiceOwnerName(e.target.value)}
+                        placeholder="Ej: Jeremy / Mi Creador"
+                        className="settings-text-input"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Enrollment Methods: Mic Recording or File Upload */}
+                  <div className="settings-enrollment-methods-grid" style={{ marginTop: '14px' }}>
+                    {/* Method A: Microphone Live Recording */}
+                    <div className="settings-enroll-card">
+                      <div className="settings-enroll-card-header">
+                        <Mic2 size={16} color="#a855f7" />
+                        <div>
+                          <h3 className="settings-enroll-card-title">Opción A: Grabar con Micrófono</h3>
+                          <p className="settings-enroll-card-subtitle">Habla durante 4 segundos diciendo cualquier frase.</p>
+                        </div>
+                      </div>
+
+                      {/* VU Meter */}
+                      <div className="settings-vu-container">
+                        <div className="settings-vu-label">
+                          <span>Nivel de Entrada:</span>
+                          <span>{isRecordingSample ? `${recordingSeconds}s / 4s` : 'Listo'}</span>
+                        </div>
+                        <div className="settings-vu-bar-bg">
+                          <div ref={volumeBarRef} className="settings-vu-bar-fill" />
+                        </div>
+                      </div>
+
+                      {/* Samples list */}
+                      <div className="settings-samples-chips">
+                        {[0, 1, 2].map((idx) => {
+                          const hasSample = recordedSamples.length > idx;
+                          return (
+                            <span key={idx} className={`settings-sample-chip ${hasSample ? 'filled' : ''}`}>
+                              {hasSample ? `✓ Muestra #${idx + 1} Lista` : `Muestra #${idx + 1}`}
+                            </span>
+                          );
+                        })}
+                      </div>
+
+                      {/* Controls */}
+                      <div className="settings-enroll-actions">
+                        {!isRecordingSample ? (
+                          <button
+                            type="button"
+                            className="settings-btn-action-primary"
+                            onClick={handleStartSampleRecording}
+                          >
+                            <Mic2 size={14} />
+                            <span>{recordedSamples.length > 0 ? 'Grabar Otra Muestra' : 'Iniciar Grabación (4s)'}</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="settings-btn-action-danger"
+                            onClick={handleStopSampleRecording}
+                          >
+                            <X size={14} />
+                            <span>Detener Grabación</span>
+                          </button>
+                        )}
+
+                        {recordedSamples.length > 0 && (
+                          <button
+                            type="button"
+                            className="settings-btn-action-success"
+                            onClick={handleCompleteEnrollment}
+                          >
+                            <CheckCircle2 size={14} />
+                            <span>Guardar Perfil Biométrico</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Method B: Audio File Upload */}
+                    <div className="settings-enroll-card">
+                      <div className="settings-enroll-card-header">
+                        <FileAudio size={16} color="#38bdf8" />
+                        <div>
+                          <h3 className="settings-enroll-card-title">Opción B: Subir Archivo de Audio</h3>
+                          <p className="settings-enroll-card-subtitle">Sube una grabación de tu voz (.wav, .mp3, .ogg, .flac, .m4a).</p>
+                        </div>
+                      </div>
+
+                      <div
+                        className="settings-dropzone"
+                        onClick={() => voiceFileInputRef.current?.click()}
+                      >
+                        <Upload size={24} color="#94a3b8" />
+                        <span className="settings-dropzone-text">Haz clic o arrastra un archivo de audio aquí</span>
+                        <span className="settings-dropzone-sub">Formatos WAV, MP3, OGG de 3 a 30 segundos</span>
+                        <input
+                          ref={voiceFileInputRef}
+                          type="file"
+                          accept="audio/*"
+                          style={{ display: 'none' }}
+                          onChange={handleAudioFileUpload}
+                        />
+                      </div>
+
+                      {isProcessingAudio && (
+                        <p className="settings-processing-indicator">Procesando vectores Log-Mel...</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {enrollError && (
+                    <div className="settings-error-banner" style={{ marginTop: '12px' }}>
+                      <AlertCircle size={14} />
+                      <span>{enrollError}</span>
+                    </div>
+                  )}
 
                   {/* Threshold Sliders */}
-                  <div className="settings-thresholds-grid">
-                    <div>
-                      <div className="settings-field-label-row">
-                        <span className="settings-threshold-label">Umbral de Aceptación: {Math.round(matchThreshold * 100)}%</span>
+                  <div className="settings-biometrics-card" style={{ marginTop: '14px' }}>
+                    <h3 className="settings-thresholds-title">Sensibilidad y Calibración Fina</h3>
+                    <div className="settings-thresholds-grid">
+                      <div>
+                        <div className="settings-field-label-row">
+                          <span className="settings-threshold-label">Umbral de Aceptación: {Math.round(matchThreshold * 100)}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0.5"
+                          max="0.95"
+                          step="0.01"
+                          value={matchThreshold}
+                          className="settings-range-slider"
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            setMatchThreshold(val);
+                            speakerRecognitionService.matchThreshold = val;
+                            speakerRecognitionService.saveProfile();
+                          }}
+                        />
+                        <p className="settings-field-hint">Porcentaje mínimo de similitud requerido para aceptar tu voz.</p>
                       </div>
-                      <input
-                        type="range"
-                        min="0.5"
-                        max="0.95"
-                        step="0.01"
-                        value={matchThreshold}
-                        className="settings-range-slider"
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value);
-                          setMatchThreshold(val);
-                          speakerRecognitionService.matchThreshold = val;
-                          speakerRecognitionService.saveProfile();
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <div className="settings-field-label-row">
-                        <span className="settings-threshold-label">Umbral de Rechazo: {Math.round(rejectThreshold * 100)}%</span>
+                      <div>
+                        <div className="settings-field-label-row">
+                          <span className="settings-threshold-label">Umbral de Rechazo: {Math.round(rejectThreshold * 100)}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0.3"
+                          max="0.8"
+                          step="0.01"
+                          value={rejectThreshold}
+                          className="settings-range-slider"
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            setRejectThreshold(val);
+                            speakerRecognitionService.rejectThreshold = val;
+                            speakerRecognitionService.saveProfile();
+                          }}
+                        />
+                        <p className="settings-field-hint">Voces por debajo de este valor se silencian de inmediato.</p>
                       </div>
-                      <input
-                        type="range"
-                        min="0.3"
-                        max="0.8"
-                        step="0.01"
-                        value={rejectThreshold}
-                        className="settings-range-slider"
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value);
-                          setRejectThreshold(val);
-                          speakerRecognitionService.rejectThreshold = val;
-                          speakerRecognitionService.saveProfile();
-                        }}
-                      />
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
+
+              {/* SUBTAB 3: PROBADOR EN VIVO */}
+              {voiceSubTab === 'tester' && (
+                <div className="settings-tester-suite" style={{ marginTop: '14px' }}>
+                  <div className="settings-biometrics-card">
+                    <div className="settings-enroll-card-header">
+                      <Activity size={18} color="#a855f7" />
+                      <div>
+                        <h3 className="settings-enroll-card-title">Probador de Huella Vocal en Tiempo Real</h3>
+                        <p className="settings-enroll-card-subtitle">Habla por el micrófono para comprobar si Cristi reconoce tu identidad en tiempo real.</p>
+                      </div>
+                    </div>
+
+                    {/* Test VU Meter */}
+                    <div className="settings-vu-container" style={{ marginTop: '12px' }}>
+                      <div className="settings-vu-label">
+                        <span>Nivel de Audio:</span>
+                        <span>{isTestingVoice ? 'Analizando en vivo...' : 'Inactivo'}</span>
+                      </div>
+                      <div className="settings-vu-bar-bg">
+                        <div ref={testVolumeBarRef} className="settings-vu-bar-fill live-test" />
+                      </div>
+                    </div>
+
+                    {/* Live Match Result Badge */}
+                    {testResult && (
+                      <div className={`settings-test-result-card ${testResult.isMatch ? 'match' : 'mismatch'}`}>
+                        <div className="settings-test-result-header">
+                          {testResult.isMatch ? <CheckCircle2 size={18} color="#10b981" /> : <AlertCircle size={18} color="#f43f5e" />}
+                          <span className="settings-test-result-title">
+                            {testResult.isMatch
+                              ? `✓ Identidad Verificada: "${testResult.speakerName || voiceOwnerName}"`
+                              : '❌ Voz No Reconocida (Desconocido o Ruido)'}
+                          </span>
+                        </div>
+                        <div className="settings-test-result-metrics">
+                          <span>Similitud Coseno: <strong>{Math.round(testResult.similarity * 100)}%</strong></span>
+                          <span>Umbral Requerido: <strong>{Math.round(matchThreshold * 100)}%</strong></span>
+                          <span>Estado: <strong>{testResult.action === 'accept' ? 'PERMITIDO' : 'BLOQUEADO'}</strong></span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Start/Stop Test Buttons */}
+                    <div className="settings-enroll-actions" style={{ marginTop: '14px' }}>
+                      {!isTestingVoice ? (
+                        <button
+                          type="button"
+                          className="settings-btn-action-primary"
+                          onClick={handleStartLiveVoiceTest}
+                        >
+                          <Activity size={14} />
+                          <span>Iniciar Prueba en Vivo</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="settings-btn-action-danger"
+                          onClick={handleStopLiveVoiceTest}
+                        >
+                          <X size={14} />
+                          <span>Detener Prueba</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

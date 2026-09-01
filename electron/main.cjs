@@ -897,6 +897,13 @@ function createSettingsWindow() {
     return settingsWindow;
   }
 
+  // 1. Hide the entire transparent companion overlay window immediately (zero DWM overlap, zero composite lag)
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try {
+      mainWindow.hide();
+    } catch (_) {}
+  }
+
   const appIcon = getAppIcon();
 
   settingsWindow = new BrowserWindow({
@@ -909,6 +916,7 @@ function createSettingsWindow() {
     transparent: false,
     backgroundColor: '#090d16',
     autoHideMenuBar: true,
+    show: false, // Prevent window white/black flash
     title: 'Cristi AI Companion - Panel de Control & Configuración',
     icon: appIcon || undefined,
     webPreferences: {
@@ -921,10 +929,12 @@ function createSettingsWindow() {
     }
   });
 
-  // Notify companion overlay to reduce background load
-  if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('companion-pause');
-  }
+  settingsWindow.once('ready-to-show', () => {
+    if (settingsWindow && !settingsWindow.isDestroyed()) {
+      settingsWindow.show();
+      settingsWindow.focus();
+    }
+  });
 
   if (isDev) {
     const devUrl = `${RENDERER_URL}/settings.html`;
@@ -939,8 +949,13 @@ function createSettingsWindow() {
 
   settingsWindow.on('closed', () => {
     settingsWindow = null;
-    if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('companion-resume');
+    // 2. Restore and show the companion overlay window when Settings window is closed
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      try {
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.send('companion-resume');
+      } catch (_) {}
     }
   });
 
@@ -974,17 +989,22 @@ ipcMain.handle('get-app-config', () => {
   return null;
 });
 
+let saveConfigTimer = null;
 ipcMain.handle('save-app-config', (event, newConfig) => {
-  try {
-    fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(newConfig, null, 2), 'utf-8');
-  } catch (err) {
-    console.warn('Error writing config file:', err);
-  }
-
-  // Broadcast to mainWindow in real-time
+  // Broadcast to mainWindow in real-time immediately
   if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('config-updated', newConfig);
   }
+
+  // Debounce disk write
+  if (saveConfigTimer) clearTimeout(saveConfigTimer);
+  saveConfigTimer = setTimeout(() => {
+    try {
+      fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(newConfig, null, 2), 'utf-8');
+    } catch (err) {
+      console.warn('Error writing config file:', err);
+    }
+  }, 100);
 
   return { success: true };
 });

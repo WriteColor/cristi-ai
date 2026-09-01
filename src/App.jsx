@@ -10,7 +10,6 @@ import {
   ScreenRegionPicker,
   ToastContainer,
   DesktopWidgets,
-  SpeakerDiagnosticsHUD,
   BackgroundScene,
   PerformanceHUD
 } from './components/index.js';
@@ -154,11 +153,10 @@ export function App() {
     electronBridge.openSettingsWindow();
   }, []);
 
-  // --- Interaction Lock for Modals ---
+  // --- Interaction Lock for Full Blocking Overlays (ContextMenu, RegionPicker) ---
   const isAnyModalOpen = Boolean(
     isRegionPickerOpen ||
-    contextMenu.isOpen ||
-    isPerformanceHudOpen
+    contextMenu.isOpen
   );
 
   useEffect(() => {
@@ -1293,12 +1291,7 @@ export function App() {
         onSwitchVoice={handleSwitchVoice}
       />
 
-      {/* 7. Live S2S Voice Biometrics & Speaker Recognition Diagnostics HUD */}
-      {isUiVisible && !isZenMode && (
-        <SpeakerDiagnosticsHUD onOpenEnrollment={handleOpenSettings} />
-      )}
-
-      {/* 8. Enterprise Performance & Telemetry HUD (Toggle with F3) */}
+      {/* 7. Enterprise Performance & Telemetry HUD (Toggle with F3) */}
       <PerformanceHUD
         isVisible={isPerformanceHudOpen}
         onClose={() => setIsPerformanceHudOpen(false)}
