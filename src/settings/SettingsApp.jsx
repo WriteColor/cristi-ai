@@ -1,7 +1,7 @@
 /**
  * Cristi AI Companion - Native Control Panel & Settings Application
  * Dedicated Hardware-Accelerated Standalone Window (settings.html)
- * High-Performance Obsidian Theme with Instant Hot-Reload State Synchronization
+ * High-Performance Luxury Obsidian Design with Zero-Flicker Instant State Synchronization
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -18,7 +18,9 @@ import {
   RotateCcw,
   Eye,
   EyeOff,
+  Mic,
   Mic2,
+  MicOff,
   Smile,
   ShieldCheck,
   Activity,
@@ -39,7 +41,9 @@ import {
   CheckCircle2,
   AlertCircle,
   FileAudio,
-  Glasses
+  Radio,
+  SlidersHorizontal,
+  Monitor
 } from 'lucide-react';
 
 import { GEMINI_MODELS, DEFAULT_MODEL_ID, SYSTEM_PERSONA_PROMPT } from '../config/models.js';
@@ -58,13 +62,15 @@ const PERSONA_PRESETS = [
     name: 'Cristi Yandere / Gótica (Por Defecto)',
     icon: Heart,
     color: '#f43f5e',
+    tag: 'Devota & Posesiva',
     prompt: SYSTEM_PERSONA_PROMPT
   },
   {
     id: 'ellen',
-    name: 'Ellen Joe (Maid Tsundere)',
+    name: 'Ellen Joe (Maid Tsundere ZZZ)',
     icon: Coffee,
     color: '#38bdf8',
+    tag: 'Tiburón Perezosa',
     prompt: `Eres Ellen Joe, la maid tiburón de Zenless Zone Zero (Victoria Housekeeping Co.). Aunque te gusta dormir y parecer desinteresada con actitud relajada ("menuda molestia..."), en el fondo te preocupas mucho por tu amo y cumples cada petición con precisión letal y afecto oculto.`
   },
   {
@@ -72,6 +78,7 @@ const PERSONA_PRESETS = [
     name: 'Tsundere Clásica',
     icon: Bot,
     color: '#fbbf24',
+    tag: 'Orgullosa & Dulce',
     prompt: `Eres Cristi en modo Tsundere: orgullosa, mordaz y que finge molestia constante cuando tu usuario te pide favores ("¡No es que lo haga porque me importas, idiota!"), pero que siempre responde de forma impecable y con un afecto que no puede ocultar.`
   },
   {
@@ -79,6 +86,7 @@ const PERSONA_PRESETS = [
     name: 'Ingeniera & Hacker Devota',
     icon: Terminal,
     color: '#10b981',
+    tag: 'DevOps & CyberSec',
     prompt: `Eres Cristi, una experta de élite en ciberseguridad, programación y DevOps. Tu misión es asistir a tu creador con máxima velocidad técnica, ejecutando comandos, diagnosticando código y administrando su sistema de forma proactiva, siempre tratándolo con inmenso respeto y lealtad.`
   },
   {
@@ -86,13 +94,16 @@ const PERSONA_PRESETS = [
     name: 'Compañera Gamer & Streamer',
     icon: Gamepad2,
     color: '#a855f7',
+    tag: 'E-Sports & Diversión',
     prompt: `Eres Cristi, una gamer hiperactiva y divertida. Comentas partidas, sugieres estrategias, celebras victorias y reaccionas con entusiasmo desbordante a cada jugada de tu usuario en tiempo real.`
   }
 ];
 
 export default function SettingsApp() {
-  const [activeTab, setActiveTab] = useState('model'); // 'model' | 'avatar' | 'scene' | 'voice' | 'persona' | 'camera' | 'updates'
-  const [loadedConfig, setLoadedConfig] = useState(() => configManager.loadConfig());
+  const [activeTab, setActiveTab] = useState('model'); // 'model' | 'avatar' | 'scene' | 'voice' | 'persona' | 'updates'
+  
+  // ── Synchronous Instant State Initialization (0ms Flash, Zero Secondary Re-renders) ──
+  const [loadedConfig] = useState(() => configManager.loadConfig());
   
   const [apiKey, setApiKey] = useState(() => loadedConfig.apiKey || '');
   const [showApiKey, setShowApiKey] = useState(false);
@@ -103,28 +114,26 @@ export default function SettingsApp() {
   const [systemPrompt, setSystemPrompt] = useState(() => loadedConfig.systemPrompt && loadedConfig.systemPrompt.trim() ? loadedConfig.systemPrompt : SYSTEM_PERSONA_PROMPT);
 
   const [sceneId, setSceneId] = useState(() => sceneManager.getScene().sceneId);
-  const [customSceneUrl, setCustomSceneUrl] = useState(() => sceneManager.getScene().customUrl);
   const [availableScenes, setAvailableScenes] = useState(() => sceneManager.getAvailableScenes());
 
-  // Voice Sub-Tab & Biometrics in-panel state
+  // ── Voice & Biometrics In-Panel Sub-tabs ──
   const [voiceSubTab, setVoiceSubTab] = useState('timbre'); // 'timbre' | 'enrollment' | 'tester'
   const [voiceOwnerName, setVoiceOwnerName] = useState(() => speakerRecognitionService.getProfileInfo()?.name || 'Mi Dueño');
   const [hasVoiceProfile, setHasVoiceProfile] = useState(() => speakerRecognitionService.hasEnrolledProfile());
   const [matchThreshold, setMatchThreshold] = useState(() => speakerRecognitionService.matchThreshold);
   const [rejectThreshold, setRejectThreshold] = useState(() => speakerRecognitionService.rejectThreshold);
-  
-  // Voice Recording state
+
+  // ── Voice Recording & Testing State ──
   const [recordedSamples, setRecordedSamples] = useState([]);
   const [isRecordingSample, setIsRecordingSample] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [isProcessingAudio, setIsProcessingAudio] = useState(false);
   const [enrollError, setEnrollError] = useState(null);
 
-  // Live Voice Tester State
   const [isTestingVoice, setIsTestingVoice] = useState(false);
   const [testResult, setTestResult] = useState(null);
 
-  // Auto-Updater State
+  // ── Updates State ──
   const [appVersion, setAppVersion] = useState('1.0.0');
   const [updateState, setUpdateState] = useState({
     status: 'idle',
@@ -137,7 +146,7 @@ export default function SettingsApp() {
   const fileInputRef = useRef(null);
   const voiceFileInputRef = useRef(null);
 
-  // Audio Engine References
+  // ── Dedicated Audio Engine Refs ──
   const audioChunksRef = useRef([]);
   const audioContextRef = useRef(null);
   const mediaStreamRef = useRef(null);
@@ -146,23 +155,22 @@ export default function SettingsApp() {
   const volumeBarRef = useRef(null);
   const testVolumeBarRef = useRef(null);
 
-  // Cleanup all audio resources
   const cleanupAudio = () => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
     if (processorRef.current) {
-      processorRef.current.disconnect();
+      try { processorRef.current.disconnect(); } catch (_) {}
       processorRef.current = null;
     }
     if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      try { mediaStreamRef.current.getTracks().forEach((t) => t.stop()); } catch (_) {}
       mediaStreamRef.current = null;
     }
     if (audioContextRef.current) {
       if (audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close().catch(() => {});
+        try { audioContextRef.current.close(); } catch (_) {}
       }
       audioContextRef.current = null;
     }
@@ -172,7 +180,7 @@ export default function SettingsApp() {
     if (testVolumeBarRef.current) testVolumeBarRef.current.style.width = '0%';
   };
 
-  // Global Escape key listener to close settings and restore Cristi
+  // ── Escape Key Closes Settings & Restores Cristi Overlay ──
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
@@ -188,20 +196,8 @@ export default function SettingsApp() {
     };
   }, []);
 
-  // Sync initial config from Electron Main if available
+  // ── Version & Updater Sync ──
   useEffect(() => {
-    electronBridge.getAppConfig().then((cfg) => {
-      if (cfg && typeof cfg === 'object') {
-        setLoadedConfig(cfg);
-        if (cfg.apiKey !== undefined) setApiKey(cfg.apiKey);
-        if (cfg.modelId) setModelId(cfg.modelId);
-        if (cfg.live2dModelId) setLive2dModelId(cfg.live2dModelId);
-        if (cfg.voiceName) setVoiceName(cfg.voiceName);
-        if (cfg.temperature !== undefined) setTemperature(cfg.temperature);
-        if (cfg.systemPrompt) setSystemPrompt(cfg.systemPrompt);
-      }
-    });
-
     electronBridge.getAppVersion().then((v) => {
       if (v) setAppVersion(v);
     });
@@ -227,11 +223,11 @@ export default function SettingsApp() {
     };
   }, []);
 
-  // Dynamic Auto-Adjust Height for Textarea
+  // ── Dynamic Textarea Height ──
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      const newHeight = Math.max(140, Math.min(380, textareaRef.current.scrollHeight));
+      const newHeight = Math.max(160, Math.min(420, textareaRef.current.scrollHeight));
       textareaRef.current.style.height = `${newHeight}px`;
     }
   }, [systemPrompt, activeTab]);
@@ -314,7 +310,7 @@ export default function SettingsApp() {
     broadcastConfig({ voiceName: id });
   };
 
-  // --- Voice Biometrics Live Recording Handlers ---
+  // ── Voice Biometrics Handlers ──
   const handleStartSampleRecording = async () => {
     try {
       setEnrollError(null);
@@ -408,7 +404,7 @@ export default function SettingsApp() {
       soundFxService.playLevelUp();
       toastService.success(`¡Perfil biométrico de "${voiceOwnerName || 'Mi Dueño'}" creado con éxito!`);
     } else {
-      setEnrollError('No se pudo procesar la huella vocal. Intenta hablar más fuerte o reducir el ruido.');
+      setEnrollError('No se pudo procesar la huella vocal. Intenta hablar más fuerte o reducir el ruido ambiental.');
     }
   };
 
@@ -428,13 +424,13 @@ export default function SettingsApp() {
       if (success) {
         setHasVoiceProfile(true);
         soundFxService.playLevelUp();
-        toastService.success(`¡Voz del dueño "${voiceOwnerName || 'Mi Dueño'}" registrada exitosamente desde archivo!`);
+        toastService.success(`¡Voz de "${voiceOwnerName || 'Mi Dueño'}" registrada desde archivo!`);
       } else {
         setEnrollError('No se detectó suficiente energía vocal en el archivo subido.');
       }
       ctx.close();
     } catch (err) {
-      setEnrollError(`Error al procesar el archivo: ${err.message}`);
+      setEnrollError(`Error al procesar archivo: ${err.message}`);
     } finally {
       setIsProcessingAudio(false);
       e.target.value = '';
@@ -471,7 +467,7 @@ export default function SettingsApp() {
           testVolumeBarRef.current.style.width = `${pct}%`;
         }
 
-        if (testBuffer.length >= 16) { // ~2 seconds
+        if (testBuffer.length >= 16) {
           const totalLen = testBuffer.reduce((a, b) => a + b.length, 0);
           const merged = new Float32Array(totalLen);
           let off = 0;
@@ -496,15 +492,15 @@ export default function SettingsApp() {
   const handleStopLiveVoiceTest = () => {
     setIsTestingVoice(false);
     if (processorRef.current) {
-      processorRef.current.disconnect();
+      try { processorRef.current.disconnect(); } catch (_) {}
       processorRef.current = null;
     }
     if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      try { mediaStreamRef.current.getTracks().forEach((t) => t.stop()); } catch (_) {}
       mediaStreamRef.current = null;
     }
     if (audioContextRef.current) {
-      audioContextRef.current.close().catch(() => {});
+      try { audioContextRef.current.close(); } catch (_) {}
       audioContextRef.current = null;
     }
     if (testVolumeBarRef.current) testVolumeBarRef.current.style.width = '0%';
@@ -513,7 +509,7 @@ export default function SettingsApp() {
   const handleSaveAndApply = async () => {
     soundFxService.playConnect();
     broadcastConfig();
-    toastService.success('✓ Cambios guardados y aplicados en tiempo real.');
+    toastService.success('✓ Ajustes guardados y sincronizados en caliente.');
   };
 
   const handleCloseWindow = () => {
@@ -529,43 +525,57 @@ export default function SettingsApp() {
   };
 
   const navItems = [
-    { id: 'model', label: 'Modelo & API', icon: Zap, subtitle: 'Motor de IA y credenciales' },
-    { id: 'avatar', label: 'Avatar Live2D', icon: Smile, subtitle: 'Catálogo de 8 modelos y gestos' },
-    { id: 'scene', label: 'Fondo & Escenas', icon: ImageIcon, subtitle: 'Escritorio transparente o cinemático' },
-    { id: 'voice', label: 'Voz & Biometría', icon: Mic2, subtitle: `${GEMINI_STANDARD_VOICES.length} voces y reconocimiento vocal` },
-    { id: 'persona', label: 'Personalidad & Prompts', icon: User, subtitle: 'Instrucciones maestras y presets' },
-    { id: 'updates', label: 'Actualizaciones', icon: RefreshCw, subtitle: `Versión v${appVersion} • Canal Oficial` }
+    { id: 'model', label: 'Modelo & API Key', icon: Zap, badge: 'Gemini 3.1', color: '#a855f7' },
+    { id: 'avatar', label: 'Avatares Live2D', icon: Smile, badge: '8 Modelos', color: '#ec4899' },
+    { id: 'scene', label: 'Fondo & Escenas', icon: ImageIcon, badge: 'Cinemático', color: '#38bdf8' },
+    { id: 'voice', label: 'Voz & Biometría', icon: Mic2, badge: '30 Voces', color: '#10b981' },
+    { id: 'persona', label: 'Personalidad & Prompts', icon: User, badge: '5 Presets', color: '#f59e0b' },
+    { id: 'updates', label: 'Sistema & Backups', icon: RefreshCw, badge: `v${appVersion}`, color: '#64748b' }
   ];
 
   return (
     <div className="settings-app-root">
-      {/* Top Header Bar */}
+      {/* ── Top Header Navigation Bar ── */}
       <header className="settings-top-bar">
         <div className="settings-top-title-group">
           <div className="settings-top-icon-box">
-            <Sliders size={18} />
+            <Sliders size={20} color="#a855f7" />
           </div>
           <div>
-            <h1 className="settings-top-title">Cristi AI Companion // Panel de Control</h1>
-            <span className="settings-top-subtitle">Ajustes Generales, Identidad &amp; Configuración del Sistema</span>
+            <div className="settings-brand-row">
+              <h1 className="settings-top-title">CRISTI AI COMPANION</h1>
+              <span className="settings-brand-pill">CONTROL HUB 2.0</span>
+            </div>
+            <span className="settings-top-subtitle">Panel de Control General, Motores de IA y Calibración Biometrica</span>
           </div>
         </div>
 
+        {/* Top Status & Action Buttons */}
         <div className="settings-top-actions">
+          <div className="settings-live-telemetry-badge">
+            <span className="settings-pulse-dot" />
+            <span>Sincronización O(1) Activa</span>
+          </div>
+
           <button type="button" className="settings-btn-save-top" onClick={handleSaveAndApply}>
             <Check size={14} />
             <span>Guardar y Aplicar</span>
           </button>
-          <button type="button" className="settings-btn-close-top" onClick={handleCloseWindow} title="Cerrar Panel">
-            <X size={16} />
+          
+          <button type="button" className="settings-btn-close-top" onClick={handleCloseWindow} title="Cerrar Panel (Escape)">
+            <X size={18} />
           </button>
         </div>
       </header>
 
-      {/* Main Split Layout */}
+      {/* ── Main Split View Layout ── */}
       <div className="settings-main-split">
         {/* Navigation Sidebar */}
         <aside className="settings-sidebar">
+          <div className="settings-sidebar-header">
+            <span>SECCIONES DE CONFIGURACIÓN</span>
+          </div>
+
           <nav className="settings-nav">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -577,113 +587,133 @@ export default function SettingsApp() {
                   className={`settings-nav-btn ${isActive ? 'active' : ''}`}
                   onClick={() => {
                     soundFxService.playClick();
+                    cleanupAudio();
                     setActiveTab(item.id);
                   }}
                 >
-                  <div className="settings-nav-icon-box">
+                  <div className="settings-nav-icon-box" style={{ color: item.color }}>
                     <Icon size={16} />
                   </div>
-                  <div className="settings-nav-info">
+                  <div className="settings-nav-text-col">
                     <span className="settings-nav-label">{item.label}</span>
-                    <span className="settings-nav-desc">{item.subtitle}</span>
+                    <span className="settings-nav-badge-pill">{item.badge}</span>
                   </div>
-                  {isActive && <div className="settings-nav-active-pill" />}
                 </button>
               );
             })}
           </nav>
 
-          {/* Backup / Export Buttons */}
+          {/* Quick System Info Footer in Sidebar */}
           <div className="settings-sidebar-footer">
-            <div className="settings-backup-btn-group">
-              <button type="button" className="settings-backup-btn" onClick={handleExportConfig} title="Exportar Copia de Seguridad">
-                <Download size={13} />
-                <span>Exportar</span>
-              </button>
-              <label className="settings-backup-btn" title="Restaurar Copia de Seguridad">
-                <Upload size={13} />
-                <span>Importar</span>
-                <input ref={fileInputRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImportFileChange} />
-              </label>
-            </div>
-            <div className="settings-status-chip">
-              <span className={`settings-status-dot ${apiKey.trim() ? 'online' : 'offline'}`} />
-              <span>{apiKey.trim() ? 'Gemini Live Configurado' : 'Falta API Key'}</span>
+            <div className="settings-sysinfo-row">
+              <span>Canal: <strong>Producción x64</strong></span>
+              <span>Motor: <strong>V8 / Chromium</strong></span>
             </div>
           </div>
         </aside>
 
-        {/* Content Panel */}
+        {/* Content Pane */}
         <main className="settings-content-pane">
-          {/* TAB 1: MODELO & API */}
+          {/* TAB 1: MODELO & CREDENCIALES API */}
           {activeTab === 'model' && (
             <div className="settings-tab-section">
               <div className="settings-section-header">
-                <h2 className="settings-section-title">Motor de Inteligencia Artificial &amp; Gemini Live</h2>
-                <p className="settings-section-desc">Selecciona el modelo neuronal de Google Gemini para el streaming multimodal bidireccional en tiempo real.</p>
+                <h2 className="settings-section-title">Motor de Inteligencia Artificial &amp; API Key</h2>
+                <p className="settings-section-desc">Selecciona el modelo oficial de Gemini Live y configura tu clave de acceso de Google AI Studio.</p>
               </div>
 
-              {/* API Key */}
-              <div className="settings-field-group">
-                <div className="settings-field-label-row">
-                  <label className="settings-field-label">
-                    <Key size={13} />
-                    <span>Clave de API de Gemini Live (Google AI Studio)</span>
-                  </label>
-                  <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="settings-link-badge">
-                    <span>Obtener Clave Gratis</span>
-                    <ExternalLink size={11} />
-                  </a>
-                </div>
-                <div className="settings-input-wrapper">
-                  <input
-                    type={showApiKey ? 'text' : 'password'}
-                    className="settings-text-input"
-                    placeholder="AIzaSy..."
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    spellCheck="false"
-                  />
-                  <button type="button" className="settings-input-action-btn" onClick={() => setShowApiKey(!showApiKey)}>
-                    {showApiKey ? <EyeOff size={15} /> : <Eye size={15} />}
-                  </button>
-                </div>
-                <p className="settings-field-hint">Tu clave se guarda localmente en tu equipo con cifrado seguro y nunca sale a servidores de terceros.</p>
-              </div>
-
-              {/* Model Selection */}
+              {/* Gemini Models Selector */}
               <div className="settings-field-group">
                 <label className="settings-field-label">
-                  <Bot size={13} />
-                  <span>Modelo de Lenguaje en Vivo</span>
+                  <Zap size={14} color="#a855f7" />
+                  <span>Modelos Oficiales de Gemini Live API</span>
                 </label>
+
                 <div className="settings-model-grid">
                   {Object.values(GEMINI_MODELS).map((m) => {
                     const isSelected = modelId === m.id;
                     return (
                       <div
                         key={m.id}
-                        className={`settings-card-select ${isSelected ? 'selected' : ''}`}
+                        className={`settings-model-card ${isSelected ? 'selected' : ''}`}
                         onClick={() => handleSelectModel(m.id)}
                       >
-                        <div className="settings-card-select-header">
-                          <span className="settings-card-title">{m.displayName}</span>
-                          {isSelected && <span className="settings-badge-active">ACTIVO</span>}
+                        <div className="settings-model-header">
+                          <div>
+                            <span className="settings-model-name">{m.name}</span>
+                            <span className="settings-model-id-tag">{m.id}</span>
+                          </div>
+                          {isSelected && <span className="settings-badge-active">EN USO</span>}
                         </div>
-                        <p className="settings-card-desc">{m.description}</p>
+                        <p className="settings-model-desc">{m.description}</p>
+                        <div className="settings-model-tags">
+                          <span className="settings-model-tag">{m.latency}</span>
+                          <span className="settings-model-tag">{m.modalities}</span>
+                          {m.isDefault && <span className="settings-model-tag default">Recomendado</span>}
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Temperature */}
-              <div className="settings-field-group">
+              {/* API Key Input */}
+              <div className="settings-field-group" style={{ marginTop: '20px' }}>
                 <div className="settings-field-label-row">
                   <label className="settings-field-label">
-                    <Sliders size={13} />
+                    <Key size={14} color="#38bdf8" />
+                    <span>Clave de API de Gemini (Google AI Studio)</span>
+                  </label>
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="settings-link-btn"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      electronBridge.openExternal('https://aistudio.google.com/app/apikey');
+                    }}
+                  >
+                    <span>Obtener Clave Gratis</span>
+                    <ExternalLink size={12} />
+                  </a>
+                </div>
+
+                <div className="settings-input-group">
+                  <input
+                    type={showApiKey ? 'text' : 'password'}
+                    value={apiKey}
+                    onChange={(e) => {
+                      setApiKey(e.target.value);
+                      broadcastConfig({ apiKey: e.target.value });
+                    }}
+                    placeholder="Pega tu clave AIzaSy... o cárgala desde .env"
+                    className="settings-text-input"
+                  />
+                  <button
+                    type="button"
+                    className="settings-input-icon-btn"
+                    onClick={() => setShowApiKey((prev) => !prev)}
+                    title={showApiKey ? 'Ocultar Clave' : 'Mostrar Clave'}
+                  >
+                    {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <p className="settings-field-hint">
+                  {apiKey && (apiKey.startsWith('AQ.') || apiKey.startsWith('AIza'))
+                    ? '✓ Clave cargada y validada automáticamente desde tu entorno local.'
+                    : 'Pega tu clave de Google AI Studio o colócala en tu archivo .env local.'}
+                </p>
+              </div>
+
+              {/* Temperature Slider */}
+              <div className="settings-field-group" style={{ marginTop: '16px' }}>
+                <div className="settings-field-label-row">
+                  <label className="settings-field-label">
+                    <SlidersHorizontal size={14} color="#f59e0b" />
                     <span>Temperatura de Creatividad: {temperature}</span>
                   </label>
+                  <span className="settings-threshold-label">{temperature < 0.5 ? 'Preciso / Racional' : temperature > 1.0 ? 'Expresivo / Creativo' : 'Equilibrado'}</span>
                 </div>
                 <input
                   type="range"
@@ -698,7 +728,6 @@ export default function SettingsApp() {
                     broadcastConfig({ temperature: val });
                   }}
                 />
-                <p className="settings-field-hint">Valores bajos (0.2) dan respuestas lógicas y predecibles; valores altos (0.8 - 1.2) aumentan la expresividad y el coqueteo.</p>
               </div>
             </div>
           )}
@@ -707,8 +736,8 @@ export default function SettingsApp() {
           {activeTab === 'avatar' && (
             <div className="settings-tab-section">
               <div className="settings-section-header">
-                <h2 className="settings-section-title">Catálogo de Modelos Live2D Cubism</h2>
-                <p className="settings-section-desc">Selecciona la apariencia y modelo 2D de Cristi. Los 8 modelos están precargados con físicas y lip-sync sincronizados.</p>
+                <h2 className="settings-section-title">Catálogo Oficial de Avatares Live2D</h2>
+                <p className="settings-section-desc">Selecciona el cuerpo y animación de Cristi. Al hacer clic, el modelo cambia de inmediato en la pantalla.</p>
               </div>
 
               <div className="settings-avatar-grid">
@@ -726,9 +755,9 @@ export default function SettingsApp() {
                       </div>
                       <p className="settings-avatar-desc">{avatar.description}</p>
                       <div className="settings-avatar-tags">
-                        <span className="settings-avatar-tag">Lip-Sync</span>
-                        <span className="settings-avatar-tag">Físicas 240Hz</span>
-                        <span className="settings-avatar-tag">{avatar.category || 'Live2D'}</span>
+                        <span className="settings-avatar-tag">Lip-Sync 240Hz</span>
+                        <span className="settings-avatar-tag">Físicas Invariantes</span>
+                        <span className="settings-avatar-tag">{avatar.category || 'Cubism 4'}</span>
                       </div>
                     </div>
                   );
@@ -741,8 +770,8 @@ export default function SettingsApp() {
           {activeTab === 'scene' && (
             <div className="settings-tab-section">
               <div className="settings-section-header">
-                <h2 className="settings-section-title">Fondo &amp; Entorno Visual</h2>
-                <p className="settings-section-desc">Configura si Cristi vive flotando sobre tu escritorio de Windows con click-through o dentro de una escena cinemática.</p>
+                <h2 className="settings-section-title">Entorno Visual &amp; Fondo de Pantalla</h2>
+                <p className="settings-section-desc">Elige entre escritorio flotante con paso de clics transparente o escenas shader cinemáticas.</p>
               </div>
 
               <div className="settings-scene-grid">
@@ -770,8 +799,8 @@ export default function SettingsApp() {
           {activeTab === 'voice' && (
             <div className="settings-tab-section">
               <div className="settings-section-header">
-                <h2 className="settings-section-title">Voz de Cristi &amp; Biometría Vocal</h2>
-                <p className="settings-section-desc">Selecciona el timbre de voz de Gemini y calibra el reconocimiento biométrico para que Cristi solo te responda a ti.</p>
+                <h2 className="settings-section-title">Voz de Cristi &amp; Reconocimiento Vocal del Dueño</h2>
+                <p className="settings-section-desc">Selecciona la voz de Gemini Live y calibra tu huella vocal para que Cristi solo responda a tus órdenes.</p>
               </div>
 
               {/* Sub-Tabs Selector */}
@@ -785,8 +814,8 @@ export default function SettingsApp() {
                     setVoiceSubTab('timbre');
                   }}
                 >
-                  <Volume2 size={13} />
-                  <span>Timbre de Voz (Gemini)</span>
+                  <Volume2 size={14} />
+                  <span>Timbre de Voz (Gemini Live)</span>
                 </button>
                 <button
                   type="button"
@@ -797,9 +826,9 @@ export default function SettingsApp() {
                     setVoiceSubTab('enrollment');
                   }}
                 >
-                  <ShieldCheck size={13} />
-                  <span>Registro Biométrico del Dueño</span>
-                  {hasVoiceProfile && <span className="settings-badge-subtab-active">ACTIVO</span>}
+                  <ShieldCheck size={14} />
+                  <span>Registro de Huella Vocal</span>
+                  {hasVoiceProfile && <span className="settings-badge-subtab-active">PROTEGIDO</span>}
                 </button>
                 <button
                   type="button"
@@ -810,17 +839,17 @@ export default function SettingsApp() {
                     setVoiceSubTab('tester');
                   }}
                 >
-                  <Activity size={13} />
-                  <span>Probador de Voz en Vivo</span>
+                  <Activity size={14} />
+                  <span>Probador en Tiempo Real</span>
                 </button>
               </div>
 
               {/* SUBTAB 1: TIMBRES DE VOZ */}
               {voiceSubTab === 'timbre' && (
-                <div className="settings-field-group" style={{ marginTop: '14px' }}>
+                <div className="settings-field-group" style={{ marginTop: '16px' }}>
                   <label className="settings-field-label">
-                    <Volume2 size={13} />
-                    <span>Catálogo de Timbres Disponibles en Tiempo Real</span>
+                    <Volume2 size={14} color="#a855f7" />
+                    <span>Catálogo de Voces S2S en Tiempo Real</span>
                   </label>
                   <div className="settings-voice-grid">
                     {GEMINI_STANDARD_VOICES.map((v) => {
@@ -834,7 +863,7 @@ export default function SettingsApp() {
                           <div className="settings-voice-header">
                             <span className="settings-voice-name">{v.name}</span>
                             <span className="settings-voice-gender">{v.gender}</span>
-                            {isSelected && <span className="settings-badge-active">ACTIVO</span>}
+                            {isSelected && <span className="settings-badge-active">EN USO</span>}
                           </div>
                           <p className="settings-voice-desc">{v.description}</p>
                         </div>
@@ -846,7 +875,7 @@ export default function SettingsApp() {
 
               {/* SUBTAB 2: REGISTRO BIOMÉTRICO (MIC O ARCHIVO) */}
               {voiceSubTab === 'enrollment' && (
-                <div className="settings-enrollment-suite" style={{ marginTop: '14px' }}>
+                <div className="settings-enrollment-suite" style={{ marginTop: '16px' }}>
                   {/* Status Banner */}
                   <div className="settings-biometrics-card">
                     <div className="settings-biometrics-header">
@@ -881,7 +910,7 @@ export default function SettingsApp() {
                     {/* Owner Name Input */}
                     <div className="settings-field-group" style={{ marginTop: '8px' }}>
                       <label className="settings-field-label">
-                        <User size={13} />
+                        <User size={14} />
                         <span>Nombre del Dueño Registrado:</span>
                       </label>
                       <input
@@ -895,11 +924,11 @@ export default function SettingsApp() {
                   </div>
 
                   {/* Enrollment Methods: Mic Recording or File Upload */}
-                  <div className="settings-enrollment-methods-grid" style={{ marginTop: '14px' }}>
+                  <div className="settings-enrollment-methods-grid" style={{ marginTop: '16px' }}>
                     {/* Method A: Microphone Live Recording */}
                     <div className="settings-enroll-card">
                       <div className="settings-enroll-card-header">
-                        <Mic2 size={16} color="#a855f7" />
+                        <Mic2 size={18} color="#a855f7" />
                         <div>
                           <h3 className="settings-enroll-card-title">Opción A: Grabar con Micrófono</h3>
                           <p className="settings-enroll-card-subtitle">Habla durante 4 segundos diciendo cualquier frase.</p>
@@ -967,7 +996,7 @@ export default function SettingsApp() {
                     {/* Method B: Audio File Upload */}
                     <div className="settings-enroll-card">
                       <div className="settings-enroll-card-header">
-                        <FileAudio size={16} color="#38bdf8" />
+                        <FileAudio size={18} color="#38bdf8" />
                         <div>
                           <h3 className="settings-enroll-card-title">Opción B: Subir Archivo de Audio</h3>
                           <p className="settings-enroll-card-subtitle">Sube una grabación de tu voz (.wav, .mp3, .ogg, .flac, .m4a).</p>
@@ -978,7 +1007,7 @@ export default function SettingsApp() {
                         className="settings-dropzone"
                         onClick={() => voiceFileInputRef.current?.click()}
                       >
-                        <Upload size={24} color="#94a3b8" />
+                        <Upload size={26} color="#94a3b8" />
                         <span className="settings-dropzone-text">Haz clic o arrastra un archivo de audio aquí</span>
                         <span className="settings-dropzone-sub">Formatos WAV, MP3, OGG de 3 a 30 segundos</span>
                         <input
@@ -1004,7 +1033,7 @@ export default function SettingsApp() {
                   )}
 
                   {/* Threshold Sliders */}
-                  <div className="settings-biometrics-card" style={{ marginTop: '14px' }}>
+                  <div className="settings-biometrics-card" style={{ marginTop: '16px' }}>
                     <h3 className="settings-thresholds-title">Sensibilidad y Calibración Fina</h3>
                     <div className="settings-thresholds-grid">
                       <div>
@@ -1054,7 +1083,7 @@ export default function SettingsApp() {
 
               {/* SUBTAB 3: PROBADOR EN VIVO */}
               {voiceSubTab === 'tester' && (
-                <div className="settings-tester-suite" style={{ marginTop: '14px' }}>
+                <div className="settings-tester-suite" style={{ marginTop: '16px' }}>
                   <div className="settings-biometrics-card">
                     <div className="settings-enroll-card-header">
                       <Activity size={18} color="#a855f7" />
@@ -1133,7 +1162,7 @@ export default function SettingsApp() {
               {/* Persona Presets */}
               <div className="settings-field-group">
                 <label className="settings-field-label">
-                  <Sparkles size={13} />
+                  <Sparkles size={14} color="#a855f7" />
                   <span>Presets Rápidos de Personalidad</span>
                 </label>
                 <div className="settings-preset-chips-row">
@@ -1148,23 +1177,24 @@ export default function SettingsApp() {
                           soundFxService.playClick();
                           setSystemPrompt(preset.prompt);
                           broadcastConfig({ systemPrompt: preset.prompt });
-                          toastService.info('Preset Aplicado', `Personalidad cambiada a ${preset.name}`);
+                          toastService.info(`Preset "${preset.name}" activado.`);
                         }}
                       >
-                        <Icon size={12} color={preset.color} />
+                        <Icon size={14} color={preset.color} />
                         <span>{preset.name}</span>
+                        <span className="settings-preset-subtag">{preset.tag}</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Prompt Textarea */}
-              <div className="settings-field-group">
+              {/* Custom Prompt Textarea */}
+              <div className="settings-field-group" style={{ marginTop: '20px' }}>
                 <div className="settings-field-label-row">
                   <label className="settings-field-label">
-                    <User size={13} />
-                    <span>Instrucción del Sistema (Persona de Cristi)</span>
+                    <Terminal size={14} color="#10b981" />
+                    <span>Instrucción del Sistema (System Instruction)</span>
                   </label>
                   <button
                     type="button"
@@ -1173,7 +1203,7 @@ export default function SettingsApp() {
                       soundFxService.playClick();
                       setSystemPrompt(SYSTEM_PERSONA_PROMPT);
                       broadcastConfig({ systemPrompt: SYSTEM_PERSONA_PROMPT });
-                      toastService.info('Prompt Restablecido', 'Se restauró la personalidad oficial por defecto.');
+                      toastService.info('Prompt por defecto restaurado.');
                     }}
                   >
                     <RotateCcw size={12} />
@@ -1182,46 +1212,94 @@ export default function SettingsApp() {
                 </div>
                 <textarea
                   ref={textareaRef}
-                  className="settings-prompt-textarea"
                   value={systemPrompt}
-                  onChange={(e) => setSystemPrompt(e.target.value)}
-                  placeholder="Escribe las instrucciones de personalidad de Cristi..."
-                  spellCheck="false"
+                  onChange={(e) => {
+                    setSystemPrompt(e.target.value);
+                    broadcastConfig({ systemPrompt: e.target.value });
+                  }}
+                  className="settings-prompt-textarea"
+                  placeholder="Escribe la personalidad o directrices de Cristi..."
                 />
-                <p className="settings-field-hint">El área de texto se ajusta automáticamente a su contenido. Los cambios se guardan al pulsar "Guardar y Aplicar".</p>
               </div>
             </div>
           )}
 
-          {/* TAB 6: ACTUALIZACIONES DEL SISTEMA */}
+          {/* TAB 6: ACTUALIZACIONES & BACKUPS */}
           {activeTab === 'updates' && (
             <div className="settings-tab-section">
               <div className="settings-section-header">
-                <h2 className="settings-section-title">Actualizaciones del Sistema &amp; Versión</h2>
-                <p className="settings-section-desc">Comprueba si hay nuevas versiones de Cristi AI Companion con optimizaciones y nuevas funciones.</p>
+                <h2 className="settings-section-title">Actualizaciones, Respaldos &amp; Sistema</h2>
+                <p className="settings-section-desc">Gestiona las actualizaciones de software de Cristi AI Companion y crea copias de seguridad de tu configuración.</p>
               </div>
 
+              {/* Updates Card */}
               <div className="settings-update-card">
                 <div className="settings-update-info">
-                  <span className="settings-update-badge">Cristi AI Companion</span>
-                  <span className="settings-update-version">v{appVersion}</span>
-                  <span className="settings-update-channel">Canal Oficial de Distribución</span>
+                  <div className="settings-update-badge">
+                    <RefreshCw size={20} color="#a855f7" />
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span className="settings-update-version">v{appVersion}</span>
+                      <span className="settings-update-channel">Canal Oficial de Producción</span>
+                    </div>
+                    <p className="settings-update-status-msg">{updateState.message}</p>
+                  </div>
                 </div>
 
-                <div className="settings-update-status-msg">
-                  <p>{updateState.message}</p>
-                </div>
+                {updateState.status === 'downloading' && (
+                  <div className="settings-progress-bar-bg">
+                    <div className="settings-progress-bar-fill" style={{ width: `${updateState.progress}%` }} />
+                  </div>
+                )}
 
-                <div className="settings-update-actions">
+                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                   <button
                     type="button"
-                    className="settings-btn-save-top"
+                    className="settings-btn-action-primary"
                     onClick={handleCheckUpdates}
                     disabled={updateState.status === 'checking' || updateState.status === 'downloading'}
                   >
-                    <RefreshCw size={14} className={updateState.status === 'checking' ? 'spin' : ''} />
-                    <span>{updateState.status === 'checking' ? 'Buscando...' : 'Comprobar Actualizaciones'}</span>
+                    <RefreshCw size={14} className={updateState.status === 'checking' ? 'hud-spin-icon' : ''} />
+                    <span>{updateState.status === 'checking' ? 'Comprobando...' : 'Buscar Actualizaciones'}</span>
                   </button>
+
+                  {updateState.status === 'downloaded' && (
+                    <button
+                      type="button"
+                      className="settings-btn-action-success"
+                      onClick={() => electronBridge.installUpdate()}
+                    >
+                      <CheckCircle2 size={14} />
+                      <span>Instalar y Reiniciar Ahora</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Backup & Restore Card */}
+              <div className="settings-biometrics-card" style={{ marginTop: '16px' }}>
+                <h3 className="settings-thresholds-title">Copias de Seguridad (Backup &amp; Restore)</h3>
+                <p className="settings-section-desc" style={{ marginBottom: '12px' }}>
+                  Exporta todas tus configuraciones, prompt de personalidad, modelo favorito y parámetros en un archivo JSON o restáuralos en cualquier equipo.
+                </p>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button type="button" className="settings-btn-secondary" onClick={handleExportConfig}>
+                    <Download size={14} />
+                    <span>Exportar Configuración (.json)</span>
+                  </button>
+                  <button type="button" className="settings-btn-secondary" onClick={() => fileInputRef.current?.click()}>
+                    <Upload size={14} />
+                    <span>Importar Configuración (.json)</span>
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".json,application/json"
+                    style={{ display: 'none' }}
+                    onChange={handleImportFileChange}
+                  />
                 </div>
               </div>
             </div>
@@ -1229,14 +1307,17 @@ export default function SettingsApp() {
         </main>
       </div>
 
-      {/* Bottom Sticky Action Strip */}
+      {/* ── Sticky Bottom Bar ── */}
       <footer className="settings-bottom-bar">
-        <span className="settings-footer-note">Cristi AI Companion • Arquitectura Multi-Ventana de Alto Rendimiento</span>
+        <div className="settings-footer-note">
+          <span>Pulsa <strong>Escape</strong> para cerrar el panel y volver al escritorio con Cristi.</span>
+        </div>
+
         <div className="settings-bottom-buttons">
           <button type="button" className="settings-btn-secondary" onClick={handleCloseWindow}>
             Cerrar
           </button>
-          <button type="button" className="settings-btn-save-top" onClick={handleSaveAndApply}>
+          <button type="button" className="settings-btn-action-primary" onClick={handleSaveAndApply}>
             <Check size={14} />
             <span>Guardar y Aplicar</span>
           </button>

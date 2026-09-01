@@ -329,6 +329,33 @@ export class AudioInputService {
   }
 
   /**
+   * Silences audio transmission to Gemini Live
+   */
+  mute() {
+    this.isMuted = true;
+    this.onVolumeChange(0);
+    logger.info('AUDIO', 'Micrófono silenciado con éxito.');
+  }
+
+  /**
+   * Re-enables audio transmission to Gemini Live
+   */
+  unmute() {
+    this.isMuted = false;
+    logger.info('AUDIO', 'Micrófono activado con éxito.');
+  }
+
+  /**
+   * Toggles mute state and returns current state
+   */
+  toggleMute() {
+    this.isMuted = !this.isMuted;
+    if (this.isMuted) this.onVolumeChange(0);
+    logger.info('AUDIO', `Estado de mute alternado: ${this.isMuted ? 'SILENCIADO' : 'ACTIVO'}`);
+    return this.isMuted;
+  }
+
+  /**
    * Linear interpolation resampling from sourceRate to targetRate
    */
   resampleAudio(inputSamples, sourceRate, targetRate) {

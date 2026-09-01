@@ -96,12 +96,18 @@ export class ConfigManager {
       config = {};
     }
 
+    const envApiKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GEMINI_API_KEY) ||
+                      (typeof process !== 'undefined' && (process.env?.VITE_GEMINI_API_KEY || process.env?.GEMINI_API_KEY)) ||
+                      '';
+    const rawApiKey = typeof config.apiKey === 'string' ? config.apiKey.trim() : '';
+    const safeApiKey = rawApiKey || envApiKey.trim();
+
     const validModelIds = Object.values(GEMINI_MODELS).map(m => m.id);
     const requestedModel = typeof config.modelId === 'string' ? config.modelId.trim() : '';
     const safeModelId = validModelIds.includes(requestedModel) ? requestedModel : DEFAULT_MODEL_ID;
 
     return {
-      apiKey: typeof config.apiKey === 'string' ? config.apiKey.trim() : '',
+      apiKey: safeApiKey,
       modelId: safeModelId,
       live2dModelId: typeof config.live2dModelId === 'string' && config.live2dModelId.trim() ? config.live2dModelId.trim() : 'yanderegirl',
       voiceName: typeof config.voiceName === 'string' && config.voiceName.trim() ? config.voiceName.trim() : 'Aoede',

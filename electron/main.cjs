@@ -888,10 +888,32 @@ ipcMain.handle('get-app-version', () => {
   return app.getVersion();
 });
 
-// ── Settings Multi-Window Management ───────────────────────────────────────
+// ── Settings Multi-Window Management & Env Resolver ─────────────────────────
+function getEnvApiKey() {
+  const candidateEnvPaths = [
+    path.join(__dirname, '../.env'),
+    path.join(process.cwd(), '.env'),
+    path.join(process.resourcesPath, '.env'),
+    path.join(app.getPath('userData'), '.env')
+  ];
+  for (const envPath of candidateEnvPaths) {
+    try {
+      if (fs.existsSync(envPath)) {
+        const content = fs.readFileSync(envPath, 'utf-8');
+        const match = content.match(/^(?:VITE_)?GEMINI_API_KEY=(.+)$/m);
+        if (match && match[1].trim()) {
+          return match[1].trim().replace(/^["']|["']$/g, '');
+        }
+      }
+    } catch (_) {}
+  }
+  return process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
+}
+
 function createSettingsWindow() {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     if (settingsWindow.isMinimized()) settingsWindow.restore();
+    settingsWindow.maximize();
     settingsWindow.show();
     settingsWindow.focus();
     return settingsWindow;
@@ -907,10 +929,10 @@ function createSettingsWindow() {
   const appIcon = getAppIcon();
 
   settingsWindow = new BrowserWindow({
-    width: 980,
-    height: 720,
-    minWidth: 840,
-    minHeight: 600,
+    width: 1280,
+    height: 860,
+    minWidth: 900,
+    minHeight: 650,
     center: true,
     frame: true,
     transparent: false,
@@ -931,6 +953,7 @@ function createSettingsWindow() {
 
   settingsWindow.once('ready-to-show', () => {
     if (settingsWindow && !settingsWindow.isDestroyed()) {
+      settingsWindow.maximize(); // Maximized by default as requested
       settingsWindow.show();
       settingsWindow.focus();
     }
@@ -979,14 +1002,21 @@ const CONFIG_FILE_PATH = path.join(app.getPath('userData'), 'cristi-config.json'
 
 ipcMain.handle('get-app-config', () => {
   try {
+    let cfg = {};
     if (fs.existsSync(CONFIG_FILE_PATH)) {
       const raw = fs.readFileSync(CONFIG_FILE_PATH, 'utf-8');
-      return JSON.parse(raw);
+      cfg = JSON.parse(raw) || {};
     }
+    if (!cfg.apiKey || !cfg.apiKey.trim()) {
+      const envKey = getEnvApiKey();
+      if (envKey) cfg.apiKey = envKey;
+    }
+    return cfg;
   } catch (err) {
     console.warn('Error reading config file:', err);
   }
-  return null;
+  const envKey = getEnvApiKey();
+  return envKey ? { apiKey: envKey } : null;
 });
 
 let saveConfigTimer = null;

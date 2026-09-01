@@ -218,8 +218,7 @@ export function FloatingHUD({
             type="button"
             className={`hud-icon-btn ${isMuted ? 'muted' : ''}`}
             onClick={handleMuteClick}
-            disabled={!isConnected}
-            title={isMuted ? 'Activar Micrófono' : 'Silenciar Micrófono'}
+            title={isMuted ? 'Activar Micrófono (Ctrl+Shift+M)' : 'Silenciar Micrófono (Ctrl+Shift+M)'}
           >
             {isMuted ? <MicOff size={16} /> : <Mic size={16} />}
           </button>
