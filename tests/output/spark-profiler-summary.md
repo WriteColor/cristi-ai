@@ -1,6 +1,6 @@
 # ⚡ Cristi AI Companion — Spark Performance Profiler & Timings Report
 
-> **Generado:** `2026-09-01T03:36:12.835Z` | **Motor:** `STANDALONE_BENCHMARK` | **Veredicto:** `PERFECT_60FPS`
+> **Generado:** `2026-09-01T03:43:04.373Z` | **Motor:** `STANDALONE_BENCHMARK` | **Veredicto:** `PERFECT_60FPS`
 
 ---
 
@@ -14,7 +14,7 @@
 | **MSPT Promedio (Avg Frame Time)** | **`4.64 ms`** | ✅ `Presupuesto: 16.67 ms` |
 | **MSPT Mediana (p50)** | **`4.24 ms`** | ✅ Ultra-rápido |
 | **MSPT Percentil 95 (p95)** | **`4.82 ms`** | ✅ Fluido |
-| **MSPT Percentil 99 (p99)** | **`8.68 ms`** | ✅ Sin tirones |
+| **MSPT Percentil 99 (p99)** | **`8.66 ms`** | ✅ Sin tirones |
 | **Ticks Caídos (> 33.3ms)** | **`1`** | ✅ 0 caídas críticas |
 | **Presupuesto Libre Ocioso (CPU Idle)** | **`11.27 ms`** | 🚀 `67.6% Headroom` |
 
@@ -75,13 +75,13 @@ Active Tick Budget: 5.4 ms / 16.67 ms frame ceiling
 - **Tirones Críticos (> 50ms):** `0`
 - **Advertencias de Fotograma (> 33.3ms):** `1`
 
-* **#1 [SYS-02]** `+39.02ms` en `T+77ms` — *Texture atlas decompression & GC minor pause test*
+* **#1 [SYS-02]** `+39.02ms` en `T+76ms` — *Texture atlas decompression & GC minor pause test*
 
 ---
 
 ## 4. 💾 Memoria V8 Heap & Proceso
 
-- **JS Heap Usado:** `51.74 MB` / `77.5 MB` (`66.8%` de ocupación)
+- **JS Heap Usado:** `56.4 MB` / `78.25 MB` (`72.1%` de ocupación)
 - **Working Set Estimado:** `~215.4 MB`
 - **Fugas de Memoria:** `0 fugas detectadas`
 

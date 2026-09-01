@@ -122,6 +122,26 @@ function sanitizeAndValidatePath(inputPath) {
   return path.normalize(inputPath.trim());
 }
 
+function getAppIcon() {
+  const candidates = [
+    path.join(__dirname, '../resources/icons/icon.ico'),
+    path.join(__dirname, '../resources/icons/icon.png'),
+    path.join(__dirname, '../dist/favicon.ico'),
+    path.join(__dirname, '../dist/icon.png'),
+    path.join(__dirname, '../public/icon.png'),
+    path.join(process.resourcesPath, 'resources/icons/icon.ico'),
+    path.join(process.resourcesPath, 'resources/icons/icon.png'),
+    path.join(process.resourcesPath, 'icons/icon.ico')
+  ];
+  return candidates.find((p) => {
+    try {
+      return fs.existsSync(p);
+    } catch {
+      return false;
+    }
+  }) || '';
+}
+
 function createWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const bounds = primaryDisplay ? primaryDisplay.bounds : { x: 0, y: 0, width: 1920, height: 1080 };
@@ -140,7 +160,7 @@ function createWindow() {
     resizable: false,
     movable: false,
     fullscreen: false,
-    icon: path.join(__dirname, '../resources/icons/icon.png'),
+    icon: getAppIcon(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -940,22 +960,83 @@ function registerGlobalShortcuts() {
 }
 
 // ── System Tray ─────────────────────────────────────────────────────────────
-function createTray() {
-  const trayIconCandidates = [
-    path.join(__dirname, '../resources/icons/tray-icon.png'),
-    path.join(__dirname, '../public/tray-icon.png'),
-    path.join(__dirname, '../resources/icons/icon.png')
-  ];
-  let iconPath = trayIconCandidates.find((p) => fs.existsSync(p)) || '';
-  let icon;
-  try {
-    icon = iconPath
-      ? nativeImage.createFromPath(iconPath)
-      : nativeImage.createEmpty();
-  } catch (e) {
-    icon = nativeImage.createEmpty();
+function createProceduralTrayIcon() {
+  const width = 24;
+  const height = 24;
+  const buffer = Buffer.alloc(width * height * 4);
+  const purple = [168, 85, 247, 255]; // #a855f7
+  const border = [147, 51, 234, 255]; // #9333ea
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * 4;
+      const dx = x - 11.5;
+      const dy = y - 11.5;
+      const distSq = dx * dx + dy * dy;
+
+      if (distSq <= 100) {
+        if (distSq >= 64) {
+          buffer[idx] = border[0];
+          buffer[idx + 1] = border[1];
+          buffer[idx + 2] = border[2];
+          buffer[idx + 3] = border[3];
+        } else {
+          buffer[idx] = purple[0];
+          buffer[idx + 1] = purple[1];
+          buffer[idx + 2] = purple[2];
+          buffer[idx + 3] = purple[3];
+        }
+      } else {
+        buffer[idx] = 0;
+        buffer[idx + 1] = 0;
+        buffer[idx + 2] = 0;
+        buffer[idx + 3] = 0;
+      }
+    }
   }
 
+  return nativeImage.createFromBuffer(buffer, { width, height });
+}
+
+function getTrayIcon() {
+  const candidates = [
+    path.join(__dirname, '../resources/icons/icon.ico'),
+    path.join(__dirname, '../resources/icons/tray-icon.png'),
+    path.join(__dirname, '../resources/icons/icon.png'),
+    path.join(__dirname, '../dist/tray-icon.png'),
+    path.join(__dirname, '../dist/favicon.ico'),
+    path.join(__dirname, '../dist/favicon.png'),
+    path.join(__dirname, '../dist/icon.png'),
+    path.join(__dirname, '../public/tray-icon.png'),
+    path.join(__dirname, '../public/icon.png'),
+    path.join(process.resourcesPath, 'resources/icons/icon.ico'),
+    path.join(process.resourcesPath, 'resources/icons/tray-icon.png'),
+    path.join(process.resourcesPath, 'resources/icons/icon.png'),
+    path.join(process.resourcesPath, 'icons/icon.ico')
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) {
+        const img = nativeImage.createFromPath(candidate);
+        if (!img.isEmpty()) {
+          const size = img.getSize();
+          if (size.width > 32 || size.height > 32) {
+            return img.resize({ width: 24, height: 24, quality: 'best' });
+          }
+          return img;
+        }
+      }
+    } catch (e) {
+      console.warn(`[Tray] Warning resolving icon candidate ${candidate}:`, e);
+    }
+  }
+
+  return createProceduralTrayIcon();
+}
+
+function createTray() {
+  const icon = getTrayIcon();
   tray = new Tray(icon);
   tray.setToolTip('Cristi AI Companion');
 
@@ -992,10 +1073,23 @@ function createTray() {
 
   updateMenu();
 
+  tray.on('click', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isVisible()) {
+        mainWindow.focus();
+      } else {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+      updateMenu();
+    }
+  });
+
   tray.on('double-click', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.show();
       mainWindow.focus();
+      updateMenu();
     }
   });
 }
