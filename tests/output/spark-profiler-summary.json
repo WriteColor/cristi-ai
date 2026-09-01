@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-09-01T02:41:37.344Z",
+  "timestamp": "2026-09-01T03:00:23.053Z",
   "profilerVersion": "2.0.0-spark",
   "environment": {
     "os": "win32",
     "arch": "x64",
     "nodeVersion": "v24.18.0",
-    "sourceEngine": "LIVE_CDP"
+    "sourceEngine": "STANDALONE_BENCHMARK"
   },
   "timingSummary": {
     "nominalTps": 60,
@@ -18,20 +18,20 @@
       "stabilityPercentage": 100
     },
     "mspt": {
-      "min": 0.01,
-      "avg": 4.27,
-      "p50": 4.2,
-      "p90": 4.3,
-      "p95": 4.3,
-      "p99": 8.12,
-      "max": 41.6
+      "min": 3.58,
+      "avg": 4.64,
+      "p50": 4.22,
+      "p90": 4.71,
+      "p95": 4.81,
+      "p99": 8.65,
+      "max": 39.02
     },
     "frameBudgetMs": 16.6667,
-    "totalActiveTickCostMs": 5.42,
-    "idleBudgetRemainingMs": 11.25,
-    "sparkline": " ▇▇▇▇▇█▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇█▇▇▇▇",
+    "totalActiveTickCostMs": 5.4,
+    "idleBudgetRemainingMs": 11.27,
+    "sparkline": "▆▅▅▆▂ ▄▃▅█▄▂▃ ▃▇▅▄▄ ▂▅▅▅▆▂ ▄▃▅",
     "droppedTicks": 1,
-    "totalTicksSampled": 703
+    "totalTicksSampled": 90
   },
   "subsystems": {
     "SYS-01": {
@@ -71,30 +71,30 @@
       "code": "LIVE2D_WEBGL",
       "name": "Live2D Cubism & WebGL Render Ticker",
       "description": "Bucle de animación PIXI.js, cinemática de físicas 2.0 y shader draw calls.",
-      "avgCostMs": 2.1,
-      "pctOfActiveTick": 38.7,
-      "pctOfFrameBudget": 12.6,
+      "avgCostMs": 2.15,
+      "pctOfActiveTick": 39.8,
+      "pctOfFrameBudget": 12.9,
       "progressBar": "■■■■□□□□□□",
       "subcategories": [
         {
           "name": "PIXI.js Render Pipeline & WebGL Draw Calls",
-          "costMs": 0.95,
-          "pctOfSubsystem": 45.2
+          "costMs": 0.97,
+          "pctOfSubsystem": 45.1
         },
         {
           "name": "Cubism Motion & Physics 2.0 Interpolation",
-          "costMs": 0.59,
-          "pctOfSubsystem": 28.1
+          "costMs": 0.6,
+          "pctOfSubsystem": 27.9
         },
         {
           "name": "Expression Matrix Transform & Blending",
-          "costMs": 0.36,
-          "pctOfSubsystem": 17.1
+          "costMs": 0.37,
+          "pctOfSubsystem": 17.2
         },
         {
           "name": "Texture Buffer Uploads & Eye-Tracking",
           "costMs": 0.21,
-          "pctOfSubsystem": 10
+          "pctOfSubsystem": 9.8
         }
       ]
     },
@@ -103,30 +103,30 @@
       "code": "AUDIO_DSP",
       "name": "Audio DSP & Speech Streaming Queue",
       "description": "AudioWorklet DSP, análisis VAD RMS y streaming bidireccional S2S.",
-      "avgCostMs": 0.65,
-      "pctOfActiveTick": 12,
-      "pctOfFrameBudget": 3.9,
+      "avgCostMs": 0.6,
+      "pctOfActiveTick": 11.1,
+      "pctOfFrameBudget": 3.6,
       "progressBar": "■□□□□□□□□□",
       "subcategories": [
         {
           "name": "AudioWorklet Buffer Processing",
-          "costMs": 0.29,
-          "pctOfSubsystem": 44.6
+          "costMs": 0.27,
+          "pctOfSubsystem": 45
         },
         {
           "name": "VAD & Volume RMS Energy Analysis",
-          "costMs": 0.18,
-          "pctOfSubsystem": 27.7
+          "costMs": 0.17,
+          "pctOfSubsystem": 28.3
         },
         {
           "name": "S2S Audio Queue Dispatch & Resampling",
-          "costMs": 0.11,
-          "pctOfSubsystem": 16.9
+          "costMs": 0.1,
+          "pctOfSubsystem": 16.7
         },
         {
           "name": "Speaker Biometric Embeddings Extraction",
-          "costMs": 0.07,
-          "pctOfSubsystem": 10.8
+          "costMs": 0.06,
+          "pctOfSubsystem": 10
         }
       ]
     },
@@ -135,30 +135,30 @@
       "code": "SENSORY_VISION",
       "name": "Sensory Vision & Screen Watch",
       "description": "Captura de pantalla nativa, procesamiento Face-API y visión contextual.",
-      "avgCostMs": 1.15,
-      "pctOfActiveTick": 21.2,
-      "pctOfFrameBudget": 6.9,
+      "avgCostMs": 1.1,
+      "pctOfActiveTick": 20.4,
+      "pctOfFrameBudget": 6.6,
       "progressBar": "■■□□□□□□□□",
       "subcategories": [
         {
           "name": "Desktop Capturer Thumbnail Extraction",
-          "costMs": 0.52,
-          "pctOfSubsystem": 45.2
+          "costMs": 0.5,
+          "pctOfSubsystem": 45.5
         },
         {
           "name": "Local Vision & Face-API Inference Pipeline",
-          "costMs": 0.32,
-          "pctOfSubsystem": 27.8
+          "costMs": 0.31,
+          "pctOfSubsystem": 28.2
         },
         {
           "name": "Region Boundary Extraction & Screen Diffing",
-          "costMs": 0.2,
-          "pctOfSubsystem": 17.4
+          "costMs": 0.19,
+          "pctOfSubsystem": 17.3
         },
         {
           "name": "Camera Video Stream Ingestion",
           "costMs": 0.11,
-          "pctOfSubsystem": 9.6
+          "pctOfSubsystem": 10
         }
       ]
     },
@@ -167,30 +167,30 @@
       "code": "PROACTIVE_SCHEDULER",
       "name": "Proactive Engine & Tool Scheduler",
       "description": "Evaluador de disparadores proactivos, cron scheduler y sandbox de herramientas.",
-      "avgCostMs": 0.42,
-      "pctOfActiveTick": 7.7,
-      "pctOfFrameBudget": 2.5,
+      "avgCostMs": 0.38,
+      "pctOfActiveTick": 7,
+      "pctOfFrameBudget": 2.3,
       "progressBar": "■□□□□□□□□□",
       "subcategories": [
         {
           "name": "Event Bus Trigger Evaluator",
-          "costMs": 0.19,
-          "pctOfSubsystem": 45.2
+          "costMs": 0.17,
+          "pctOfSubsystem": 44.7
         },
         {
           "name": "Proactive Activity Heartbeat & Cron Timers",
-          "costMs": 0.12,
-          "pctOfSubsystem": 28.6
+          "costMs": 0.11,
+          "pctOfSubsystem": 28.9
         },
         {
           "name": "Tool Executor Dispatch Loop & Sandbox",
-          "costMs": 0.07,
-          "pctOfSubsystem": 16.7
+          "costMs": 0.06,
+          "pctOfSubsystem": 15.8
         },
         {
           "name": "State Transition & Context Memory Sync",
           "costMs": 0.04,
-          "pctOfSubsystem": 9.5
+          "pctOfSubsystem": 10.5
         }
       ]
     },
@@ -199,30 +199,30 @@
       "code": "REACT_UI_VDOM",
       "name": "React 19 UI & Modals Virtual DOM",
       "description": "Reconciliación concurrente de React 19, Dynamic Widgets y Obsidian HUD.",
-      "avgCostMs": 0.65,
-      "pctOfActiveTick": 12,
-      "pctOfFrameBudget": 3.9,
+      "avgCostMs": 0.72,
+      "pctOfActiveTick": 13.3,
+      "pctOfFrameBudget": 4.3,
       "progressBar": "■□□□□□□□□□",
       "subcategories": [
         {
           "name": "Concurrent Root Fiber Reconciliation",
-          "costMs": 0.29,
-          "pctOfSubsystem": 44.6
+          "costMs": 0.32,
+          "pctOfSubsystem": 44.4
         },
         {
           "name": "Dynamic Widgets & Obsidian HUD State Updates",
-          "costMs": 0.18,
-          "pctOfSubsystem": 27.7
+          "costMs": 0.2,
+          "pctOfSubsystem": 27.8
         },
         {
           "name": "DOM Style Recalculation & Compositing",
-          "costMs": 0.11,
-          "pctOfSubsystem": 16.9
+          "costMs": 0.12,
+          "pctOfSubsystem": 16.7
         },
         {
           "name": "Modals (Settings, Voice Enrollment, Zen Mode)",
           "costMs": 0.07,
-          "pctOfSubsystem": 10.8
+          "pctOfSubsystem": 9.7
         }
       ]
     }
@@ -233,21 +233,21 @@
     "warningCount": 1,
     "incidents": [
       {
-        "type": "FRAME_DROP_HITCH",
+        "type": "SIMULATED_FRAME_HITCH",
         "subsystemId": "SYS-02",
-        "durationMs": 41.6,
-        "timestamp": 1112757,
-        "attribution": "Frame duration took 41.60ms (> 33.3ms threshold)"
+        "durationMs": 39.02,
+        "timestamp": 77,
+        "attribution": "Texture atlas decompression & GC minor pause test"
       }
     ]
   },
   "memory": {
-    "jsHeapUsedMB": 89.81,
-    "jsHeapTotalMB": 91.92,
-    "heapUtilizationPct": 97.7,
+    "jsHeapUsedMB": 51,
+    "jsHeapTotalMB": 78,
+    "heapUtilizationPct": 65.4,
     "processWorkingSetMB": 215.4
   },
   "healthVerdict": "PERFECT_60FPS",
-  "profilerRunDurationMs": 3500,
-  "mode": "LIVE_CDP"
+  "profilerRunDurationMs": 119,
+  "mode": "STANDALONE_BENCHMARK"
 }

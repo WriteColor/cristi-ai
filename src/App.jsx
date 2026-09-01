@@ -1169,6 +1169,7 @@ export function App() {
         onClearScreenRegion={handleClearScreenRegion}
         onToggleViewMode={handleToggleViewMode}
         onToggleZenMode={handleToggleZenMode}
+        onWakeUi={resetInactivityTimer}
       />
 
       {/* 4. Sensory Camera PiP Monitor */}

@@ -49,7 +49,8 @@ export function FloatingHUD({
   onOpenRegionPicker,
   onClearScreenRegion,
   onToggleViewMode,
-  onToggleZenMode
+  onToggleZenMode,
+  onWakeUi
 }) {
   const topBarRef = useRef(null);
   const dockRef = useRef(null);
@@ -131,6 +132,7 @@ export function FloatingHUD({
           onMouseEnter={(e) => {
             setIsHovered(true);
             setIsIdleFade(false);
+            onWakeUi?.();
             interactiveProps.onMouseEnter?.(e);
           }}
           onMouseLeave={(e) => {
@@ -167,6 +169,7 @@ export function FloatingHUD({
         onMouseEnter={(e) => {
           setIsHovered(true);
           setIsIdleFade(false);
+          onWakeUi?.();
           interactiveProps.onMouseEnter?.(e);
         }}
         onMouseLeave={(e) => {
