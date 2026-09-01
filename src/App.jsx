@@ -1097,6 +1097,7 @@ export function App() {
   return (
     <div
       className={`app-container ${isSolidBackdrop ? 'solid-backdrop' : 'transparent-backdrop'}`}
+      onContextMenu={handleModelContextMenu}
     >
       {/* Global Error Banner Toast */}
       {errorMessage && (
