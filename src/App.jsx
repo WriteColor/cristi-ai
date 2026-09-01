@@ -147,13 +147,25 @@ export function App() {
   const [contextMenu, setContextMenu] = useState({ isOpen: false, x: 0, y: 0 });
   const [isPerformanceHudOpen, setIsPerformanceHudOpen] = useState(false);
 
+  // --- Screen Capture States ---
+  const [isScreenWatchActive, setIsScreenWatchActive] = useState(false);
+  const [screenRegion, setScreenRegion] = useState(null);
+  const [isRegionPickerOpen, setIsRegionPickerOpen] = useState(false);
+
   // --- Zen Mode / Ghost UI Auto-Hide States ---
   const [isZenMode, setIsZenMode] = useState(false);
   const [isUiVisible, setIsUiVisible] = useState(true);
   const autoHideTimerRef = useRef(null);
 
   // --- Interaction Lock for Modals ---
-  const isAnyModalOpen = isSettingsOpen || isVoiceEnrollmentOpen || isLockSandboxOpen || isRegionPickerOpen || contextMenu.isOpen || isPerformanceHudOpen;
+  const isAnyModalOpen = Boolean(
+    isSettingsOpen ||
+    isVoiceEnrollmentOpen ||
+    isLockSandboxOpen ||
+    isRegionPickerOpen ||
+    contextMenu.isOpen ||
+    isPerformanceHudOpen
+  );
 
   useEffect(() => {
     if (isAnyModalOpen) {
@@ -179,11 +191,6 @@ export function App() {
   const screenCaptureRef = useRef(null);
   const systemTrayRef = useRef(null);
   const live2dRef = useRef(null);
-
-  // --- Screen Capture States ---
-  const [isScreenWatchActive, setIsScreenWatchActive] = useState(false);
-  const [screenRegion, setScreenRegion] = useState(null);
-  const [isRegionPickerOpen, setIsRegionPickerOpen] = useState(false);
 
 
 
