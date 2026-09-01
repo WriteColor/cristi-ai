@@ -244,10 +244,6 @@ export function App() {
           setContextMenu({ isOpen: false, x: 0, y: 0, modelBounds: null });
         } else if (isRegionPickerOpen) {
           setIsRegionPickerOpen(false);
-        } else if (isVoiceEnrollmentOpen) {
-          setIsVoiceEnrollmentOpen(false);
-        } else if (isSettingsOpen) {
-          setIsSettingsOpen(false);
         } else if (isPerformanceHudOpen) {
           setIsPerformanceHudOpen(false);
         }
@@ -287,8 +283,6 @@ export function App() {
     handleToggleZenMode,
     contextMenu.isOpen,
     isRegionPickerOpen,
-    isVoiceEnrollmentOpen,
-    isSettingsOpen,
     isPerformanceHudOpen
   ]);
 
@@ -953,15 +947,15 @@ export function App() {
       closePerformanceHUD: () => setIsPerformanceHudOpen(false),
       openRegionPicker: () => setIsRegionPickerOpen(true),
       closeRegionPicker: () => setIsRegionPickerOpen(false),
-      openVoiceEnrollment: () => setIsVoiceEnrollmentOpen(true),
-      closeVoiceEnrollment: () => setIsVoiceEnrollmentOpen(false),
+      openVoiceEnrollment: handleOpenSettings,
+      closeVoiceEnrollment: () => electronBridge.closeSettingsWindow(),
+      openSettings: handleOpenSettings,
+      closeSettings: () => electronBridge.closeSettingsWindow(),
       toggleCamera: handleToggleCamera,
       getModalStates: () => ({
-        isSettingsOpen,
         isContextMenuOpen: contextMenu.isOpen,
         isRegionPickerOpen,
-        isPerformanceHudOpen,
-        isVoiceEnrollmentOpen
+        isPerformanceHudOpen
       }),
       eventBus,
       toast,
@@ -998,6 +992,7 @@ export function App() {
   }, [
     handleToggleConnection,
     handleSaveConfig,
+    handleOpenSettings,
     isConnected,
     isConnecting,
     isSpeaking,
@@ -1007,11 +1002,9 @@ export function App() {
     userTranscript,
     modelTranscript,
     setSubtitleText,
-    isSettingsOpen,
     contextMenu,
     isRegionPickerOpen,
-    isPerformanceHudOpen,
-    isVoiceEnrollmentOpen
+    isPerformanceHudOpen
   ]);
 
   // --- Reactive Synchronization for Microphone Mute State (Shortcuts, Tray, UI) ---
