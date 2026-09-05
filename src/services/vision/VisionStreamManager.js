@@ -7,6 +7,7 @@ import { electronBridge } from '../desktop/ElectronBridge.js';
 import { logger } from '../logger.js';
 import { eventBus, EVENTS } from '../eventBus.js';
 import { VisionFrameDispatcher } from './VisionFrameDispatcher.js';
+import { CaptureLoop } from './CaptureLoop.js';
 
 export class VisionStreamManager {
   constructor({ socketRef } = {}) {
@@ -15,13 +16,36 @@ export class VisionStreamManager {
 
     // Screen Streamer State
     this.isScreenStreaming = false;
-    this.screenIntervalId = null;
+    this.screenLoop = new CaptureLoop({
+      capture: async () => {
+        const region = this.screenRegion;
+        const frame = await this.captureScreenNative(region);
+        return region === this.screenRegion ? frame : null;
+      },
+      onFrame: frame => this.frameDispatcher.enqueue(frame, 'screen'),
+      shouldCapture: () => !this.isAiSpeaking && this.socketRef?.current?.isConnected
+        && (this.socketRef.current.websocket?.bufferedAmount || 0) <= 65536,
+      onError: error => logger.warn('VISION', 'Error capturando pantalla:', error.message)
+    });
     this.screenFPS = 0.5; // 1 frame every 2 seconds default (energy efficient)
     this.screenRegion = null; // { x_pct, y_pct, w_pct, h_pct }
 
     // Camera Streamer State
     this.isCameraStreaming = false;
-    this.cameraIntervalId = null;
+    this.cameraGeneration = 0;
+    this.disposed = false;
+    this.cameraLoop = new CaptureLoop({
+      capture: () => {
+        if (!this.videoElement || this.videoElement.readyState < 2 || !this.cameraCanvas) return null;
+        const ctx = this.cameraCanvas.getContext('2d');
+        if (!ctx) return null;
+        ctx.drawImage(this.videoElement, 0, 0, this.cameraCanvas.width, this.cameraCanvas.height);
+        return this.cameraCanvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+      },
+      onFrame: frame => this.frameDispatcher.enqueue(frame, 'camera'),
+      shouldCapture: () => !this.isAiSpeaking,
+      onError: error => logger.warn('VISION', 'Error capturando cámara:', error.message)
+    });
     this.cameraStream = null;
     this.videoElement = null;
     this.cameraCanvas = null;
@@ -37,87 +61,40 @@ export class VisionStreamManager {
 
     // Speech Protection: Pause image streaming while Cristi is speaking to prevent audio stuttering
     this.isAiSpeaking = false;
-    eventBus.on(EVENTS.AUDIO_START, () => {
+    this.unsubAudioStart = eventBus.on(EVENTS.AUDIO_START, () => {
       this.isAiSpeaking = true;
     });
-    eventBus.on(EVENTS.AUDIO_END, () => {
+    this.unsubAudioEnd = eventBus.on(EVENTS.AUDIO_END, () => {
       this.isAiSpeaking = false;
+      this.screenLoop.requestImmediate();
+      this.cameraLoop.requestImmediate();
     });
   }
 
   setSocketRef(socketRef) {
     this.socketRef = socketRef;
+    this.frameDispatcher.setSocketRef(socketRef);
   }
 
   /**
    * Continuous Screen Capture Streamer directly sending frames to Gemini Live
    */
   startScreenMonitoring({ fps = 0.5, region = null } = {}) {
+    if (this.disposed) return false;
     this.stopScreenMonitoring();
-
-    // Cap screen FPS strictly between 0.2 and 0.5 FPS (1 frame every 2 to 5s)
-    this.screenFPS = Math.max(0.2, Math.min(0.5, fps));
+    this.screenFPS = Math.max(0.2, Math.min(0.5, Number.isFinite(fps) ? fps : 0.5));
     this.screenRegion = region;
     this.isScreenStreaming = true;
-
-    const intervalMs = Math.round(1000 / this.screenFPS);
-    logger.info('VISION', `Iniciando monitoreo visual de pantalla (${this.screenFPS} FPS / cada ${intervalMs}ms)...`);
-
-    let inFlight = false;
-    const captureAndSend = async () => {
-      if (!this.isScreenStreaming) return;
-      if (this.isAiSpeaking) {
-        // AI is actively speaking: pause video frames to protect incoming audio stream from interruption
-        if (this.isScreenStreaming) {
-          this.screenIntervalId = setTimeout(captureAndSend, 1000);
-        }
-        return;
-      }
-      if (inFlight) {
-        if (this.isScreenStreaming) {
-          this.screenIntervalId = setTimeout(captureAndSend, 1000);
-        }
-        return;
-      }
-
-      inFlight = true;
-      const t0 = performance.now();
-      try {
-        // Backpressure check: skip if websocket queue is backing up
-        const ws = this.socketRef?.current?.websocket;
-        if (ws && ws.bufferedAmount > 65536) {
-          logger.warn('VISION', 'Omitiendo frame por congestión de red WebSocket.');
-        } else {
-          const frameBase64 = await this.captureScreenNative(this.screenRegion);
-          if (frameBase64 && this.isScreenStreaming && this.socketRef?.current?.isConnected) {
-            this.frameDispatcher.enqueue(frameBase64, 'screen');
-          }
-        }
-      } catch (err) {
-        logger.warn('VISION', 'Error en frame de pantalla:', err.message);
-      } finally {
-        inFlight = false;
-      }
-
-      if (this.isScreenStreaming) {
-        const elapsed = performance.now() - t0;
-        const delay = Math.max(1800, intervalMs - elapsed);
-        this.screenIntervalId = setTimeout(captureAndSend, delay);
-      }
-    };
-
-    // Schedule initial capture after brief 300ms pause to allow call connection to settle
-    this.screenIntervalId = setTimeout(captureAndSend, 300);
+    // CaptureLoop keeps one inFlight operation even when monitoring is restarted.
+    this.screenLoop.start(Math.round(1000 / this.screenFPS));
     eventBus.emit(EVENTS.CONFIG_CHANGED, { type: 'screen_monitoring_started', fps: this.screenFPS });
+    return true;
   }
 
   stopScreenMonitoring() {
     this.isScreenStreaming = false;
-    if (this.screenIntervalId) {
-      clearTimeout(this.screenIntervalId);
-      this.screenIntervalId = null;
-    }
-    logger.info('VISION', 'Monitoreo visual de pantalla detenido.');
+    this.screenLoop.stop();
+    this.frameDispatcher.clearSource('screen');
     eventBus.emit(EVENTS.CONFIG_CHANGED, { type: 'screen_monitoring_stopped' });
   }
 
@@ -140,71 +117,69 @@ export class VisionStreamManager {
    * Continuous Camera Video Streamer to Gemini Live
    */
   async startCameraMonitoring({ fps = 0.5, deviceId = null } = {}) {
+    if (this.disposed) return false;
     this.stopCameraMonitoring();
-
+    const generation = this.cameraGeneration;
+    let stream;
+    let video;
+    let timeout;
+    let cancel;
     try {
-      logger.info('VISION', 'Iniciando captura de cámara web...');
-      const constraints = {
+      stream = await navigator.mediaDevices.getUserMedia({
         video: deviceId ? { deviceId: { exact: deviceId } } : { width: 640, height: 480 }
-      };
-
-      this.cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
-      this.videoElement = document.createElement('video');
-      this.videoElement.srcObject = this.cameraStream;
-      this.videoElement.play();
-
-      this.cameraCanvas = document.createElement('canvas');
-      this.cameraCanvas.width = 480;
-      this.cameraCanvas.height = 360;
-
-      this.cameraFPS = Math.max(0.2, Math.min(3.0, fps));
+      });
+      if (generation !== this.cameraGeneration || this.disposed) return false;
+      video = document.createElement('video');
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = stream;
+      const cancelled = new Promise((_, reject) => {
+        cancel = () => reject(new Error('Cámara cancelada.'));
+        this.cancelCameraSetup = cancel;
+        timeout = setTimeout(() => reject(new Error('La cámara no entregó vídeo en 10 segundos.')), 10000);
+      });
+      await Promise.race([video.play(), cancelled]);
+      if (generation !== this.cameraGeneration || this.disposed) return false;
+      const canvas = document.createElement('canvas');
+      canvas.width = 480;
+      canvas.height = 360;
+      this.cameraStream = stream;
+      this.videoElement = video;
+      this.cameraCanvas = canvas;
+      this.cameraFPS = Math.max(0.2, Math.min(3.0, Number.isFinite(fps) ? fps : 0.5));
       this.isCameraStreaming = true;
-
-      const intervalMs = Math.round(1000 / this.cameraFPS);
-
-      let inFlight = false;
-      const captureCamFrame = () => {
-        if (!this.isCameraStreaming || !this.videoElement || !this.cameraCanvas) return;
-        if (this.isAiSpeaking || inFlight) {
-          this.cameraIntervalId = setTimeout(captureCamFrame, Math.min(intervalMs, 1000));
-          return;
-        }
-
-        inFlight = true;
-        try {
-          if (this.videoElement.readyState < 2) return;
-          const ctx = this.cameraCanvas.getContext('2d');
-          ctx.drawImage(this.videoElement, 0, 0, this.cameraCanvas.width, this.cameraCanvas.height);
-          const dataUrl = this.cameraCanvas.toDataURL('image/jpeg', 0.7);
-          const base64Data = dataUrl.split(',')[1];
-          if (base64Data) this.frameDispatcher.enqueue(base64Data, 'camera');
-        } finally {
-          inFlight = false;
-          if (this.isCameraStreaming) this.cameraIntervalId = setTimeout(captureCamFrame, intervalMs);
-        }
+      stream.getVideoTracks()[0].onended = () => {
+        if (this.cameraStream === stream) this.stopCameraMonitoring();
       };
-
-      this.cameraIntervalId = setTimeout(captureCamFrame, 100);
-      logger.info('VISION', `✓ Monitoreo de cámara activo (${this.cameraFPS} FPS).`);
+      this.cameraLoop.start(Math.round(1000 / this.cameraFPS));
       return true;
-    } catch (err) {
-      logger.error('VISION', 'Error al acceder a la cámara web:', err);
-      this.stopCameraMonitoring();
+    } catch (error) {
+      if (generation === this.cameraGeneration && !this.disposed) {
+        logger.error('VISION', 'Error al acceder a la cámara web:', error.message);
+      }
       return false;
+    } finally {
+      clearTimeout(timeout);
+      if (this.cancelCameraSetup === cancel) this.cancelCameraSetup = null;
+      if (stream && this.cameraStream !== stream) {
+        stream.getTracks().forEach(track => track.stop());
+        if (video) { video.pause(); video.srcObject = null; }
+      }
     }
   }
 
   stopCameraMonitoring() {
     this.isCameraStreaming = false;
-    if (this.cameraIntervalId) {
-      clearTimeout(this.cameraIntervalId);
-      this.cameraIntervalId = null;
-    }
+    this.cameraGeneration++;
+    this.cancelCameraSetup?.();
+    this.cameraLoop.stop();
+    this.frameDispatcher.clearSource('camera');
     if (this.cameraStream) {
       this.cameraStream.getTracks().forEach(t => t.stop());
       this.cameraStream = null;
     }
     if (this.videoElement) {
+      this.videoElement.pause();
       this.videoElement.srcObject = null;
       this.videoElement = null;
     }
@@ -213,6 +188,9 @@ export class VisionStreamManager {
   }
 
   dispose() {
+    this.disposed = true;
+    this.unsubAudioStart?.();
+    this.unsubAudioEnd?.();
     this.stopScreenMonitoring();
     this.stopCameraMonitoring();
     this.frameDispatcher.destroy();

@@ -50,6 +50,23 @@ try {
   await page.evaluate(() => window.__cristiApp.closeSettings());
   report.checks.push('Packaged settings window and preload IPC');
 
+  const seedFrame = await page.evaluate(() => window.electronAPI.captureScreenNative(null));
+  assert.ok(seedFrame?.length > 100, 'Native screen capture must supply a real JPEG');
+  try {
+    await app.evaluate(({ desktopCapturer }) => {
+      globalThis.__originalCaptureSources = desktopCapturer.getSources;
+      desktopCapturer.getSources = async () => { throw new Error('Injected desktop capture failure'); };
+    });
+    const failedRegion = await page.evaluate(() => window.electronAPI.captureScreenNative({ x_pct: 10, y_pct: 10, w_pct: 35, h_pct: 35 }));
+    assert.equal(failedRegion, null, 'A failed region capture must not return the cached full screen');
+  } finally {
+    await app.evaluate(({ desktopCapturer }) => {
+      desktopCapturer.getSources = globalThis.__originalCaptureSources;
+      delete globalThis.__originalCaptureSources;
+    });
+  }
+  report.checks.push('Native capture failure never substitutes cached image from another region');
+
   // Reload with a simulated transport. Microphone input is Chromium's synthetic
   // device; this test neither captures the user nor connects to an API.
   await page.addInitScript(() => {
@@ -82,7 +99,7 @@ try {
   assert.equal(input.isRecording, true);
   assert.equal(input.processorType, 'AudioWorklet (Low Latency)');
   await page.waitForFunction(() => window.__cristiApp.audioInRef.current.getTelemetry().processedChunksCount > 5);
-  report.input = input;
+  report.input = await page.evaluate(() => window.__cristiApp.audioInRef.current.getTelemetry());
   const payload = Buffer.alloc(9600).toString('base64');
   await page.evaluate(async pcm => {
     const client = window.__cristiApp.socketRef.current;

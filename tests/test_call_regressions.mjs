@@ -9,6 +9,22 @@ import { contextualEmotionOrchestrator } from '../src/services/live2d/Contextual
 after(() => { proactiveScheduler.destroy(); contextualEmotionOrchestrator.destroy(); });
 
 const pcm = Buffer.alloc(9600).toString('base64'); // 200ms at 24kHz
+test('Live setup includes frames arriving outside microphone activity', () => {
+  const messages = [];
+  const client = new GeminiLiveSocket({ apiKey: 'test-key' });
+  client.websocket = { readyState: WebSocket.OPEN, send: data => messages.push(JSON.parse(data)) };
+  client.sendInitialSetup();
+  assert.equal(messages[0].setup.realtimeInputConfig.turnCoverage, 'TURN_INCLUDES_AUDIO_ACTIVITY_AND_ALL_VIDEO');
+  assert.deepEqual(messages[0].setup.outputAudioTranscription, {});
+});
+test('scoped Live clients can exclude companion instructions and tools', () => {
+  const messages = [];
+  const client = new GeminiLiveSocket({ apiKey: 'test-key', includeCompanionContext: false, tools: [], systemPrompt: 'Read only visible words.' });
+  client.websocket = { readyState: WebSocket.OPEN, send: data => messages.push(JSON.parse(data)) };
+  client.sendInitialSetup();
+  assert.deepEqual(messages[0].setup.tools, []);
+  assert.equal(messages[0].setup.systemInstruction.parts[0].text, 'Read only visible words.');
+});
 function output() {
   const service = new AudioOutputService();
   const sources = [];

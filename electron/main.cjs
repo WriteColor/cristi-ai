@@ -751,6 +751,7 @@ ipcMain.handle('capture-screen-native', async (event, region = null) => {
       const targetW = Math.max(1, Math.min(768, pixelWidth));
       const targetH = Math.max(1, Math.round((pixelHeight / Math.max(1, pixelWidth)) * targetW));
 
+      // Capture failures must not substitute a stale or differently cropped image.
       let sources = [];
       try {
         sources = await desktopCapturer.getSources({
@@ -763,21 +764,21 @@ ipcMain.handle('capture-screen-native', async (event, region = null) => {
         });
       } catch (capturerErr) {
         console.error('[Main] desktopCapturer error (permissions or unavailable):', capturerErr);
-        return lastScreenCaptureCache.base64 || null;
+        return null;
       }
 
-      if (!sources || sources.length === 0) return lastScreenCaptureCache.base64 || null;
+      if (!sources || sources.length === 0) return null;
 
       const primarySource = sources.find((s) => s.display_id === String(targetDisplay.id)) ||
                             sources.find((s) => s.display_id === String(screen.getPrimaryDisplay()?.id)) ||
                             sources[0];
       if (!primarySource || !primarySource.thumbnail || primarySource.thumbnail.isEmpty()) {
-        return lastScreenCaptureCache.base64 || null;
+        return null;
       }
 
       let image = primarySource.thumbnail;
       const imgSize = image.getSize();
-      if (imgSize.width <= 0 || imgSize.height <= 0) return lastScreenCaptureCache.base64 || null;
+      if (imgSize.width <= 0 || imgSize.height <= 0) return null;
 
       // Native region cropping
       if (region && typeof region === 'object') {
@@ -822,7 +823,7 @@ ipcMain.handle('capture-screen-native', async (event, region = null) => {
       return base64Result;
     } catch (err) {
       console.error('[Main] capture-screen-native error:', err);
-      return lastScreenCaptureCache.base64 || null;
+      return null;
     } finally {
       activeScreenCapturePromises.delete(regionKey);
       isScreenCaptureInProgress = activeScreenCapturePromises.size > 0;

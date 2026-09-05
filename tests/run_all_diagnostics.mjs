@@ -44,6 +44,7 @@ function runSuite(name, command, description = '') {
 }
 
 runSuite('Live call regressions', 'node --test tests/test_call_regressions.mjs', 'PCM bursts, cancellation, session ownership, transcripts & backpressure');
+runSuite('Vision capture lifecycle', 'node --test tests/test_vision_capture_lifecycle.mjs tests/test_vision_frame_dispatcher.mjs', 'Post-speech recurrence, stale captures, camera races, fair delivery and backpressure');
 
 // 1. Suite de Físicas y Cinemática Live2D 2.0 (10,000 pasos, 20x WebGL cycles, 13 modelos)
 console.log('[1/17] Ejecutando suite de Físicas Avanzadas y Cinemática Live2D 2.0...');

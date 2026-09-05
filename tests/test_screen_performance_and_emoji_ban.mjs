@@ -4,6 +4,8 @@
 
 import assert from 'node:assert';
 import fs from 'node:fs';
+import { ScreenCaptureService } from '../src/services/screenCaptureService.js';
+import { VisionStreamManager } from '../src/services/vision/VisionStreamManager.js';
 
 console.log('========================================================================');
 console.log('🧪 TEST: SCREEN CAPTURE OPTIMIZATIONS & TOTAL EMOJI BAN VERIFICATION');
@@ -40,13 +42,23 @@ console.log('  ✅ Mutex de GPU, caché anti-tirones y compresión ultra-rápida
 
 // 5. Verify FPS Capping & Self-Pacing in ScreenCaptureService & VisionStreamManager
 console.log('🔍 [5/5] Verificando límite estricto de FPS (0.5 FPS) y auto-regulación en streaming de visión...');
-const screenServiceContent = fs.readFileSync('src/services/screenCaptureService.js', 'utf8');
-assert(screenServiceContent.includes('Math.min(0.5, fps)'), 'ScreenCaptureService debe limitar FPS continuo a 0.5 FPS.');
-assert(screenServiceContent.includes('inFlight'), 'ScreenCaptureService debe proteger el ciclo nativo con inFlight lock.');
-
-const visionManagerContent = fs.readFileSync('src/services/vision/VisionStreamManager.js', 'utf8');
-assert(visionManagerContent.includes('Math.min(0.5, fps)'), 'VisionStreamManager debe limitar FPS continuo a 0.5 FPS.');
-assert(visionManagerContent.includes('inFlight'), 'VisionStreamManager debe prevenir intervalos superpuestos.');
+const screenService = new ScreenCaptureService();
+const visionManager = new VisionStreamManager();
+screenService.requestCapture = async () => true;
+try {
+  for (const [requested, expected] of [[15, 0.5], [0.01, 0.2], [NaN, 0.5], [Infinity, 0.5]]) {
+    await screenService.startContinuous(requested);
+    visionManager.startScreenMonitoring({ fps: requested });
+    assert.equal(screenService.fps, expected);
+    assert.equal(visionManager.screenFPS, expected);
+    screenService.stopContinuous();
+    visionManager.stopScreenMonitoring();
+  }
+} finally {
+  screenService.stopAll();
+  visionManager.dispose();
+}
+// Concurrency and recurring behavior are exercised in test_vision_capture_lifecycle.mjs.
 console.log('  ✅ Límite estricto de 0.5 FPS y auto-regulación de fotogramas comprobados.');
 
 console.log('\n🎉 TODAS LAS VERIFICACIONES DE RENDIMIENTO Y ELIMINACIÓN DE EMOJIS EXITOSAS!');

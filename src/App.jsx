@@ -366,6 +366,8 @@ export function App() {
     callGenerationRef.current++;
     isCallActiveRef.current = false;
     visionDispatcherRef.current?.reset();
+    screenCaptureRef.current?.stopAll();
+    screenCaptureRef.current = null;
     socketRef.current?.disconnect();
     audioInRef.current?.stop();
     proactiveTriggerService.setGeminiSocket(null);
@@ -734,6 +736,7 @@ export function App() {
         setScreenRegion(region);
         if (screenCaptureRef.current) {
           screenCaptureRef.current.setRegion(region);
+          visionDispatcherRef.current?.clearSource('screen');
         }
       },
       onScreenWatchChange: async (enabled) => {
@@ -742,7 +745,7 @@ export function App() {
           if (!screenCaptureRef.current) {
             screenCaptureRef.current = new ScreenCaptureService({
               onFrame: (base64jpeg) => {
-                sendRealtimeVisionFrame(base64jpeg);
+                sendRealtimeVisionFrame(base64jpeg, 'screen');
               },
               onStreamEnd: () => {
                 setIsScreenWatchActive(false);
@@ -750,9 +753,11 @@ export function App() {
             });
           }
           const fps = getScreenCaptureFPS(config.modelId);
-          await screenCaptureRef.current.startContinuous(fps);
+          const started = await screenCaptureRef.current.startContinuous(fps);
+          if (!started) setIsScreenWatchActive(false);
         } else {
-          screenCaptureRef.current?.stopContinuous();
+          screenCaptureRef.current?.stopAll();
+          visionDispatcherRef.current?.clearSource('screen');
         }
       }
     });
@@ -826,6 +831,9 @@ export function App() {
       if (audioInRef.current) audioInRef.current.stop();
       if (audioOutRef.current) audioOutRef.current.stopImmediate();
       if (cameraRef.current) cameraRef.current.stopPeriodicStreaming();
+      screenCaptureRef.current?.stopAll();
+      visionDispatcherRef.current?.reset();
+      setIsScreenWatchActive(false);
 
       setIsConnected(false);
       setIsConnecting(false);
@@ -925,6 +933,9 @@ export function App() {
           isCallActiveRef.current = false;
           audioInRef.current?.stop();
           audioOutRef.current?.stopImmediate();
+          screenCaptureRef.current?.stopAll();
+          visionDispatcherRef.current?.reset();
+          setIsScreenWatchActive(false);
           proactiveTriggerService.setGeminiSocket(null);
           proactiveScheduler.setGeminiSocket(null);
           interactionOrchestrator.setGeminiSocket(null);
@@ -1380,6 +1391,7 @@ export function App() {
     if (screenRegion) {
       setScreenRegion(null);
       screenCaptureRef.current?.clearRegion();
+      visionDispatcherRef.current?.clearSource('screen');
       setIsScreenWatchActive(true);
       toastService.info('Visión de Pantalla Completa', 'Cristi ahora observa toda la pantalla (región recortada desactivada).');
       if (toolExecutorRef.current) {
@@ -1420,6 +1432,7 @@ export function App() {
     );
     if (screenCaptureRef.current) {
       screenCaptureRef.current.setRegion(region);
+      visionDispatcherRef.current?.clearSource('screen');
     }
     if (toolExecutorRef.current) {
       toolExecutorRef.current.executeSingleTool('set_screen_region', region);
@@ -1433,6 +1446,7 @@ export function App() {
     setScreenRegion(null);
     setIsScreenWatchActive(false);
     screenCaptureRef.current?.clearRegion();
+    visionDispatcherRef.current?.clearSource('screen');
     toastService.info('Visión Desactivada', 'Se limpió el área de recorte y se detuvo la transmisión.');
     if (toolExecutorRef.current) {
       toolExecutorRef.current.executeSingleTool('clear_screen_region', {});

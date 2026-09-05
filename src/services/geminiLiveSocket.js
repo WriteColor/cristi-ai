@@ -36,12 +36,16 @@ export class GeminiLiveSocket {
     onReconnecting,
     maxReconnectAttempts = 5,
     sessionId = null,
+    includeCompanionContext = true,
+    tools = null,
   }) {
     this.apiKey = apiKey;
     this.modelId = modelId;
     this.voiceName = voiceName;
     this.systemPrompt = systemPrompt;
     this.thinkingConfig = thinkingConfig;
+    this.includeCompanionContext = includeCompanionContext;
+    this.tools = Array.isArray(tools) ? tools : null;
     this.temperature = temperature;
     this.sessionId = sessionId || `live_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -215,7 +219,7 @@ export class GeminiLiveSocket {
     const proactivityDirective = '\n\n[DIRECTIVA DE PROACTIVIDAD E INDAGACIÓN CONSTANTE: Dado que Ariel suele ser reservado y callado, JAMÁS te quedes callada por mucho tiempo. Saca activamente temas de conversación, cuéntale ocurrencias, pregúntale por sus gustos, sus juegos, sus proyectos y su día a día. Averigua detalles sobre él y usa manage_memory para guardar esos recuerdos.]';
     const voiceModalityDirective = '\n\n[DIRECTIVA OBLIGATORIA DE VOZ NATIVA: Cada respuesta, reacción visual a la pantalla compartida o resultado de herramientas DEBE ser emitido como audio hablado en tiempo real (inlineData PCM). JAMÁS generes respuestas mudas.]';
     const tagBanDirective = '\n\n[DIRECTIVA ESTRICTA DE PROHIBICIÓN DE ETIQUETAS: Queda TERMINANTEMENTE PROHIBIDO incluir, decir o escribir etiquetas, marcadores o roles como [emotion: yandere], [yandere], [action: ...], [tool: ...], [gesto: ...], (yandere), "Yandere:", o nombres de modelos Live2D. Cero etiquetas. Habla únicamente lenguaje natural humano con Ariel.]';
-    const realtimeVisionDirective = '\n\n[DIRECTIVA DE VISIÓN EN TIEMPO REAL (PANTALLA Y CÁMARA): Tienes visión multimodal en vivo a través de fotogramas de video continuos (realtimeInput.video). Si Ariel te pide que mires su pantalla, un área recortada o su cámara, o te pregunta qué estás viendo o qué opinas de lo que ves, describe de inmediato con agudeza, picardía y detalle lo que observas en los fotogramas de video.]';
+    const realtimeVisionDirective = '\n\n[DIRECTIVA DE VISIÓN EN TIEMPO REAL (PANTALLA Y CÁMARA): Los fotogramas recibidos son observaciones actuales. Para responder qué ves, usa el fotograma más reciente; una imagen anterior o un recuerdo no describe necesariamente la pantalla actual. Un recorte sustituye la vista anterior: no atribuyas al recorte texto u objetos que solo aparecían fuera de él. Si ya puedes leer la imagen recibida, responde directamente sin solicitar otra captura ni ejecutar herramientas de avatar. Cuando te pidan leer texto, transcribe solo el texto visible sin completar palabras por conjetura. Si la imagen no es legible, dilo con claridad.]';
     const enrichedPrompt = `${this.systemPrompt}${memoryContext}${schedulerContext}${emojiBanDirective}${neutralAccentDirective}${vocalCleanlinessDirective}${cadenceDirective}${proactivityDirective}${voiceModalityDirective}${tagBanDirective}${realtimeVisionDirective}`;
     const mcpDeclarations = mcpClientManager.getGeminiFunctionDeclarations();
 
@@ -224,12 +228,17 @@ export class GeminiLiveSocket {
         model: `models/${this.modelId}`,
         generationConfig: generationConfig,
         systemInstruction: {
-          parts: [{ text: enrichedPrompt }]
+          parts: [{ text: this.includeCompanionContext ? enrichedPrompt : this.systemPrompt }]
         },
-        tools: getLiveToolsConfig(mcpDeclarations),
+        tools: this.tools ?? getLiveToolsConfig(mcpDeclarations),
         // Enable text transcriptions of both user audio input and model audio output
         inputAudioTranscription: {},
         outputAudioTranscription: {},
+        // Include recent video even when a frame arrived between spoken turns.
+        // Gemini 2.5 otherwise defaults to activity-only coverage.
+        realtimeInputConfig: {
+          turnCoverage: 'TURN_INCLUDES_AUDIO_ACTIVITY_AND_ALL_VIDEO'
+        },
         // Context window compression: extend sessions beyond 15-minute audio limit
         contextWindowCompression: {
           slidingWindow: {}
