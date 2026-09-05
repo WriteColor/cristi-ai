@@ -70,7 +70,9 @@ export class DesktopLoopbackCaptureService {
     this.sourceId = sourceId;
     try {
       this.stream = await navigator.mediaDevices.getDisplayMedia({
-        video: includeVideo,
+        // Chromium requires a video track for getDisplayMedia even when only
+        // system audio is needed. We stop that track immediately below.
+        video: true,
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
       });
       const audioTrack = this.stream.getAudioTracks()[0];
@@ -78,7 +80,9 @@ export class DesktopLoopbackCaptureService {
         this.stop();
         return { success: false, error: 'La fuente seleccionada no expone una pista de audio.' };
       }
-      for (const track of this.stream.getVideoTracks()) track.stop();
+      if (!includeVideo) {
+        for (const track of this.stream.getVideoTracks()) track.stop();
+      }
       this.audioContext = new AudioContext({ sampleRate: 16000, latencyHint: 'interactive' });
       const moduleUrl = URL.createObjectURL(new Blob([WORKLET_SOURCE], { type: 'application/javascript' }));
       await this.audioContext.audioWorklet.addModule(moduleUrl);
