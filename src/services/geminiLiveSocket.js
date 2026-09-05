@@ -35,6 +35,7 @@ export class GeminiLiveSocket {
     onToolCall,
     onReconnecting,
     maxReconnectAttempts = 5,
+    responseWatchdogMs = 45000,
     sessionId = null,
     includeCompanionContext = true,
     tools = null,
@@ -71,6 +72,9 @@ export class GeminiLiveSocket {
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = maxReconnectAttempts;
     this.reconnectTimer = null;
+    this.responseWatchdogMs = Math.max(1000, Number(responseWatchdogMs) || 45000);
+    this.responseWatchdogTimer = null;
+    this.awaitingTextResponse = false;
 
     // Keepalive Heartbeat parameters to prevent server-side inactivity timeouts
     this.lastAudioSendTime = Date.now();
@@ -369,6 +373,8 @@ export class GeminiLiveSocket {
    */
   sendTextMessage(text, imageBase64 = null) {
     if (!this.isConnected || !this.websocket || this.websocket.readyState !== WebSocket.OPEN) return;
+    this.awaitingTextResponse = true;
+    this.armResponseWatchdog();
     const visualInstruction = imageBase64
       ? `La imagen adjunta es la observación visual más reciente y reemplaza cualquier imagen anterior. Ignora por completo el contenido visual previo. ${text || ''}`.trim()
       : text;
@@ -405,6 +411,27 @@ export class GeminiLiveSocket {
     };
 
     this.websocket.send(JSON.stringify(message));
+  }
+
+  armResponseWatchdog() {
+    clearTimeout(this.responseWatchdogTimer);
+    if (!this.awaitingTextResponse || !this.isConnected) return;
+    this.responseWatchdogTimer = setTimeout(() => {
+      this.responseWatchdogTimer = null;
+      if (!this.awaitingTextResponse || !this.isConnected || this.isExplicitDisconnect) return;
+      logger.warn('GEMINI', `El turno no produjo actividad durante ${this.responseWatchdogMs} ms; se reinicia la sesión para evitar una llamada congelada.`);
+      this.awaitingTextResponse = false;
+      this._restartSession();
+    }, this.responseWatchdogMs);
+    // Do not keep a Node-based diagnostic process alive solely for a browser
+    // watchdog. Chromium timers do not expose unref(), so this is conditional.
+    this.responseWatchdogTimer?.unref?.();
+  }
+
+  clearResponseWatchdog() {
+    clearTimeout(this.responseWatchdogTimer);
+    this.responseWatchdogTimer = null;
+    this.awaitingTextResponse = false;
   }
 
   /**
@@ -459,6 +486,7 @@ export class GeminiLiveSocket {
     try {
       if (sourceSocket !== this.websocket || this.isExplicitDisconnect) return;
       const message = JSON.parse(rawText);
+      if (this.awaitingTextResponse && message.serverContent) this.armResponseWatchdog();
       if (message.setupComplete) {
         if (this.isConnected) return;
         clearTimeout(this._setupTimer);
@@ -563,6 +591,7 @@ export class GeminiLiveSocket {
         }
 
         if (turnComplete) {
+          this.clearResponseWatchdog();
           if (this._inputTranscript) {
             memoryService.recordTurn({ role: 'user', text: this._inputTranscript, source: 'gemini_live', sessionId: this.sessionId });
             eventBus.emitDomain(EVENTS.VOICE_TRANSCRIBED, { role: 'user', text: this._inputTranscript }, {
@@ -605,6 +634,7 @@ export class GeminiLiveSocket {
 
   disconnect({ endSession = true } = {}) {
     this.isExplicitDisconnect = true;
+    this.clearResponseWatchdog();
     this.stopKeepAlive();
     clearTimeout(this._setupTimer);
     clearTimeout(this.reconnectTimer);

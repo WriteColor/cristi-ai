@@ -35,6 +35,16 @@ test('visual turns explicitly supersede stale image context', () => {
   assert.match(text, /observación visual más reciente/i);
   assert.match(text, /ignora por completo/i);
 });
+test('stalled visual turns trigger bounded reconnect watchdogs', async () => {
+  const client = new GeminiLiveSocket({ apiKey: 'test-key', responseWatchdogMs: 1000 });
+  client.isConnected = true;
+  client.websocket = { readyState: WebSocket.OPEN, send() {}, close() {} };
+  client.sendTextMessage('Analiza el frame actual.', 'data:image/jpeg;base64,valid-frame');
+  await new Promise(resolve => setTimeout(resolve, 1050));
+  assert.equal(client.awaitingTextResponse, false);
+  assert.ok(client.reconnectTimer, 'el watchdog debe programar reconexión');
+  client.disconnect();
+});
 function output() {
   const service = new AudioOutputService();
   const sources = [];
