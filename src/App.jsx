@@ -46,7 +46,10 @@ import {
   discordCompanion,
   logger,
   VisionFrameDispatcher,
-  interactionOrchestrator
+  interactionOrchestrator,
+  translationService,
+  GeminiTranslationProvider,
+  desktopLoopbackCaptureService
 } from './services/index.js';
 import {
   DEFAULT_MODEL_ID,
@@ -135,7 +138,10 @@ export function App() {
       temperature: 0.75,
       systemPrompt: SYSTEM_PERSONA_PROMPT,
       spotifyClientId: '137a82bce2e94563959a2d99bca747b7',
-      spotifyClientSecret: '68a444218dab4a25898c2bbdd76b35db'
+      spotifyClientSecret: '68a444218dab4a25898c2bbdd76b35db',
+      externalTranslationEnabled: false,
+      translationTargetLanguage: 'es',
+      translationAggregateMs: 400
     };
   });
 
@@ -251,7 +257,37 @@ export function App() {
   const turnAudioReceivedRef = useRef(false);
   const pendingTextRef = useRef('');
   const externalResponseRef = useRef('');
+  const modelTextTurnRef = useRef('');
+  const hasModelTextTurnRef = useRef(false);
   const lastVisionSendTimeRef = useRef(0);
+  const translationProviderRef = useRef(null);
+
+  // External audio translation is opt-in. When enabled, capture sources are
+  // batched into short utterances so Gemini REST never receives one request
+  // per AudioWorklet frame and cannot starve the Live call.
+  useEffect(() => {
+    const enabled = config?.externalTranslationEnabled === true && Boolean(config?.apiKey);
+    if (!enabled) {
+      translationService.detachSource(desktopLoopbackCaptureService);
+      translationService.detachEventSource('discord.voice_audio');
+      return undefined;
+    }
+    const provider = translationProviderRef.current || new GeminiTranslationProvider();
+    provider.configure({ apiKey: config.apiKey });
+    translationProviderRef.current = provider;
+    translationService.configure(provider);
+    translationService.attachSource(desktopLoopbackCaptureService, {
+      targetLanguage: config.translationTargetLanguage || 'es',
+      aggregateMs: config.translationAggregateMs || 400,
+      relevanceGate: true
+    });
+    translationService.attachEventSource('discord.voice_audio', {
+      targetLanguage: config.translationTargetLanguage || 'es',
+      aggregateMs: config.translationAggregateMs || 400,
+      relevanceGate: true
+    });
+    return undefined;
+  }, [config?.apiKey, config?.externalTranslationEnabled, config?.translationTargetLanguage, config?.translationAggregateMs]);
 
   /**
    * Unified, Rate-Gated Vision Frame Dispatcher for Gemini Live
@@ -797,6 +833,8 @@ export function App() {
       setIsListening(false);
       setUserTranscript('');
       setModelTranscript('');
+      modelTextTurnRef.current = '';
+      hasModelTextTurnRef.current = false;
       setActiveDecision(null);
       setActiveToolName(null);
       setCurrentGesture('idle');
@@ -871,6 +909,14 @@ export function App() {
           soundFxService.playConnectedBleep();
         },
         onReconnecting: (_attempts, _delay) => {
+          // Never let audio already scheduled by a dead socket overlap the
+          // replacement session. The Live socket itself resumes context, but
+          // the renderer must invalidate its playback generation immediately.
+          audioOutRef.current?.stopImmediate();
+          pendingTextRef.current = '';
+          externalResponseRef.current = '';
+          modelTextTurnRef.current = '';
+          hasModelTextTurnRef.current = false;
           setIsConnected(false);
           setIsConnecting(true);
         },
@@ -920,6 +966,11 @@ export function App() {
           }
           // Reset turn text and state cleanly (never execute robotic speech synthesis)
           pendingTextRef.current = '';
+          if (!hasModelTextTurnRef.current && externalResponseRef.current) {
+            setModelTranscript(externalResponseRef.current);
+          }
+          modelTextTurnRef.current = '';
+          hasModelTextTurnRef.current = false;
           if (externalResponseRef.current) {
             void interactionOrchestrator.deliverExternalResponse(externalResponseRef.current).catch(() => {});
             externalResponseRef.current = '';
@@ -927,7 +978,18 @@ export function App() {
           turnAudioReceivedRef.current = false;
         },
         onTextPart: (cleanText) => {
-          pendingTextRef.current = cleanText;
+          if (!cleanText) return;
+          const previous = modelTextTurnRef.current;
+          const next = previous && !previous.endsWith(cleanText) && !cleanText.startsWith(previous)
+            ? `${previous} ${cleanText}`.replace(/\s{2,}/g, ' ').trim()
+            : (cleanText.startsWith(previous) ? cleanText : previous || cleanText);
+          modelTextTurnRef.current = next;
+          hasModelTextTurnRef.current = true;
+          pendingTextRef.current = next;
+          externalResponseRef.current = next;
+          setModelTranscript(next);
+          if (modelSubtitleTimeoutRef.current) clearTimeout(modelSubtitleTimeoutRef.current);
+          modelSubtitleTimeoutRef.current = setTimeout(() => setModelTranscript(''), 12000);
         },
         onOutputTranscription: (text) => {
           proactiveTriggerService.recordDialogueActivity();
@@ -948,8 +1010,12 @@ export function App() {
           if (cleanText) {
             pendingTextRef.current = cleanText;
             externalResponseRef.current = cleanText;
-            setModelTranscript(cleanText);
-            if (modelSubtitleTimeoutRef.current) clearTimeout(modelSubtitleTimeoutRef.current);
+            // Gemini's output transcription can lead the audio and arrives in
+            // deltas. Keep it as a fallback for delivery, while model text
+            // parts drive the visible complete subtitle when available.
+            if (!hasModelTextTurnRef.current) {
+              setModelTranscript(cleanText);
+            }
 
           }
         },
@@ -959,6 +1025,7 @@ export function App() {
           if (cleanText) {
             setUserTranscript(cleanText);
             if (userSubtitleTimeoutRef.current) clearTimeout(userSubtitleTimeoutRef.current);
+            userSubtitleTimeoutRef.current = setTimeout(() => setUserTranscript(''), 7000);
 
           }
         },

@@ -44,7 +44,7 @@ export function SubtitleOverlay({
   return (
     <aside
       aria-label="Subtítulos en vivo"
-      className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[95] pointer-events-none select-none flex flex-col items-center gap-2 max-w-3xl w-full px-4"
+      className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[95] pointer-events-none select-none flex flex-col items-center gap-2 max-w-5xl w-full px-4"
     >
       {/* Subtítulo de Cristi (Respuesta de voz IA) */}
       {cleanModel && (
@@ -52,7 +52,7 @@ export function SubtitleOverlay({
           <span className="px-1.5 py-0.5 bg-purple-950/80 border border-purple-500/40 text-purple-300 text-[10px] font-mono font-bold rounded shrink-0 shadow-[0_0_8px_rgba(168,85,247,0.25)]">
             CRISTI
           </span>
-          <span className="min-w-0 whitespace-pre-wrap break-words text-zinc-100 font-sans leading-relaxed text-sm">
+          <span className="min-w-0 whitespace-pre-wrap break-words text-zinc-100 font-sans leading-relaxed text-base max-h-56 overflow-y-auto">
             {cleanModel}
           </span>
         </div>
@@ -64,7 +64,7 @@ export function SubtitleOverlay({
           <span className="px-1.5 py-0.5 bg-zinc-900 border border-zinc-700 text-zinc-400 text-[10px] font-semibold rounded shrink-0">
             TÚ
           </span>
-          <span className="min-w-0 whitespace-pre-wrap break-words text-zinc-100 font-sans leading-relaxed text-sm">
+          <span className="min-w-0 whitespace-pre-wrap break-words text-zinc-100 font-sans leading-relaxed text-base max-h-40 overflow-y-auto">
             {cleanUser}
           </span>
         </div>

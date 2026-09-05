@@ -349,6 +349,18 @@ export const COMPANION_FUNCTION_DECLARATIONS = [
         keep_video_track: {
           type: 'BOOLEAN',
           description: 'Conserva la pista de vídeo del selector cuando también se necesita visión.'
+        },
+        translate: {
+          type: 'BOOLEAN',
+          description: 'Activa el procesamiento de traducción por lotes para este origen de audio.'
+        },
+        target_language: {
+          type: 'STRING',
+          description: 'Idioma destino ISO (por ejemplo es, en, ja).'
+        },
+        aggregate_ms: {
+          type: 'NUMBER',
+          description: 'Duración aproximada del lote de audio, entre 200 y 1200 ms.'
         }
       }
     }
@@ -713,7 +725,9 @@ export const COMPANION_FUNCTION_DECLARATIONS = [
       type: 'OBJECT',
       properties: {
         guild_id: { type: 'STRING', description: 'ID del servidor de Discord.' },
-        channel_id: { type: 'STRING', description: 'ID del canal de voz o stage.' }
+        channel_id: { type: 'STRING', description: 'ID del canal de voz o stage.' },
+        translate: { type: 'BOOLEAN', description: 'Activa traducción por lotes de participantes.' },
+        target_language: { type: 'STRING', description: 'Idioma destino ISO (por ejemplo es, en, ja).' }
       },
       required: ['guild_id', 'channel_id']
     }

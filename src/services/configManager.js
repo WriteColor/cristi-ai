@@ -115,6 +115,13 @@ export class ConfigManager {
       systemPrompt: typeof config.systemPrompt === 'string' && config.systemPrompt.trim() && !config.systemPrompt.includes('1. Respuestas habladas, fluidas, íntimas y concisas:') && config.systemPrompt.includes('PROHIBICIÓN TOTAL DE COLETILLAS VOCALES') ? config.systemPrompt : SYSTEM_PERSONA_PROMPT,
       spotifyClientId: typeof config.spotifyClientId === 'string' ? config.spotifyClientId.trim() : '',
       spotifyClientSecret: typeof config.spotifyClientSecret === 'string' ? config.spotifyClientSecret.trim() : '',
+      externalTranslationEnabled: config.externalTranslationEnabled === true,
+      translationTargetLanguage: typeof config.translationTargetLanguage === 'string' && /^[a-z]{2,8}$/i.test(config.translationTargetLanguage.trim())
+        ? config.translationTargetLanguage.trim().toLowerCase()
+        : 'es',
+      translationAggregateMs: typeof config.translationAggregateMs === 'number' && Number.isFinite(config.translationAggregateMs)
+        ? Math.max(200, Math.min(1200, Math.round(config.translationAggregateMs)))
+        : 400,
       updatedAt: config.updatedAt && typeof config.updatedAt === 'string' ? config.updatedAt : new Date().toISOString()
     };
   }

@@ -167,3 +167,40 @@ test('Gemini translation provider keeps audio transcription and text translation
   assert.equal(requests.length, 2);
   assert.equal(requests[0].body.contents[0].parts[1].inlineData.mimeType, 'audio/pcm;rate=16000');
 });
+
+test('translation service binds class-based providers when configured at runtime', async () => {
+  const provider = new GeminiTranslationProvider({
+    apiKey: 'runtime-key',
+    fetchImpl: async (_url, options) => ({
+      ok: true,
+      async json() {
+        const prompt = JSON.parse(options.body).contents[0].parts[0].text;
+        return { candidates: [{ content: { parts: [{ text: prompt.startsWith('Transcribe') ? 'hello' : 'hola' }] } }] };
+      }
+    })
+  });
+  const service = new TranslationService();
+  service.configure(provider);
+  const result = await service.processFrame({ frameId: 'runtime', sourceId: 'runtime', data: 'AQI=' });
+  assert.equal(result.success, true);
+  assert.equal(result.translation, 'hola');
+});
+
+test('translation aggregation batches short PCM frames before a network provider call', async () => {
+  let handler = null;
+  const payloads = [];
+  const service = new TranslationService({ provider: {
+    isVoiceActivity: () => true,
+    transcribe: async ({ data }) => { payloads.push(data); return { text: 'hello' }; },
+    detectLanguage: async () => ({ language: 'en' }),
+    translate: async () => ({ text: 'hola' })
+  }});
+  const source = { sourceId: 'game_loopback', setFrameHandler(next) { handler = next; } };
+  service.attachSource(source, { aggregateMs: 20 });
+  handler({ frameId: 'a', sourceId: 'game_loopback', data: 'AQI=', sampleRate: 16000 });
+  handler({ frameId: 'b', sourceId: 'game_loopback', data: 'AwQ=', sampleRate: 16000 });
+  await new Promise((resolve) => setTimeout(resolve, 45));
+  assert.equal(payloads.length, 1);
+  assert.equal(payloads[0], 'AQIDBA==');
+  service.destroy();
+});

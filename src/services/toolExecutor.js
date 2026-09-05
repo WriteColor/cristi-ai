@@ -13,6 +13,7 @@ import { proactiveScheduler } from './proactiveScheduler.js';
 import { spotifyService } from './spotify/SpotifyService.js';
 import { playwrightService } from './playwright/PlaywrightService.js';
 import { desktopLoopbackCaptureService } from './translation/DesktopLoopbackCaptureService.js';
+import { translationService } from './translation/TranslationService.js';
 
 export class ToolExecutor {
   constructor({
@@ -637,10 +638,18 @@ export class ToolExecutor {
           sourceId,
           includeVideo: args.keep_video_track === true
         });
+        if (result?.success && args.translate === true) {
+          translationService.attachSource(desktopLoopbackCaptureService, {
+            targetLanguage: typeof args.target_language === 'string' ? args.target_language : 'es',
+            aggregateMs: Number(args.aggregate_ms) || 400,
+            relevanceGate: true
+          });
+        }
         return { ...result, sourceId };
       }
 
       case 'stop_desktop_audio_capture': {
+        translationService.detachSource(desktopLoopbackCaptureService);
         desktopLoopbackCaptureService.stop();
         return { status: 'success', ...desktopLoopbackCaptureService.getStatus() };
       }
@@ -800,10 +809,19 @@ export class ToolExecutor {
       }
 
       case 'discord_voice_join': {
-        return await discordVoiceService.join({ guildId: args.guild_id, channelId: args.channel_id });
+        const result = await discordVoiceService.join({ guildId: args.guild_id, channelId: args.channel_id });
+        if (result?.success && args.translate === true) {
+          translationService.attachEventSource('discord.voice_audio', {
+            targetLanguage: typeof args.target_language === 'string' ? args.target_language : 'es',
+            aggregateMs: 400,
+            relevanceGate: true
+          });
+        }
+        return result;
       }
 
       case 'discord_voice_leave': {
+        translationService.detachEventSource('discord.voice_audio');
         return await discordVoiceService.leave();
       }
 
