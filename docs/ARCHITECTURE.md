@@ -123,3 +123,45 @@ El sistema incluye un analizador de rendimiento de ultra-bajo overhead (`Perform
 * **Memoria V8 Heap vs. Proceso RSS:** Monitoreo dual del heap de JavaScript y de la memoria nativa de Windows vía IPC.
 * **Atribución de Tiempos:** Medición en microsegundos de cada subsistema (`live2d`, `audioDsp`, `visionSensory`, `uiReact`).
 * **Buffers Circulares:** Almacena métricas históricas a 60 segundos, 5 minutos y 30 minutos sin realizar reasignaciones dinámicas de arrays.
+
+---
+
+## 7. Contratos escalables de interacción
+
+```text
+Micrófono ───────────────► GeminiLiveSocket ─► AudioOutputService ─► Live2D/lipsync
+Pantalla/cámara ─► VisionFrameDispatcher ───► realtimeInput.video
+Discord/Minecraft ─► EventBus ─► InteractionOrchestrator ─► GeminiLiveSocket
+Audio externo ─► AudioRoutingService ─► TranslationService ─► proveedor STT/MT/TTS
+Memoria ─► MemoryRepository ─► MemoryService/MemoryIndex ─► contexto limitado del socket
+```
+
+Cada fuente conserva `sourceId`, `sessionId` y `correlationId`. El router rechaza frames marcados como generados para impedir que una respuesta vuelva a entrar como instrucción.
+
+- **Gemini Live:** `GeminiLiveSocket` es el único dueño de WebSocket, reconexión, keepalive y resumption. La UI sólo recibe callbacks y nunca crea un segundo socket para la misma llamada.
+- **Audio:** `AudioOutputService` es el único dueño del `AudioContext` y de la cola PCM. Una reconexión detiene la reproducción anterior antes de aceptar audio nuevo.
+- **Visión:** `VisionFrameDispatcher` mantiene sólo el frame más reciente, aplica backpressure y pausa frames no prioritarios mientras Cristi habla. Las capturas nativas de Electron se mantienen separadas de la cámara.
+- **Eventos:** las integraciones publican envelopes mediante `eventBus.emitDomain`. `InteractionOrchestrator` decide si un evento es relevante y aplica cooldowns; Discord y los juegos no contienen lógica de respuesta propia.
+- **Memoria:** `MemoryService` aplica reglas de actualización, contradicción, caducidad e índice semántico. `MemoryRepository` permite cambiar SQLite por otro backend sin tocar el dominio.
+- **Traducción:** `TranslationService` recibe frames etiquetados, agrega audio por utterance y conecta proveedores mediante métodos (`transcribe`, `detectLanguage`, `translate`, `synthesize`). Los hablantes Discord se agregan en colas independientes.
+- **MCP/navegador:** `MCPClientManager` descubre herramientas y `PlaywrightService` ejecuta en Brave. Las herramientas nuevas se declaran en `src/config/tools.js` y se resuelven en `ToolExecutor`.
+
+La traducción externa está desactivada por defecto. Al activarla desde Ajustes o con `translate: true`, el lote configurable de 200–1200 ms limita coste, CPU y latencia. Discord remuestrea el PCM TTS de Gemini a 16 kHz y Electron ignora el identificador del propio bot para impedir bucles.
+
+## 8. Reglas para futuras integraciones
+
+1. Crear un adaptador de transporte que publique eventos y conserve su `sourceId`.
+2. Reutilizar `InteractionOrchestrator` para contexto, memoria, cooldown y respuesta.
+3. No enviar audio generado al mismo pipeline de reconocimiento sin marcarlo con `AudioRoutingService.markGenerated`.
+4. No crear timers permanentes por frame: usar backpressure, lotes y un único propietario por recurso.
+5. Añadir una prueba reproducible del transporte antes de conectar un servicio público.
+
+## 9. Verificación
+
+- `pnpm exec eslint src electron`
+- `pnpm test:diagnostics`
+- `pnpm test:minecraft-local`
+- `node tests/test_packaged_call.mjs`
+- `pnpm app:build`
+
+Las pruebas de API real (`tests/probe_live_call.mjs` y `tests/probe_live_vision.mjs`) requieren `VITE_GEMINI_API_KEY` y deben ejecutarse explícitamente.
