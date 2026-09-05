@@ -20,6 +20,15 @@
   [official Live API reference](https://ai.google.dev/api/live#TurnCoverage).
 - Visual instructions distinguish current frames from remembered images. Scoped
   Live clients may opt out of companion instructions and tools for diagnostics.
+- Screen mode changes attach one freshly captured frame to the instruction turn,
+  so Gemini 2.5 does not have to wait for the periodic queue to observe a new
+  crop or full-screen view.
+- PCM chunks keep a short fingerprint cache across replacement WebSockets. A
+  chunk replayed by session resumption is ignored while identical chunks on the
+  same transport remain valid audio.
+- Output transcription is buffered and committed as one complete subtitle at
+  `turnComplete`; user input remains visible for long utterances and both
+  subtitle panes use the same expanded height.
 
 ## Evidence and scope
 
@@ -40,7 +49,8 @@ crop must identify only the top word. Two subsequent frames must arrive after
 the model finishes speaking. The probe receives real PCM but does not play it or
 capture microphone speech. It is not an end-to-end audible call test.
 
-Observed on Gemini 3.1 with companion context and tool declarations enabled:
+Observed on Gemini 3.1 with companion context and tool declarations enabled in
+the packaged build:
 
 | View | Visible words | Model transcript begins | First audio | Continued frames |
 | --- | --- | --- | --- | --- |
@@ -60,6 +70,13 @@ as evidence of zero latency. Scope isolation, coverage configuration and feed
 warmup changed during debugging, so no single change is proven to explain all
 differences in model grounding.
 
+The latest isolated Gemini 2.5 run identified the full view after 41.9 s but
+reused the previous full-view transcript for the region request. This is a
+model/session behavior still visible under the direct continuous-feed probe;
+production screen mode changes now include an explicit fresh inline frame to
+reduce that failure mode. Gemini 3.1 passed both views in the latest packaged
+probe (0.75–0.96 s first audio, two post-speech frames).
+
 Local JSON reports and isolated browser profiles are ignored by Git. Reproduce
 with `node tests/test_live_vision_lifecycle.mjs`; set
 `CRISTI_VISION_COMPANION=1` to retain companion instructions/tools and
@@ -77,7 +94,9 @@ from `win-unpacked`, without running the installer on the user's installation.
 ## Still unproven
 
 This change does not establish reliable hardware-camera perception, microphone
-speech plus vision under sustained GPU/CPU pressure, installed NSIS lifecycle,
-or absence of duplicate audible responses. Discord session correlation, memory
-session isolation, translation direction/routing, proactivity and the broader
-external-application requirements also remain outside this verification scope.
+speech plus vision under sustained GPU/CPU pressure, or installed NSIS
+lifecycle. The replay guard now has a deterministic regression test, but a
+long physical call is still required to measure audible duplicate-response
+rates. Discord session correlation, memory session isolation, translation
+direction/routing, proactivity and the broader external-application
+requirements also remain outside this verification scope.
