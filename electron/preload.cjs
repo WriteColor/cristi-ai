@@ -47,6 +47,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   execCommand: (command, options) => ipcRenderer.invoke('exec-command', command, options),
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
   writeFile: (filePath, data) => ipcRenderer.invoke('write-file', filePath, data),
+  memoryLoad: () => ipcRenderer.invoke('memory-load'),
+  memorySave: (memories) => ipcRenderer.invoke('memory-save', memories),
   setSecureSecret: (key, value) => ipcRenderer.invoke('secure-set-secret', key, value),
   getSecureSecret: (key) => ipcRenderer.invoke('secure-get-secret', key),
   deleteSecureSecret: (key) => ipcRenderer.invoke('secure-delete-secret', key),

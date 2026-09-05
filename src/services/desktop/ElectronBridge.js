@@ -175,6 +175,14 @@ export const electronBridge = {
     throw new Error('Electron filesystem unavailable in browser');
   },
 
+  async memoryLoad() {
+    return await getApi()?.memoryLoad?.();
+  },
+
+  async memorySave(memories) {
+    return await getApi()?.memorySave?.(memories);
+  },
+
   async setSecureSecret(key, value) {
     return await getApi()?.setSecureSecret?.(key, value);
   },

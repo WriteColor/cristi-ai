@@ -6,6 +6,7 @@ import { AudioRoutingService } from '../src/services/translation/AudioRoutingSer
 import { TranslationService } from '../src/services/translation/TranslationService.js';
 import { DesktopLoopbackCaptureService } from '../src/services/translation/DesktopLoopbackCaptureService.js';
 import { MemoryIndex } from '../src/services/memory/MemoryIndex.js';
+import { MemoryRepository } from '../src/services/memory/MemoryRepository.js';
 import { DiscordVoiceService } from '../src/services/discord/DiscordVoiceService.js';
 
 test('domain event envelopes are traceable and wildcard listeners are isolated', () => {
@@ -108,6 +109,18 @@ test('memory index supports bounded semantic fallback and replacement without st
   index.upsert({ id: 'one', key: 'juego favorito', content: 'Stardew Valley los fines de semana', category: 'preference' });
   assert.equal(index.search('Minecraft', { limit: 2, minScore: 0.01 }).some((item) => item.id === 'one'), false);
   assert.equal(index.search('Stardew', { limit: 1 })[0].id, 'one');
+});
+
+test('memory repository prefers native SQLite IPC and retains a JSON fallback contract', async () => {
+  let saved = null;
+  const repository = new MemoryRepository({ bridge: {
+    isElectron: true,
+    async memoryLoad() { return { success: true, backend: 'sqlite', memories: [{ id: 'native-1' }] }; },
+    async memorySave(records) { saved = records; return { success: true, backend: 'sqlite' }; }
+  }});
+  assert.deepEqual(await repository.load(), [{ id: 'native-1' }]);
+  assert.equal(await repository.save([{ id: 'native-2' }]), true);
+  assert.deepEqual(saved, [{ id: 'native-2' }]);
 });
 
 test('discord voice adapter isolates participant sources and handles lifecycle without Electron', async () => {

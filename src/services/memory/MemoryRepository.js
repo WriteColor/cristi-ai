@@ -15,6 +15,10 @@ export class MemoryRepository {
   async load() {
     if (this.bridge?.isElectron) {
       try {
+        const native = await this.bridge.memoryLoad?.();
+        if (Array.isArray(native?.memories)) return native.memories;
+      } catch (_) {}
+      try {
         const fileData = await this.bridge.readFile(this.filename);
         const parsed = fileData ? JSON.parse(fileData) : null;
         if (Array.isArray(parsed)) return parsed;
@@ -35,7 +39,10 @@ export class MemoryRepository {
     if (typeof window !== 'undefined' && window.localStorage) {
       window.localStorage.setItem(this.storageKey, data);
     }
-    if (this.bridge?.isElectron) await this.bridge.writeFile(this.filename, data);
+    if (this.bridge?.isElectron) {
+      const native = await this.bridge.memorySave?.(Array.isArray(memories) ? memories : []);
+      if (!native?.success) await this.bridge.writeFile(this.filename, data);
+    }
     return true;
   }
 }

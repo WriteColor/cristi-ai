@@ -34,6 +34,8 @@ assert(mainContent.includes("ipcMain.on('set-always-on-top'"), 'IPC handler para
 assert(mainContent.includes("ipcMain.handle('exec-command'"), 'IPC handler para ejecución nativa de comandos');
 assert(mainContent.includes("ipcMain.handle('read-file'"), 'IPC handler para lectura de archivos');
 assert(mainContent.includes("ipcMain.handle('write-file'"), 'IPC handler para escritura de archivos');
+assert(mainContent.includes("ipcMain.handle('memory-load'"), 'IPC handler para carga de memoria persistente');
+assert(mainContent.includes("ipcMain.handle('memory-save'"), 'IPC handler para guardado de memoria persistente');
 assert(mainContent.includes("tray = new Tray("), 'System tray nativo de Electron configurado');
 assert(mainContent.includes("createSettingsWindow"), 'Función createSettingsWindow configurada en main.cjs');
 assert(mainContent.includes("open-settings-window"), 'IPC handler open-settings-window configurado');
@@ -57,6 +59,8 @@ assert(preloadContent.includes('setAlwaysOnTop:'), 'Método setAlwaysOnTop expue
 assert(preloadContent.includes('execCommand:'), 'Método execCommand expuesto');
 assert(preloadContent.includes('openSettingsWindow:'), 'Método openSettingsWindow expuesto');
 assert(preloadContent.includes('onConfigUpdated:'), 'Método onConfigUpdated expuesto');
+assert(preloadContent.includes('memoryLoad:'), 'Método memoryLoad expuesto');
+assert(preloadContent.includes('memorySave:'), 'Método memorySave expuesto');
 
 // 3. Check Renderer ElectronBridge
 console.log('\n[3/7] Verificando src/services/desktop/ElectronBridge.js...');

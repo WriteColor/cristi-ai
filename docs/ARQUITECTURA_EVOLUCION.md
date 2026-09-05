@@ -4,7 +4,7 @@
 
 - `EventBus.emitDomain()` crea sobres JSON con `type`, `source`, `sessionId`, `correlationId`, `priority`, `privacy` y `payload`.
 - `EventBus.onAny()` permite que un orquestador observe eventos sin acoplarse a cada integración.
-- `MemoryService` mantiene sesiones de trabajo, turnos acotados, resúmenes, confianza, fuente, contexto, versiones anteriores e invalidación.
+- `MemoryService` mantiene sesiones de trabajo, turnos acotados, resúmenes, confianza, fuente, contexto, versiones anteriores e invalidación; en Electron persiste mediante IPC en SQLite cuando `node:sqlite` está disponible y cae a JSON atómico si el runtime no lo expone.
 - `MemoryIndex` mantiene postings acotados y vectores hash locales para recuperar paráfrasis sin descargar un modelo ni inyectar toda la memoria en cada turno; admite sustituir el embedder por un proveedor real.
 - `GameAdapter` define el puerto que permite cambiar Mineflayer por RCON, un mod o un adaptador de otro juego.
 - `InteractionOrchestrator` centraliza relevancia, contexto, cooldowns y entrega de eventos de Discord/juegos.
@@ -26,7 +26,7 @@ Los tokens de Discord se guardan mediante `safeStorage` de Electron cuando está
 
 ## Evolución prevista
 
-1. Añadir repositorio SQLite/FTS5 detrás de `MemoryService` cuando el volumen de recuerdos lo requiera.
+1. Añadir FTS5 y consultas incrementales detrás del repositorio SQLite cuando el volumen de recuerdos lo requiera.
 2. Sustituir el vector hash por embeddings en un worker y mantener la búsqueda local como fallback offline.
 3. Conectar `InteractionOrchestrator` al envío de respuestas por canal.
 4. Crear un servidor Minecraft local reproducible para pruebas de conexión y reconexión.
