@@ -632,7 +632,6 @@ export class ToolExecutor {
         const sourceId = typeof args.source_id === 'string' && args.source_id.trim()
           ? args.source_id.trim()
           : 'system_loopback';
-        desktopLoopbackCaptureService.setFrameHandler(null);
         const result = await desktopLoopbackCaptureService.start({
           sourceId,
           includeVideo: args.keep_video_track === true
