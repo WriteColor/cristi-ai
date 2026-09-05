@@ -157,6 +157,18 @@ export const electronBridge = {
     return { stdOut: '', stdErr: 'Electron environment unavailable', exitCode: 1 };
   },
 
+  async mcpConnect(config = {}) {
+    return await getApi()?.mcpConnect?.(config) || { success: false, error: 'Transporte MCP no disponible.' };
+  },
+
+  async mcpCallTool(payload = {}) {
+    return await getApi()?.mcpCallTool?.(payload) || { success: false, error: 'Transporte MCP no disponible.' };
+  },
+
+  async mcpDisconnect(serverId) {
+    return await getApi()?.mcpDisconnect?.(serverId) || { success: false, error: 'Transporte MCP no disponible.' };
+  },
+
   /** Read file content */
   async readFile(filePath) {
     const api = getApi();

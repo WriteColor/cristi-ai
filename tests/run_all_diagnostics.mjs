@@ -109,6 +109,7 @@ runSuite('Interaction Orchestrator', 'node --test tests/test_interaction_orchest
 // 15. Suite de Protocolo Universal MCP
 console.log('\n[15/17] Ejecutando suite de Universal MCP Protocol Manager...');
 runSuite('Universal MCP Protocol Manager', 'node tests/test_mcp_client_manager.mjs', 'stdio/sse servers, pnpm compliance & tools');
+runSuite('MCP Electron Real Transport Contract', 'node tests/test_mcp_real_transport.mjs', 'JSON-RPC discovery, namespacing, tools/call and process lifecycle');
 
 // 16. Suite de Compañeros de Juego y Chat (AIRI)
 console.log('\n[16/17] Ejecutando suite de Game Companions & AIRI Integration...');

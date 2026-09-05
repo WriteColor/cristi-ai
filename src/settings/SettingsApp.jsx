@@ -1504,7 +1504,7 @@ export default function SettingsApp({ isModal = false, onClose = null }) {
                     if (!newMcpName.trim() || !newMcpCommand.trim()) return;
                     soundFxService.playClick();
                     try {
-                      await mcpClientManager.registerServer({
+                      await mcpClientManager.addServer({
                         name: newMcpName.trim(),
                         type: 'stdio',
                         command: newMcpCommand.trim(),

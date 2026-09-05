@@ -298,25 +298,23 @@ export class MCPClientManager {
         return true;
       }
 
-      if (electronBridge?.isElectron) {
-        // Delegate connection to Electron main process
-        const res = await electronBridge.execCommand(`echo "Conectando MCP ${server.name}"`);
-        // Simulate discovered capabilities for standard servers
+      if (electronBridge?.isElectron && typeof electronBridge.mcpConnect === 'function') {
+        const res = await electronBridge.mcpConnect({
+          id: server.id,
+          name: server.name,
+          type: server.type,
+          command: server.command,
+          args: server.args,
+          env: server.env,
+          url: server.url
+        });
+        if (!res?.success) throw new Error(res?.error || `No se pudo conectar MCP ${server.name}.`);
         server.status = 'connected';
-        server.tools = [
-          {
-            name: `mcp_${server.name.toLowerCase().replace(/\s+/g, '_')}_query`,
-            description: `Ejecuta una consulta o acción a través del servidor MCP "${server.name}".`,
-            parameters: {
-              type: 'OBJECT',
-              properties: {
-                action: { type: 'STRING', description: 'Acción u operación solicitada.' },
-                params: { type: 'STRING', description: 'Parámetros o payload JSON.' }
-              },
-              required: ['action']
-            }
-          }
-        ];
+        server.tools = (Array.isArray(res.tools) ? res.tools : []).map((tool) => ({
+          ...tool,
+          originalName: tool.name,
+          name: `mcp_${server.id}_${tool.name}`
+        }));
 
         // Register tools
         server.tools.forEach((t) => {
@@ -324,7 +322,7 @@ export class MCPClientManager {
         });
 
         this.saveServers();
-        logger.info('MCP', `✓ Servidor MCP "${server.name}" conectado con ${server.tools.length} herramienta(s).`);
+        logger.info('MCP', `✓ Servidor MCP "${server.name}" conectado con ${server.tools.length} herramienta(s) reales.`);
         return true;
       }
 
@@ -347,6 +345,9 @@ export class MCPClientManager {
     // Unregister tools
     if (server.tools) {
       server.tools.forEach((t) => this.discoveredTools.delete(t.name));
+    }
+    if (electronBridge?.isElectron && typeof electronBridge.mcpDisconnect === 'function') {
+      await electronBridge.mcpDisconnect(server.id).catch(() => {});
     }
 
     server.status = 'disconnected';
@@ -418,6 +419,14 @@ export class MCPClientManager {
         default:
           return await playwrightService.launch(args);
       }
+    }
+
+    if (electronBridge?.isElectron && typeof electronBridge.mcpCallTool === 'function') {
+      return await electronBridge.mcpCallTool({
+        serverId: info.serverId,
+        name: info.tool?.originalName || info.tool?.name || toolName,
+        arguments: args
+      });
     }
 
     return {

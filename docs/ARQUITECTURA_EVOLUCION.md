@@ -17,13 +17,15 @@
 - `TranslationService.attachEventSource()` permite conectar eventos como `discord.voice_audio` al mismo pipeline sin acoplar Discord a la lógica de traducción.
 - `GeminiTranslationProvider` ofrece transcripción PCM y traducción REST con timeout/reintento, detección de idioma ligera y síntesis inyectable; los proveedores locales pueden reemplazar cada etapa.
 - `DesktopLoopbackCaptureService` captura audio de una fuente compartida por Electron mediante `getDisplayMedia` + `AudioWorklet`, normaliza PCM a 16 kHz y conserva el `sourceId` para separar juego, sistema y voz.
+- `MCPClientManager` mantiene las herramientas namespaceadas por servidor. En Electron, el proceso principal ejecuta servidores MCP `stdio` con un transporte JSON-RPC 2.0, descubre `tools/list`, enruta `tools/call` y libera procesos en la desconexión; el renderer sólo recibe el contrato seguro mediante `contextBridge`.
+- `GeminiLiveSocket` envía siempre el frame visual más reciente junto con la instrucción que lo solicita, descarta reproducciones PCM de sockets reemplazados y ancla los subtítulos de Cristi al cierre completo del turno.
 - La voz de Discord conserva la configuración del canal y ejecuta `rejoin` con
   backoff acotado cuando la conexión pasa a `Disconnected`; `leave` cancela el
   ciclo de recuperación de forma explícita.
 
 ## Integraciones actuales
 
-Minecraft usa Mineflayer desde el proceso principal de Electron y expone estado, chat, movimiento, seguimiento, minería, colocación y combate. `tests/test_minecraft_local_repro.mjs` levanta un servidor offline reproducible con `minecraft-protocol` para validar login, cambio a estado `play` y roundtrip de chat sin depender de UniversoCraft. Discord usa `discord.js` para Gateway y texto, y `@discordjs/voice` para unirse a canales, recibir Opus, decodificar PCM mono a 16 kHz y enviar PCM traducido. Playwright usa exclusivamente el ejecutable de Brave configurado por Electron.
+Minecraft usa Mineflayer desde el proceso principal de Electron y expone estado, chat, movimiento, seguimiento, minería, colocación y combate. `tests/test_minecraft_local_repro.mjs` levanta un servidor offline reproducible con `minecraft-protocol` para validar login, cambio a estado `play` y roundtrip de chat sin depender de UniversoCraft. Discord usa `discord.js` para Gateway y texto, y `@discordjs/voice` para unirse a canales, recibir Opus, decodificar PCM mono a 16 kHz y enviar PCM traducido. Playwright usa exclusivamente el ejecutable de Brave configurado por Electron. Los servidores MCP `stdio` se ejecutan fuera del renderer para que una herramienta pueda controlar aplicaciones compatibles sin exponer procesos ni stdin al DOM.
 
 ## Límites deliberados
 

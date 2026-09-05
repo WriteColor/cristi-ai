@@ -32,6 +32,11 @@ assert(mainContent.includes("setIgnoreMouseEvents(true, { forward: true })"), 'C
 assert(mainContent.includes("ipcMain.on('set-ignore-mouse-events'"), 'IPC handler para set-ignore-mouse-events');
 assert(mainContent.includes("ipcMain.on('set-always-on-top'"), 'IPC handler para always-on-top');
 assert(mainContent.includes("ipcMain.handle('exec-command'"), 'IPC handler para ejecución nativa de comandos');
+assert(mainContent.includes("ipcMain.handle('mcp-connect'"), 'IPC handler para conexión MCP en proceso principal');
+assert(mainContent.includes("ipcMain.handle('mcp-call-tool'"), 'IPC handler para llamadas de herramientas MCP');
+assert(mainContent.includes("ipcMain.handle('mcp-disconnect'"), 'IPC handler para desconexión MCP y limpieza de procesos');
+assert(mainContent.includes('spawn(command, args'), 'Transporte MCP inicia servidores stdio fuera del renderer');
+assert(mainContent.includes("jsonrpc: '2.0'"), 'Transporte MCP usa mensajes JSON-RPC 2.0');
 assert(mainContent.includes("ipcMain.handle('read-file'"), 'IPC handler para lectura de archivos');
 assert(mainContent.includes("ipcMain.handle('write-file'"), 'IPC handler para escritura de archivos');
 assert(mainContent.includes("ipcMain.handle('memory-load'"), 'IPC handler para carga de memoria persistente');
@@ -57,6 +62,9 @@ assert(preloadContent.includes("contextBridge.exposeInMainWorld('electronAPI'"),
 assert(preloadContent.includes('setIgnoreMouseEvents:'), 'Método setIgnoreMouseEvents expuesto');
 assert(preloadContent.includes('setAlwaysOnTop:'), 'Método setAlwaysOnTop expuesto');
 assert(preloadContent.includes('execCommand:'), 'Método execCommand expuesto');
+assert(preloadContent.includes('mcpConnect:'), 'Método mcpConnect expuesto');
+assert(preloadContent.includes('mcpCallTool:'), 'Método mcpCallTool expuesto');
+assert(preloadContent.includes('mcpDisconnect:'), 'Método mcpDisconnect expuesto');
 assert(preloadContent.includes('openSettingsWindow:'), 'Método openSettingsWindow expuesto');
 assert(preloadContent.includes('onConfigUpdated:'), 'Método onConfigUpdated expuesto');
 assert(preloadContent.includes('memoryLoad:'), 'Método memoryLoad expuesto');
@@ -68,6 +76,9 @@ const bridgeContent = fs.readFileSync('src/services/desktop/ElectronBridge.js', 
 assert(bridgeContent.includes('export const electronBridge = {'), 'Objeto electronBridge exportado');
 assert(bridgeContent.includes('setIgnoreMouseEvents(ignore, options = {})'), 'Wrapper setIgnoreMouseEvents con fallback seguro');
 assert(bridgeContent.includes('execCommand(command'), 'Wrapper execCommand con soporte de opciones');
+assert(bridgeContent.includes('mcpConnect(config'), 'Wrapper mcpConnect con fallback seguro');
+assert(bridgeContent.includes('mcpCallTool(payload'), 'Wrapper mcpCallTool con fallback seguro');
+assert(bridgeContent.includes('mcpDisconnect(serverId'), 'Wrapper mcpDisconnect con fallback seguro');
 assert(bridgeContent.includes('openPath(targetPath)'), 'Wrapper openPath para apertura directa de archivos/carpetas');
 assert(bridgeContent.includes('captureScreenNative(region'), 'Wrapper captureScreenNative para visión multimodal');
 assert(bridgeContent.includes('onShortcutEvent(channel, callback)'), 'Wrapper onShortcutEvent para atajos globales');

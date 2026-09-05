@@ -3,7 +3,7 @@
 const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell, clipboard, Notification, globalShortcut, desktopCapturer, dialog, protocol, net, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
 const { PassThrough } = require('stream');
 const { pathToFileURL } = require('url');
 
@@ -576,6 +576,144 @@ ipcMain.handle('exec-command', (event, command, options = {}) => {
       });
     }
   });
+});
+
+// ── IPC: Generic MCP stdio transport ────────────────────────────────────────
+// MCP servers are renderer-agnostic child processes. Keeping the transport in
+// Electron main avoids exposing spawn/stdio to the browser and lets the same
+// manager work in development and in the packaged app.
+const mcpProcesses = new Map();
+
+function rejectMcpPending(state, error) {
+  for (const pending of state.pending.values()) pending.reject(error);
+  state.pending.clear();
+}
+
+function sendMcpRequest(state, method, params = {}, timeoutMs = 15000) {
+  if (!state?.process || state.process.killed) return Promise.reject(new Error('Servidor MCP no está ejecutándose.'));
+  const id = state.nextId++;
+  const payload = `${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      state.pending.delete(id);
+      reject(new Error(`Tiempo de espera agotado para MCP (${method}).`));
+    }, Math.max(1000, Math.min(60000, timeoutMs)));
+    state.pending.set(id, { resolve: value => { clearTimeout(timer); resolve(value); }, reject: error => { clearTimeout(timer); reject(error); } });
+    try {
+      state.process.stdin.write(payload);
+    } catch (error) {
+      clearTimeout(timer);
+      state.pending.delete(id);
+      reject(error);
+    }
+  });
+}
+
+function sendMcpNotification(state, method, params = {}) {
+  if (!state?.process || state.process.killed) return false;
+  try {
+    state.process.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method, params })}\n`);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+ipcMain.handle('mcp-connect', async (event, config = {}) => {
+  const serverId = String(config.id || '').trim();
+  const command = String(config.command || '').trim();
+  if (!serverId || !command) return { success: false, error: 'MCP requiere id y command.' };
+  const previous = mcpProcesses.get(serverId);
+  if (previous) {
+    rejectMcpPending(previous, new Error('Conexión MCP reemplazada.'));
+    try { previous.process.kill(); } catch (_) {}
+    mcpProcesses.delete(serverId);
+  }
+
+  const args = Array.isArray(config.args) ? config.args.map(value => String(value)) : [];
+  const env = Object.fromEntries(Object.entries(config.env || {}).filter(([key, value]) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key) && value !== undefined));
+  let child;
+  try {
+    child = spawn(command, args, {
+      cwd: app.isPackaged ? app.getPath('userData') : process.cwd(),
+      env: { ...process.env, ...env },
+      shell: process.platform === 'win32',
+      windowsHide: true,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+  } catch (error) {
+    return { success: false, error: `No se pudo iniciar MCP: ${error.message}` };
+  }
+
+  const state = { id: serverId, process: child, nextId: 1, pending: new Map(), buffer: '' };
+  mcpProcesses.set(serverId, state);
+  activeChildProcesses.add(child);
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', chunk => {
+    state.buffer += chunk;
+    let newline;
+    while ((newline = state.buffer.indexOf('\n')) >= 0) {
+      const line = state.buffer.slice(0, newline).trim();
+      state.buffer = state.buffer.slice(newline + 1);
+      if (!line) continue;
+      try {
+        const message = JSON.parse(line);
+        if (message.id !== undefined && state.pending.has(message.id)) {
+          const pending = state.pending.get(message.id);
+          state.pending.delete(message.id);
+          if (message.error) pending.reject(new Error(message.error.message || 'Error MCP.'));
+          else pending.resolve(message.result || {});
+        }
+      } catch (_) {
+        // MCP diagnostics belong on stderr; ignore non-JSON stdout noise so a
+        // single malformed line cannot deadlock later requests.
+      }
+    }
+  });
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data', chunk => console.warn(`[MCP:${serverId}]`, String(chunk).trim()));
+  child.once('error', error => rejectMcpPending(state, error));
+  child.once('exit', (code, signal) => {
+    activeChildProcesses.delete(child);
+    if (mcpProcesses.get(serverId) === state) mcpProcesses.delete(serverId);
+    rejectMcpPending(state, new Error(`Servidor MCP terminó (${code ?? signal ?? 'desconocido'}).`));
+  });
+
+  try {
+    const initialize = await sendMcpRequest(state, 'initialize', {
+      protocolVersion: '2025-03-26',
+      capabilities: {},
+      clientInfo: { name: 'Cristi AI Companion', version: app.getVersion() }
+    });
+    sendMcpNotification(state, 'notifications/initialized');
+    const listed = await sendMcpRequest(state, 'tools/list', {});
+    return { success: true, serverId, protocolVersion: initialize.protocolVersion || null, tools: Array.isArray(listed.tools) ? listed.tools : [] };
+  } catch (error) {
+    try { child.kill(); } catch (_) {}
+    if (mcpProcesses.get(serverId) === state) mcpProcesses.delete(serverId);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('mcp-call-tool', async (event, { serverId, name, arguments: toolArguments = {} } = {}) => {
+  const state = mcpProcesses.get(String(serverId || ''));
+  if (!state) return { success: false, error: 'Servidor MCP no conectado.' };
+  try {
+    const result = await sendMcpRequest(state, 'tools/call', { name: String(name || ''), arguments: toolArguments || {} });
+    return { success: true, ...result };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('mcp-disconnect', async (event, serverId) => {
+  const state = mcpProcesses.get(String(serverId || ''));
+  if (!state) return { success: true, alreadyDisconnected: true };
+  try { sendMcpNotification(state, 'notifications/cancelled', { reason: 'client_disconnect' }); } catch (_) {}
+  try { state.process.kill(); } catch (_) {}
+  mcpProcesses.delete(String(serverId));
+  rejectMcpPending(state, new Error('Servidor MCP desconectado.'));
+  return { success: true };
 });
 
 ipcMain.handle('read-file', async (event, filePath) => {

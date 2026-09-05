@@ -45,6 +45,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Native OS Operations ──────────────────────────────────────────────────
   execCommand: (command, options) => ipcRenderer.invoke('exec-command', command, options),
+  mcpConnect: (config) => ipcRenderer.invoke('mcp-connect', config),
+  mcpCallTool: (payload) => ipcRenderer.invoke('mcp-call-tool', payload),
+  mcpDisconnect: (serverId) => ipcRenderer.invoke('mcp-disconnect', serverId),
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
   writeFile: (filePath, data) => ipcRenderer.invoke('write-file', filePath, data),
   memoryLoad: () => ipcRenderer.invoke('memory-load'),
