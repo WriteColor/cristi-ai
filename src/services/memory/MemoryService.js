@@ -7,6 +7,7 @@
 import { logger } from '../logger.js';
 import { eventBus, EVENTS } from '../eventBus.js';
 import { MemoryRepository } from './MemoryRepository.js';
+import { MemoryIndex } from './MemoryIndex.js';
 
 export const MEMORY_CATEGORIES = {
   FACT: 'fact',                 // Objective facts about the user (name, job, city, pets)
@@ -18,7 +19,7 @@ export const MEMORY_CATEGORIES = {
 };
 
 export class MemoryService {
-  constructor({ repository = null } = {}) {
+  constructor({ repository = null, index = null } = {}) {
     this.repository = repository || new MemoryRepository();
     this.storageKey = this.repository.storageKey || 'cristi_ai_memories_v2';
     this.memories = [];
@@ -27,6 +28,7 @@ export class MemoryService {
     this.sessionTurns = [];
     this.maxSessionTurns = 120;
     this.memoryIndex = new Map();
+    this.semanticIndex = index || new MemoryIndex();
   }
 
   async initialize() {
@@ -38,9 +40,11 @@ export class MemoryService {
 
   rebuildIndex() {
     this.memoryIndex.clear();
+    this.semanticIndex.clear();
     for (const memory of this.memories) {
       const key = String(memory.key || memory.id || '').toLowerCase();
       if (key) this.memoryIndex.set(key, memory.id);
+      this.semanticIndex.upsert(memory);
     }
   }
 
@@ -228,6 +232,7 @@ export class MemoryService {
     }
 
     this.memoryIndex.set(cleanKey.toLowerCase(), memoryItem.id);
+    this.semanticIndex.upsert(memoryItem);
     await this.saveMemories();
     return memoryItem;
   }
@@ -241,6 +246,7 @@ export class MemoryService {
     const tokens = query.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(t => t.length > 1);
     if (tokens.length === 0) return this.getTopMemories(limit);
 
+    const semanticScores = this.semanticIndex.score(query);
     const scored = this.memories.map((mem) => {
       if (mem.status && mem.status !== 'active') return { mem, score: 0 };
       if (mem.validUntil && new Date(mem.validUntil).getTime() < Date.now()) return { mem, score: 0 };
@@ -257,6 +263,9 @@ export class MemoryService {
       const ageDays = Math.max(0, (Date.now() - new Date(mem.updatedAt || mem.createdAt || Date.now()).getTime()) / 86400000);
       const recency = 1 / (1 + ageDays * 0.03);
       score = score * (mem.importance || 0.5) * (mem.confidence || 0.7) * recency;
+      const semantic = semanticScores.get(mem.id) || 0;
+      // Keep exact lexical matches dominant while allowing paraphrases.
+      score = score > 0 ? score * 0.72 + semantic * 0.28 : semantic * 0.28;
 
       return { mem, score };
     });
@@ -304,8 +313,11 @@ export class MemoryService {
 
   async deleteMemory(idOrKey) {
     const beforeCount = this.memories.length;
+    const removed = this.memories.filter((m) => m.id === idOrKey || m.key === idOrKey);
     this.memories = this.memories.filter((m) => m.id !== idOrKey && m.key !== idOrKey);
     if (this.memories.length !== beforeCount) {
+      for (const memory of removed) this.semanticIndex.remove(memory.id);
+      this.rebuildIndex();
       await this.saveMemories();
       logger.info('MEMORY', `Recuerdo eliminado: ${idOrKey}`);
       return true;
@@ -326,6 +338,7 @@ export class MemoryService {
 
   async clearAll() {
     this.memories = [];
+    this.rebuildIndex();
     await this.saveMemories();
     logger.info('MEMORY', 'Todas las memorias han sido vaciadas.');
     return true;

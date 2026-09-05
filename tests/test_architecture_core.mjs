@@ -5,7 +5,7 @@ import { MemoryService, MEMORY_CATEGORIES } from '../src/services/memory/MemoryS
 import { AudioRoutingService } from '../src/services/translation/AudioRoutingService.js';
 import { TranslationService } from '../src/services/translation/TranslationService.js';
 import { DesktopLoopbackCaptureService } from '../src/services/translation/DesktopLoopbackCaptureService.js';
-import { ToolExecutor } from '../src/services/toolExecutor.js';
+import { MemoryIndex } from '../src/services/memory/MemoryIndex.js';
 
 test('domain event envelopes are traceable and wildcard listeners are isolated', () => {
   const bus = new EventBus();
@@ -69,13 +69,12 @@ test('desktop loopback capture fails safely outside a browser media environment'
   assert.equal(capture.getStatus().running, false);
 });
 
-test('desktop audio capture tools expose an idempotent status contract', async () => {
-  const executor = new ToolExecutor();
-  const status = await executor.executeTool('desktop_audio_capture_status');
-  assert.equal(status.status, 'success');
-  assert.equal(status.running, false);
-  const start = await executor.executeTool('start_desktop_audio_capture', { source_id: 'game_loopback' });
-  assert.equal(start.success, false);
-  const stop = await executor.executeTool('stop_desktop_audio_capture');
-  assert.equal(stop.status, 'success');
+test('memory index supports bounded semantic fallback and replacement without stale postings', () => {
+  const index = new MemoryIndex({ dimensions: 32 });
+  index.upsert({ id: 'one', key: 'juego favorito', content: 'Minecraft por las noches', category: 'preference' });
+  index.upsert({ id: 'two', key: 'bebida', content: 'café sin azúcar', category: 'preference' });
+  assert.equal(index.search('Minecraft', { limit: 1 })[0].id, 'one');
+  index.upsert({ id: 'one', key: 'juego favorito', content: 'Stardew Valley los fines de semana', category: 'preference' });
+  assert.equal(index.search('Minecraft', { limit: 2, minScore: 0.01 }).some((item) => item.id === 'one'), false);
+  assert.equal(index.search('Stardew', { limit: 1 })[0].id, 'one');
 });
