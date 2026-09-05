@@ -46,9 +46,16 @@ export class DiscordCompanionService {
   loadConfig() {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
-        const stored = localStorage.getItem(this.storageKey);
+        const stored = window.localStorage.getItem(this.storageKey);
         if (stored) {
-          this.config = { ...this.config, ...JSON.parse(stored) };
+          const parsed = JSON.parse(stored);
+          // Older builds used `token`; normalize it once at the boundary so
+          // every caller can rely on the canonical `botToken` field.
+          this.config = {
+            ...this.config,
+            ...parsed,
+            botToken: parsed.botToken || parsed.token || this.config.botToken
+          };
         }
       }
     } catch (e) {
@@ -61,7 +68,7 @@ export class DiscordCompanionService {
     const { botToken, ...safeConfig } = this.config;
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem(this.storageKey, JSON.stringify(safeConfig));
+        window.localStorage.setItem(this.storageKey, JSON.stringify(safeConfig));
       }
       if (electronBridge?.isElectron) {
         electronBridge.saveDiscordConfig?.(safeConfig);
@@ -79,6 +86,10 @@ export class DiscordCompanionService {
     if (!activeToken) {
       return { status: 'error', message: 'Por favor ingresa un Bot Token de Discord válido en la configuración.' };
     }
+
+    // Keep the in-memory configuration in sync with a token entered from the
+    // settings screen. Persistence remains in the OS secure store below.
+    this.config.botToken = activeToken;
 
     this.status = 'connecting';
     logger.info('DISCORD', 'Iniciando conexión con Discord Gateway...');

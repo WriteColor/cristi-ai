@@ -59,6 +59,23 @@ async function runCompanionTests() {
   assert(discordService.config.botToken === 'mock_test_token_123', 'Token de bot guardado.');
   assert(discordService.config.statusMessage === 'En línea con Jeremy', 'Mensaje de actividad guardado.');
 
+  // Legacy settings used `token`; the service and UI must normalize it to the
+  // canonical `botToken` field so upgrades do not silently lose credentials.
+  const previousWindow = globalThis.window;
+  const legacyStorage = new Map([
+    ['cristi_discord_config', JSON.stringify({ token: 'legacy_token_456', statusMessage: 'Legacy' })]
+  ]);
+  globalThis.window = {
+    localStorage: {
+      getItem: (key) => legacyStorage.get(key) || null,
+      setItem: (key, value) => legacyStorage.set(key, value)
+    }
+  };
+  const migratedDiscordService = new DiscordCompanionService();
+  assert(migratedDiscordService.config.botToken === 'legacy_token_456', 'La configuración Discord legacy `token` se migra a `botToken`.');
+  migratedDiscordService.destroy();
+  globalThis.window = previousWindow;
+
   // ── 3. Gemini Live Function Declarations for Companions ─────────────────────
   console.log('\n[3/3] Verificando Catálogo de Herramientas Gemini Live (AIRI Tools)...');
   const toolNames = COMPANION_FUNCTION_DECLARATIONS.map(t => t.name);

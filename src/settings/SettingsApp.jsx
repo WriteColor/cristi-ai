@@ -137,7 +137,12 @@ export default function SettingsApp({ isModal = false, onClose = null }) {
     try { return minecraftCompanion.status || 'disconnected'; } catch (_) { return 'disconnected'; }
   });
   const [discordToken, setDiscordToken] = useState(() => {
-    try { return discordCompanion.config?.token || ''; } catch (_) { return ''; }
+    try {
+      // DiscordCompanionService stores the credential as `botToken`.
+      // Keep accepting the legacy `token` field so existing profiles migrate
+      // without forcing the user to paste the token again.
+      return discordCompanion.config?.botToken || discordCompanion.config?.token || '';
+    } catch (_) { return ''; }
   });
   const [discordStatus, setDiscordStatus] = useState(() => {
     try { return discordCompanion.status || 'disconnected'; } catch (_) { return 'disconnected'; }
