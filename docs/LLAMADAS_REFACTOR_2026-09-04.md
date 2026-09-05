@@ -13,13 +13,14 @@ Se trabajó sobre los cambios existentes del proyecto, sin revertirlos.
 - **Live2D:** un solo reloj actualiza movimiento, física y renderizado. Al cambiar de avatar se liberan controlador, adaptador, suscripciones y texturas; las cargas se serializan para evitar conflictos en la caché. El análisis labial se entrega directamente al controlador, sin actualizar todo React a la frecuencia del audio. Se conservaron los archivos de modelos, resolución, antialiasing y filtrado de texturas.
 - **Electron:** se eliminó el registro duplicado de `spotify-control`, que impedía arrancar el proceso principal. Se corrigieron referencias inexistentes en cámara y menú de escenas. Los iconos se incluyen en el paquete y se resuelven desde él. Los comandos auxiliares de Spotify se ejecutan de forma asíncrona, con tiempo máximo y sin ventanas de consola. La aplicación instalada no intenta enviar logs al servidor de desarrollo.
 - **Gemini 3.1:** configuración con `thinkingLevel` y texto conversacional mediante `realtimeInput.text`; se conserva la compatibilidad de Gemini 2.5. Se corrigió también la llamada a un método inexistente del orquestador de emociones.
+- **Audio externo:** `DesktopLoopbackCaptureService` solicita una fuente compatible con Chromium, detiene el vídeo cuando no se necesita, convierte el audio a PCM 16 kHz en un `AudioWorklet` y conserva etiquetas de origen para impedir bucles de traducción.
 
 ## Verificación realizada
 
 | Comprobación | Resultado |
 | --- | --- |
 | ESLint en `src` y `electron` | Sin errores ni advertencias |
-| Diagnósticos del proyecto | 34 suites aprobadas, incluyendo 10 regresiones nuevas |
+| Diagnósticos del proyecto | 36 suites aprobadas, incluyendo contratos de eventos, memoria, orquestación y loopback |
 | Compilación Vite y electron-builder NSIS | Correcta |
 | Ejecutable empaquetado en perfil aislado | Arranque con `app://`, preload y ajustes correctos |
 | Avatares en el ejecutable empaquetado | 13 cargados; suscriptores de audio constantes en cada cambio |
@@ -30,6 +31,7 @@ Se trabajó sobre los cambios existentes del proyecto, sin revertirlos.
 | API real Gemini 3.1 | Dos turnos, audio y transcripción de entrada; herramientas solicitadas respondidas como deshabilitadas, sin ejecutarlas |
 | API real Gemini 2.5 | Dos turnos, audio y transcripción de entrada |
 | API real Gemini con visión | Dos modelos recibieron imágenes JPEG reales de pantalla; devolvieron audio y descripción transcrita |
+| API real Gemini Live repetida | `gemini-3.1-flash-live-preview`: 32 bloques PCM, transcripción de entrada y respuesta completa |
 
 Evidencia en `tests/output/packaged-call-report.json`, `packaged-subtitles.png`, `live-call-probe.json`, `refactor-diagnostics.log` y `refactor-build.log`.
 
@@ -46,7 +48,7 @@ pnpm app:build
 node tests/test_packaged_call.mjs
 ```
 
-La prueba empaquetada usa un perfil temporal y dispositivos sintéticos. No captura el micrófono del usuario ni conecta a Gemini. Sus directorios temporales están excluidos de Git.
+La prueba empaquetada usa un perfil temporal y dispositivos sintéticos. No captura el micrófono del usuario ni conecta a Gemini. Sus directorios temporales están excluidos de Git. El loopback de escritorio requiere que el usuario seleccione una fuente en el selector de Chromium; la prueba automatizada valida el contrato de degradación cuando no existe `getDisplayMedia`.
 
 La comprobación opcional de API real consume solicitudes y utiliza `VITE_GEMINI_API_KEY` del entorno o de `.env`, sin imprimirla:
 
