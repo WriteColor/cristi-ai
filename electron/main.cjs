@@ -619,6 +619,15 @@ function sendMcpNotification(state, method, params = {}) {
   }
 }
 
+function quoteWindowsShellArg(value) {
+  const text = String(value ?? '');
+  // shell:true is required to resolve pnpm.cmd on Windows, so quote every
+  // argument that could be split or interpreted by cmd.exe. This is especially
+  // important for packaged app paths such as "Cristi AI".
+  if (!/[\s"&|<>^]/.test(text)) return text;
+  return `"${text.replace(/"/g, '\\"')}"`;
+}
+
 ipcMain.handle('mcp-connect', async (event, config = {}) => {
   const serverId = String(config.id || '').trim();
   const command = String(config.command || '').trim();
@@ -632,9 +641,11 @@ ipcMain.handle('mcp-connect', async (event, config = {}) => {
 
   const args = Array.isArray(config.args) ? config.args.map(value => String(value)) : [];
   const env = Object.fromEntries(Object.entries(config.env || {}).filter(([key, value]) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key) && value !== undefined));
+  const shellCommand = process.platform === 'win32' ? quoteWindowsShellArg(command) : command;
+  const shellArgs = process.platform === 'win32' ? args.map(quoteWindowsShellArg) : args;
   let child;
   try {
-    child = spawn(command, args, {
+    child = spawn(shellCommand, shellArgs, {
       cwd: app.isPackaged ? app.getPath('userData') : process.cwd(),
       env: { ...process.env, ...env },
       shell: process.platform === 'win32',

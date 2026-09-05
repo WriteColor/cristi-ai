@@ -50,6 +50,32 @@ try {
   await page.evaluate(() => window.__cristiApp.closeSettings());
   report.checks.push('Packaged settings window and preload IPC');
 
+  // Exercise the production main-process MCP transport with a dependency-free
+  // JSON-RPC stdio server, not a renderer-side mock.
+  const mcpFixture = path.resolve('tests/fixtures/mcp-echo-server.mjs');
+  const mcpSmoke = await page.evaluate(async (fixture) => {
+    const connected = await window.electronAPI.mcpConnect({
+      id: 'packaged_mcp_smoke',
+      type: 'stdio',
+      command: 'node',
+      args: [fixture]
+    });
+    if (!connected?.success) return { connected };
+    const called = await window.electronAPI.mcpCallTool({
+      serverId: 'packaged_mcp_smoke',
+      name: 'echo',
+      arguments: { text: 'electron-stdio-ok' }
+    });
+    const disconnected = await window.electronAPI.mcpDisconnect('packaged_mcp_smoke');
+    return { connected, called, disconnected };
+  }, mcpFixture);
+  report.mcpSmoke = mcpSmoke;
+  assert.equal(mcpSmoke.connected?.success, true, 'MCP stdio real inicia y descubre herramientas');
+  assert.equal(mcpSmoke.connected?.tools?.[0]?.name, 'echo');
+  assert.equal(mcpSmoke.called?.content?.[0]?.text, 'electron-stdio-ok', 'MCP tools/call devuelve contenido del proceso hijo');
+  assert.equal(mcpSmoke.disconnected?.success, true, 'MCP real libera el proceso en desconexión');
+  report.checks.push('Real MCP stdio child process; initialize/list/call/disconnect');
+
   const seedFrame = await page.evaluate(() => window.electronAPI.captureScreenNative(null));
   assert.ok(seedFrame?.length > 100, 'Native screen capture must supply a real JPEG');
   try {
