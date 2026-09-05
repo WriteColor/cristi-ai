@@ -204,3 +204,20 @@ test('translation aggregation batches short PCM frames before a network provider
   assert.equal(payloads[0], 'AQIDBA==');
   service.destroy();
 });
+
+test('translation aggregation keeps Discord speakers in independent queues', async () => {
+  const batches = [];
+  const service = new TranslationService({ provider: {
+    isVoiceActivity: () => true,
+    transcribe: async ({ data, sourceId }) => { batches.push({ data, sourceId }); return { text: sourceId }; },
+    detectLanguage: async () => ({ language: 'en' }),
+    translate: async ({ text }) => ({ text })
+  }});
+  service.attachEventSource('discord.voice_audio', { aggregateMs: 15 });
+  eventBus.emitDomain('discord.voice_audio', { sourceId: 'discord_voice:g:u1', frameId: 'u1a', data: 'AQI=' });
+  eventBus.emitDomain('discord.voice_audio', { sourceId: 'discord_voice:g:u2', frameId: 'u2a', data: 'AwQ=' });
+  await new Promise((resolve) => setTimeout(resolve, 35));
+  assert.equal(batches.length, 2);
+  assert.deepEqual(batches.map((item) => item.sourceId).sort(), ['discord_voice:g:u1', 'discord_voice:g:u2']);
+  service.destroy();
+});

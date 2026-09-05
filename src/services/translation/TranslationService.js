@@ -68,7 +68,7 @@ export class TranslationService {
     const unsubscribe = eventBus.on(eventName, (envelope) => {
       const payload = envelope?.payload || envelope;
       if (!payload?.data) return;
-      this._acceptAttachedFrame(payload, { targetLanguage, sessionId: sessionId || envelope?.sessionId, relevanceGate, aggregateMs, maxUtteranceMs, aggregationKey: `event:${eventName}` });
+      this._acceptAttachedFrame(payload, { targetLanguage, sessionId: sessionId || envelope?.sessionId, relevanceGate, aggregateMs, maxUtteranceMs, aggregationKey: `event:${eventName}:${payload.sourceId || 'external_audio'}` });
     });
     this.eventSubscriptions.set(eventName, unsubscribe);
     return true;
@@ -79,7 +79,7 @@ export class TranslationService {
     if (!unsubscribe) return false;
     unsubscribe();
     this.eventSubscriptions.delete(eventName);
-    this._clearAggregator(`event:${eventName}`);
+    this._clearAggregatorsMatching(`event:${eventName}:`);
     return true;
   }
 
@@ -129,6 +129,12 @@ export class TranslationService {
     const aggregate = this.aggregators.get(sourceId);
     if (aggregate?.timer) clearTimeout(aggregate.timer);
     this.aggregators.delete(sourceId);
+  }
+
+  _clearAggregatorsMatching(prefix) {
+    for (const key of this.aggregators.keys()) {
+      if (key.startsWith(prefix)) this._clearAggregator(key);
+    }
   }
 
   enqueueFrame(input = {}) {
