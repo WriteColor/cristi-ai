@@ -10,6 +10,7 @@
 - `InteractionOrchestrator` centraliza relevancia, contexto, cooldowns y entrega de eventos de Discord/juegos.
 - `AudioRoutingService` conserva el origen de cada frame y bloquea audio autogenerado para evitar bucles.
 - `TranslationService` expone un pipeline provider-agnostic con métricas, VAD, transcripción, detección de idioma, traducción y síntesis.
+- `TranslationService.attachSource()` conecta capturas etiquetadas con una cola por origen que conserva sólo el frame más reciente durante backpressure; admite filtro de relevancia y `speakerId` sin bloquear la llamada Live.
 - `DesktopLoopbackCaptureService` captura audio de una fuente compartida por Electron mediante `getDisplayMedia` + `AudioWorklet`, normaliza PCM a 16 kHz y conserva el `sourceId` para separar juego, sistema y voz.
 
 ## Integraciones actuales

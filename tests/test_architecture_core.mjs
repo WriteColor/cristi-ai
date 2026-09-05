@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { EventBus } from '../src/services/eventBus.js';
+import { EventBus, eventBus, EVENTS } from '../src/services/eventBus.js';
 import { MemoryService, MEMORY_CATEGORIES } from '../src/services/memory/MemoryService.js';
 import { AudioRoutingService } from '../src/services/translation/AudioRoutingService.js';
 import { TranslationService } from '../src/services/translation/TranslationService.js';
@@ -59,6 +59,32 @@ test('translation routing rejects generated audio and preserves source boundarie
   assert.equal(result.sourceLanguage, 'es');
   assert.equal(result.translation, 'hola translated');
   assert.equal(service.getMetrics().completed, 1);
+});
+
+test('translation source attachment keeps one latest frame per source and preserves speaker context', async () => {
+  let handler = null;
+  const completed = [];
+  const service = new TranslationService({ provider: {
+    isVoiceActivity: () => true,
+    transcribe: async ({ data }) => {
+      await new Promise((resolve) => setTimeout(resolve, 8));
+      return { text: String(data), speakerId: 'speaker-a' };
+    },
+    detectLanguage: async () => ({ language: 'en' }),
+    translate: async ({ text }) => ({ text: `es:${text}` }),
+    synthesize: async ({ text }) => ({ frameId: `generated-${text}` })
+  }});
+  const source = { setFrameHandler(next) { handler = next; } };
+  const unsubscribe = eventBus.on(EVENTS.TRANSLATION_COMPLETED, (event) => completed.push(event.payload));
+  assert.equal(service.attachSource(source, { targetLanguage: 'es' }), true);
+  handler({ frameId: 'f1', sourceId: 'game_loopback', data: 'first', sampleRate: 16000 });
+  handler({ frameId: 'f2', sourceId: 'game_loopback', data: 'latest', sampleRate: 16000 });
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  unsubscribe();
+  assert.equal(completed.length, 2);
+  assert.equal(completed[0].speakerId, 'speaker-a');
+  assert.equal(completed.at(-1).transcript, 'latest');
+  assert.equal(service.detachSource(source), true);
 });
 
 test('desktop loopback capture fails safely outside a browser media environment', async () => {
