@@ -1488,6 +1488,10 @@ let discordVoiceConnection = null;
 let discordVoicePlayer = null;
 let discordVoiceOutput = null;
 const discordVoiceSubscriptions = new Map();
+let discordVoiceReconnectTimer = null;
+let discordVoiceJoinConfig = null;
+let discordVoiceReconnectAttempts = 0;
+const DISCORD_VOICE_RECONNECT_MAX_ATTEMPTS = 8;
 
 function notifyDiscordVoiceEvent(type, payload = {}) {
   if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
@@ -1561,7 +1565,59 @@ function subscribeDiscordVoiceUser(userId, receiver, guildId, channelId) {
   }
 }
 
-function disconnectDiscordVoice() {
+function scheduleDiscordVoiceReconnect() {
+  if (discordVoiceReconnectTimer || !discordVoiceJoinConfig || !discordVoiceConnection || !discordClient) return;
+  if (discordVoiceReconnectAttempts >= DISCORD_VOICE_RECONNECT_MAX_ATTEMPTS) {
+    notifyDiscordVoiceEvent('reconnect_failed', {
+      guildId: discordVoiceJoinConfig.guildId,
+      channelId: discordVoiceJoinConfig.channelId,
+      attempts: discordVoiceReconnectAttempts
+    });
+    return;
+  }
+  discordVoiceReconnectAttempts += 1;
+  const delay = Math.min(30000, 1000 * (2 ** (discordVoiceReconnectAttempts - 1)));
+  notifyDiscordVoiceEvent('reconnecting', {
+    guildId: discordVoiceJoinConfig.guildId,
+    channelId: discordVoiceJoinConfig.channelId,
+    attempt: discordVoiceReconnectAttempts,
+    delayMs: delay
+  });
+  discordVoiceReconnectTimer = setTimeout(async () => {
+    discordVoiceReconnectTimer = null;
+    const connection = discordVoiceConnection;
+    if (!connection || !discordVoiceJoinConfig || !discordClient) return;
+    try {
+      const rejoined = connection.rejoin({
+        channelId: discordVoiceJoinConfig.channelId,
+        selfDeaf: false,
+        selfMute: false
+      });
+      if (!rejoined) throw new Error('Discord rechazó el rejoin del canal de voz.');
+      await require('@discordjs/voice').entersState(connection, require('@discordjs/voice').VoiceConnectionStatus.Ready, 10000);
+      discordVoiceReconnectAttempts = 0;
+      notifyDiscordVoiceEvent('ready', {
+        guildId: discordVoiceJoinConfig.guildId,
+        channelId: discordVoiceJoinConfig.channelId,
+        resumed: true
+      });
+    } catch (error) {
+      notifyDiscordVoiceEvent('reconnect_error', {
+        guildId: discordVoiceJoinConfig.guildId,
+        channelId: discordVoiceJoinConfig.channelId,
+        attempt: discordVoiceReconnectAttempts,
+        message: error?.message || String(error)
+      });
+      scheduleDiscordVoiceReconnect();
+    }
+  }, delay);
+}
+
+function disconnectDiscordVoice({ preserveJoinConfig = false } = {}) {
+  if (discordVoiceReconnectTimer) clearTimeout(discordVoiceReconnectTimer);
+  discordVoiceReconnectTimer = null;
+  discordVoiceReconnectAttempts = 0;
+  if (!preserveJoinConfig) discordVoiceJoinConfig = null;
   for (const { opus, decoder } of discordVoiceSubscriptions.values()) {
     try { opus.destroy(); } catch (_) {}
     try { decoder.destroy(); } catch (_) {}
@@ -1586,6 +1642,7 @@ ipcMain.handle('discord-voice-join', async (event, { guildId, channelId } = {}) 
       return { success: false, error: 'El canal no es de voz o stage.' };
     }
     disconnectDiscordVoice();
+    discordVoiceJoinConfig = { guildId: guild.id, channelId: channel.id };
     discordVoiceConnection = voice.joinVoiceChannel({
       channelId: channel.id,
       guildId: guild.id,
@@ -1604,8 +1661,15 @@ ipcMain.handle('discord-voice-join', async (event, { guildId, channelId } = {}) 
       subscribeDiscordVoiceUser(userId, discordVoiceConnection.receiver, guild.id, channel.id);
     });
     discordVoiceConnection.on('stateChange', (_, next) => {
-      if (next.status === voice.VoiceConnectionStatus.Disconnected) notifyDiscordVoiceEvent('disconnect', { guildId: guild.id, channelId: channel.id });
-      if (next.status === voice.VoiceConnectionStatus.Destroyed) notifyDiscordVoiceEvent('destroyed', { guildId: guild.id, channelId: channel.id });
+      if (next.status === voice.VoiceConnectionStatus.Ready) discordVoiceReconnectAttempts = 0;
+      if (next.status === voice.VoiceConnectionStatus.Disconnected) {
+        notifyDiscordVoiceEvent('disconnect', { guildId: guild.id, channelId: channel.id });
+        scheduleDiscordVoiceReconnect();
+      }
+      if (next.status === voice.VoiceConnectionStatus.Destroyed) {
+        notifyDiscordVoiceEvent('destroyed', { guildId: guild.id, channelId: channel.id });
+        discordVoiceJoinConfig = null;
+      }
     });
     notifyDiscordVoiceEvent('ready', { guildId: guild.id, channelId: channel.id });
     return { success: true, guildId: guild.id, channelId: channel.id, sampleRate: 16000 };

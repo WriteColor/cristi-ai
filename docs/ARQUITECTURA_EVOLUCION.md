@@ -7,6 +7,9 @@
 - `MemoryService` mantiene sesiones de trabajo, turnos acotados, resúmenes, confianza, fuente, contexto, versiones anteriores e invalidación; en Electron persiste mediante IPC en SQLite cuando `node:sqlite` está disponible y cae a JSON atómico si el runtime no lo expone.
 - `MemoryIndex` mantiene postings acotados y vectores hash locales para recuperar paráfrasis sin descargar un modelo ni inyectar toda la memoria en cada turno; admite sustituir el embedder por un proveedor real.
 - `GameAdapter` define el puerto que permite cambiar Mineflayer por RCON, un mod o un adaptador de otro juego.
+- `MinecraftCompanionService` asigna un `sessionId` por conexión y lo conserva
+  durante los reintentos, evitando mezclar eventos de una sesión vieja con una
+  reconexión nueva.
 - `InteractionOrchestrator` centraliza relevancia, contexto, cooldowns y entrega de eventos de Discord/juegos.
 - `AudioRoutingService` conserva el origen de cada frame y bloquea audio autogenerado para evitar bucles.
 - `TranslationService` expone un pipeline provider-agnostic con métricas, VAD, transcripción, detección de idioma, traducción y síntesis.
@@ -14,6 +17,9 @@
 - `TranslationService.attachEventSource()` permite conectar eventos como `discord.voice_audio` al mismo pipeline sin acoplar Discord a la lógica de traducción.
 - `GeminiTranslationProvider` ofrece transcripción PCM y traducción REST con timeout/reintento, detección de idioma ligera y síntesis inyectable; los proveedores locales pueden reemplazar cada etapa.
 - `DesktopLoopbackCaptureService` captura audio de una fuente compartida por Electron mediante `getDisplayMedia` + `AudioWorklet`, normaliza PCM a 16 kHz y conserva el `sourceId` para separar juego, sistema y voz.
+- La voz de Discord conserva la configuración del canal y ejecuta `rejoin` con
+  backoff acotado cuando la conexión pasa a `Disconnected`; `leave` cancela el
+  ciclo de recuperación de forma explícita.
 
 ## Integraciones actuales
 

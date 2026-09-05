@@ -228,6 +228,8 @@ test('Discord voice transport ignores the bot identity to prevent outbound trans
   const main = fs.readFileSync(new URL('../electron/main.cjs', import.meta.url), 'utf8');
   assert.match(main, /discordClient\?\.user\?\.id/);
   assert.match(main, /Never decode the bot's own outbound translation/);
+  assert.match(main, /scheduleDiscordVoiceReconnect/);
+  assert.match(main, /DISCORD_VOICE_RECONNECT_MAX_ATTEMPTS/);
 });
 
 test('Gemini translation provider keeps audio transcription and text translation independently mockable', async () => {
