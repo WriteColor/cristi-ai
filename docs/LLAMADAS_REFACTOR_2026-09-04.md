@@ -20,7 +20,7 @@ Se trabajó sobre los cambios existentes del proyecto, sin revertirlos.
 | Comprobación | Resultado |
 | --- | --- |
 | ESLint en `src` y `electron` | Sin errores ni advertencias |
-| Diagnósticos del proyecto | 36 suites aprobadas, incluyendo contratos de eventos, memoria, orquestación y loopback |
+| Diagnósticos del proyecto | 37 suites aprobadas, incluyendo contratos de eventos, memoria, orquestación, loopback y Minecraft local |
 | Compilación Vite y electron-builder NSIS | Correcta |
 | Ejecutable empaquetado en perfil aislado | Arranque con `app://`, preload y ajustes correctos |
 | Avatares en el ejecutable empaquetado | 13 cargados; suscriptores de audio constantes en cada cambio |
@@ -32,6 +32,8 @@ Se trabajó sobre los cambios existentes del proyecto, sin revertirlos.
 | API real Gemini 2.5 | Dos turnos, audio y transcripción de entrada |
 | API real Gemini con visión | Dos modelos recibieron imágenes JPEG reales de pantalla; devolvieron audio y descripción transcrita |
 | API real Gemini Live repetida | `gemini-3.1-flash-live-preview`: 32 bloques PCM, transcripción de entrada y respuesta completa |
+| Minecraft local reproducible | Servidor offline 1.16.4, login Mineflayer, estado `play` y roundtrip de chat |
+| Discord voice transport | Carga de `@discordjs/voice` 0.18, decoder Opus y conversión PCM 16 kHz verificada |
 
 Evidencia en `tests/output/packaged-call-report.json`, `packaged-subtitles.png`, `live-call-probe.json`, `refactor-diagnostics.log` y `refactor-build.log`.
 
