@@ -11,6 +11,7 @@ import { visionStreamManager } from './vision/VisionStreamManager.js';
 import { proactiveScheduler } from './proactiveScheduler.js';
 import { spotifyService } from './spotify/SpotifyService.js';
 import { playwrightService } from './playwright/PlaywrightService.js';
+import { desktopLoopbackCaptureService } from './translation/DesktopLoopbackCaptureService.js';
 
 export class ToolExecutor {
   constructor({
@@ -622,6 +623,30 @@ export class ToolExecutor {
           objects_detected: objectsSummary,
           focus_target: args.focus_target || 'general'
         };
+      }
+
+      // ─────────────────────────────────────────────────────────────────
+      // AUDIO EXTERNO / LOOPBACK
+      // ─────────────────────────────────────────────────────────────────
+      case 'start_desktop_audio_capture': {
+        const sourceId = typeof args.source_id === 'string' && args.source_id.trim()
+          ? args.source_id.trim()
+          : 'system_loopback';
+        desktopLoopbackCaptureService.setFrameHandler(null);
+        const result = await desktopLoopbackCaptureService.start({
+          sourceId,
+          includeVideo: args.keep_video_track === true
+        });
+        return { ...result, sourceId };
+      }
+
+      case 'stop_desktop_audio_capture': {
+        desktopLoopbackCaptureService.stop();
+        return { status: 'success', ...desktopLoopbackCaptureService.getStatus() };
+      }
+
+      case 'desktop_audio_capture_status': {
+        return { status: 'success', ...desktopLoopbackCaptureService.getStatus() };
       }
 
       // ─────────────────────────────────────────────────────────────────

@@ -334,6 +334,35 @@ export const COMPANION_FUNCTION_DECLARATIONS = [
   },
 
   // ─────────────────────────────────────────────────────────────────────
+  // AUDIO EXTERNO / LOOPBACK
+  // ─────────────────────────────────────────────────────────────────────
+  {
+    name: 'start_desktop_audio_capture',
+    description: 'Inicia la captura etiquetada del audio de una pantalla o ventana compartida para análisis o traducción. Solicita el selector nativo de Chromium y no mezcla ese audio con el micrófono.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        source_id: {
+          type: 'STRING',
+          description: 'Etiqueta estable del origen, por ejemplo game_loopback, spotify o system_loopback.'
+        },
+        keep_video_track: {
+          type: 'BOOLEAN',
+          description: 'Conserva la pista de vídeo del selector cuando también se necesita visión.'
+        }
+      }
+    }
+  },
+  {
+    name: 'stop_desktop_audio_capture',
+    description: 'Detiene la captura de audio externo y libera inmediatamente sus pistas y AudioWorklet.'
+  },
+  {
+    name: 'desktop_audio_capture_status',
+    description: 'Devuelve el estado y el número de frames de la captura de audio externo.'
+  },
+
+  // ─────────────────────────────────────────────────────────────────────
   // MEMORIA PERMANENTE
   // ─────────────────────────────────────────────────────────────────────
   {
@@ -918,4 +947,3 @@ export function getLiveToolsConfig(customMcpDeclarations = []) {
     }
   ];
 }
-

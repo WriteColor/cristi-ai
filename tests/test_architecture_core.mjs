@@ -5,6 +5,7 @@ import { MemoryService, MEMORY_CATEGORIES } from '../src/services/memory/MemoryS
 import { AudioRoutingService } from '../src/services/translation/AudioRoutingService.js';
 import { TranslationService } from '../src/services/translation/TranslationService.js';
 import { DesktopLoopbackCaptureService } from '../src/services/translation/DesktopLoopbackCaptureService.js';
+import { ToolExecutor } from '../src/services/toolExecutor.js';
 
 test('domain event envelopes are traceable and wildcard listeners are isolated', () => {
   const bus = new EventBus();
@@ -66,4 +67,15 @@ test('desktop loopback capture fails safely outside a browser media environment'
   assert.equal(result.success, false);
   assert.match(result.error, /loopback no disponible/i);
   assert.equal(capture.getStatus().running, false);
+});
+
+test('desktop audio capture tools expose an idempotent status contract', async () => {
+  const executor = new ToolExecutor();
+  const status = await executor.executeTool('desktop_audio_capture_status');
+  assert.equal(status.status, 'success');
+  assert.equal(status.running, false);
+  const start = await executor.executeTool('start_desktop_audio_capture', { source_id: 'game_loopback' });
+  assert.equal(start.success, false);
+  const stop = await executor.executeTool('stop_desktop_audio_capture');
+  assert.equal(stop.status, 'success');
 });
