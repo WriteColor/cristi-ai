@@ -43,6 +43,7 @@ import {
   ttsFallbackService,
   spotifyService,
   playwrightService,
+  discordCompanion,
   logger,
   VisionFrameDispatcher,
   interactionOrchestrator
@@ -249,6 +250,7 @@ export function App() {
   const visionDispatcherRef = useRef(null);
   const turnAudioReceivedRef = useRef(false);
   const pendingTextRef = useRef('');
+  const externalResponseRef = useRef('');
   const lastVisionSendTimeRef = useRef(0);
 
   /**
@@ -315,6 +317,7 @@ export function App() {
   useEffect(() => {
     visionDispatcherRef.current = new VisionFrameDispatcher({ socketRef: socketRef, minIntervalMs: 1000 });
     interactionOrchestrator.start();
+    interactionOrchestrator.setExternalSender('discord', (channelId, text) => discordCompanion.sendMessage(channelId, text));
     return () => {
       visionDispatcherRef.current?.destroy();
       visionDispatcherRef.current = null;
@@ -917,6 +920,10 @@ export function App() {
           }
           // Reset turn text and state cleanly (never execute robotic speech synthesis)
           pendingTextRef.current = '';
+          if (externalResponseRef.current) {
+            void interactionOrchestrator.deliverExternalResponse(externalResponseRef.current).catch(() => {});
+            externalResponseRef.current = '';
+          }
           turnAudioReceivedRef.current = false;
         },
         onTextPart: (cleanText) => {
@@ -940,6 +947,7 @@ export function App() {
             : '';
           if (cleanText) {
             pendingTextRef.current = cleanText;
+            externalResponseRef.current = cleanText;
             setModelTranscript(cleanText);
             if (modelSubtitleTimeoutRef.current) clearTimeout(modelSubtitleTimeoutRef.current);
 
@@ -957,6 +965,7 @@ export function App() {
         onInterrupted: () => {
           ttsFallbackService.stop();
           pendingTextRef.current = '';
+          externalResponseRef.current = '';
           turnAudioReceivedRef.current = false;
           if (audioOutRef.current) {
             audioOutRef.current.stopImmediate();

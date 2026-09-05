@@ -4,10 +4,11 @@ import { memoryService } from '../memory/MemoryService.js';
 const LOW_SIGNAL_EVENTS = new Set(['audio_analysis', 'audio_chunk', 'vision_detections_updated']);
 
 export class InteractionOrchestrator {
-  constructor({ geminiSocket = null, memory = memoryService, bus = eventBus } = {}) {
+  constructor({ geminiSocket = null, memory = memoryService, bus = eventBus, senders = {} } = {}) {
     this.geminiSocket = geminiSocket;
     this.memory = memory;
     this.bus = bus;
+    this.senders = { ...senders };
     this.running = false;
     this.unsubscribe = null;
     this.lastByKey = new Map();
@@ -27,6 +28,12 @@ export class InteractionOrchestrator {
 
   configure(policy = {}) {
     this.policy = { ...this.policy, ...policy };
+  }
+
+  setExternalSender(source, sender) {
+    if (!source || typeof sender !== 'function') return false;
+    this.senders[source] = sender;
+    return true;
   }
 
   start() {
@@ -101,6 +108,8 @@ export class InteractionOrchestrator {
     const pending = correlationId ? this.pendingExternalReplies.get(correlationId) : this.pendingExternalReplies.values().next().value;
     if (!pending) return { success: false, error: 'No existe una respuesta externa pendiente.' };
     this.pendingExternalReplies.delete(correlationId || pending.correlationId);
+    const sender = this.senders[pending.source];
+    if (sender) await sender(pending.channelId, text);
     this.bus.emitDomain('interaction.external_response', {
       channelId: pending.channelId, text, source: pending.source
     }, { source: 'interaction_orchestrator', privacy: 'external' });
