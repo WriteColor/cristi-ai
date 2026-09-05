@@ -4,6 +4,7 @@ import { EventBus } from '../src/services/eventBus.js';
 import { MemoryService, MEMORY_CATEGORIES } from '../src/services/memory/MemoryService.js';
 import { AudioRoutingService } from '../src/services/translation/AudioRoutingService.js';
 import { TranslationService } from '../src/services/translation/TranslationService.js';
+import { DesktopLoopbackCaptureService } from '../src/services/translation/DesktopLoopbackCaptureService.js';
 
 test('domain event envelopes are traceable and wildcard listeners are isolated', () => {
   const bus = new EventBus();
@@ -57,4 +58,12 @@ test('translation routing rejects generated audio and preserves source boundarie
   assert.equal(result.sourceLanguage, 'es');
   assert.equal(result.translation, 'hola translated');
   assert.equal(service.getMetrics().completed, 1);
+});
+
+test('desktop loopback capture fails safely outside a browser media environment', async () => {
+  const capture = new DesktopLoopbackCaptureService();
+  const result = await capture.start({ sourceId: 'game_loopback' });
+  assert.equal(result.success, false);
+  assert.match(result.error, /loopback no disponible/i);
+  assert.equal(capture.getStatus().running, false);
 });

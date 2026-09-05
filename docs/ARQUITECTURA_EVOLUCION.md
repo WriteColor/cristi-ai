@@ -9,6 +9,7 @@
 - `InteractionOrchestrator` centraliza relevancia, contexto, cooldowns y entrega de eventos de Discord/juegos.
 - `AudioRoutingService` conserva el origen de cada frame y bloquea audio autogenerado para evitar bucles.
 - `TranslationService` expone un pipeline provider-agnostic con métricas, VAD, transcripción, detección de idioma, traducción y síntesis.
+- `DesktopLoopbackCaptureService` captura audio de una fuente compartida por Electron mediante `getDisplayMedia` + `AudioWorklet`, normaliza PCM a 16 kHz y conserva el `sourceId` para separar juego, sistema y voz.
 
 ## Integraciones actuales
 
@@ -16,7 +17,7 @@ Minecraft usa Mineflayer desde el proceso principal de Electron y expone estado,
 
 ## Límites deliberados
 
-La captura WASAPI loopback, el audio de voz de Discord y la síntesis hacia un dispositivo virtual todavía requieren un adaptador nativo de dispositivos. `TranslationService` ya define el contrato para conectar esos proveedores sin modificar el orquestador ni la llamada Live.
+La captura de audio de una ventana o pantalla compartida está disponible con `DesktopLoopbackCaptureService`. La captura WASAPI loopback de procesos arbitrarios, el audio de voz de Discord y la síntesis hacia un dispositivo virtual todavía requieren un adaptador nativo de dispositivos. `TranslationService` ya define el contrato para conectar esos proveedores sin modificar el orquestador ni la llamada Live.
 
 Los tokens de Discord se guardan mediante `safeStorage` de Electron cuando está disponible. El archivo de preferencias del renderer no contiene el token.
 
@@ -26,4 +27,4 @@ Los tokens de Discord se guardan mediante `safeStorage` de Electron cuando está
 2. Añadir embeddings en un worker y mantener la búsqueda léxica como fallback offline.
 3. Conectar `InteractionOrchestrator` al envío de respuestas por canal.
 4. Crear un servidor Minecraft local reproducible para pruebas de conexión y reconexión.
-5. Implementar loopback WASAPI y dispositivos virtuales antes de activar traducción de voz.
+5. Implementar loopback WASAPI para procesos arbitrarios y dispositivos virtuales antes de activar traducción de voz de baja latencia.

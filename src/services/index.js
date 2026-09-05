@@ -34,6 +34,7 @@ export { MinecraftCompanionService, minecraftCompanion } from './gameIntegration
 export { GameAdapter } from './gameIntegration/GameAdapter.js';
 export { AudioRoutingService, audioRoutingService } from './translation/AudioRoutingService.js';
 export { TranslationService, translationService } from './translation/TranslationService.js';
+export { DesktopLoopbackCaptureService, desktopLoopbackCaptureService } from './translation/DesktopLoopbackCaptureService.js';
 export { InteractionOrchestrator, interactionOrchestrator } from './interaction/InteractionOrchestrator.js';
 export { DiscordCompanionService, discordCompanion } from './discord/DiscordCompanionService.js';
 export { VisionStreamManager, visionStreamManager } from './vision/VisionStreamManager.js';
