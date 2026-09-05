@@ -82,6 +82,12 @@ export class GeminiLiveSocket {
     this._outputTranscript = '';
     this._newInputTurn = true;
     this._newOutputTurn = true;
+    // Gemini may replay the tail of a response when Session Resumption opens
+    // a replacement WebSocket. Keep a short cross-transport fingerprint cache
+    // so those PCM blocks cannot be spoken twice; repeated blocks on the same
+    // transport remain valid audio and are intentionally preserved.
+    this._audioTransportEpoch = 0;
+    this._recentAudioChunks = new Map();
   }
 
   connect() {
@@ -105,6 +111,7 @@ export class GeminiLiveSocket {
 
     try {
       const ws = new WebSocket(wsUrl);
+      this._audioTransportEpoch += 1;
       this.websocket = ws;
       ws.binaryType = 'arraybuffer';
       this._messageChain = Promise.resolve();
@@ -490,7 +497,19 @@ export class GeminiLiveSocket {
           for (const part of modelTurn.parts) {
             // Audio output: base64 PCM 24kHz
             if (part.inlineData?.data && (!part.inlineData.mimeType || part.inlineData.mimeType.startsWith('audio/pcm'))) {
-              this.onAudioChunk(part.inlineData.data);
+              const audioData = part.inlineData.data;
+              const fingerprint = audioChunkFingerprint(audioData);
+              const now = Date.now();
+              for (const [key, entry] of this._recentAudioChunks) {
+                if (now - entry.timestamp > 30000) this._recentAudioChunks.delete(key);
+              }
+              const previous = this._recentAudioChunks.get(fingerprint);
+              if (!previous || previous.epoch === this._audioTransportEpoch || now - previous.timestamp > 30000) {
+                this._recentAudioChunks.set(fingerprint, { epoch: this._audioTransportEpoch, timestamp: now });
+                this.onAudioChunk(audioData);
+              } else {
+                logger.info('GEMINI', 'Omitiendo bloque PCM retransmitido durante reanudación de sesión.');
+              }
             }
             // Text output fallback
             if (part.text && !part.thought) {
@@ -627,4 +646,14 @@ export class GeminiLiveSocket {
     this.modelId = newModelId;
     this._restartSession();
   }
+}
+
+function audioChunkFingerprint(data) {
+  const text = String(data || '');
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `${text.length}:${hash >>> 0}`;
 }

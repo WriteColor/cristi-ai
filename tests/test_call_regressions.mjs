@@ -159,18 +159,23 @@ test('old sockets cannot close or deliver audio into a replacement session', asy
   const audio = [];
   const { client, ws } = socket({ onAudioChunk: chunk => audio.push(chunk) });
   await ready(client, ws);
+  ws.message({ serverContent: { modelTurn: { parts: [{ inlineData: { data: 'replayed-pcm' } }] } } });
+  await client._messageChain;
+  assert.deepEqual(audio, ['replayed-pcm']);
   const staleClose = ws.onclose;
   const staleMessage = ws.onmessage;
   client.switchVoice('Kore');
   client.connect(); // supersedes the scheduled restart
   const replacement = client.websocket;
   await ready(client, replacement);
+  replacement.message({ serverContent: { modelTurn: { parts: [{ inlineData: { data: 'replayed-pcm' } }] } } });
+  await client._messageChain;
   staleClose({ code: 1006, reason: '' });
   staleMessage({ data: JSON.stringify({ serverContent: { modelTurn: { parts: [{ inlineData: { data: 'stale' } }] } } }) });
   await client._messageChain;
   assert.equal(client.websocket, replacement);
   assert.equal(client.isConnected, true);
-  assert.deepEqual(audio, []);
+  assert.deepEqual(audio, ['replayed-pcm']);
   client.disconnect();
   assert.equal(client.reconnectTimer, null);
 });
