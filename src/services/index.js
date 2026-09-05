@@ -27,6 +27,7 @@ export { ProactiveScheduler, proactiveScheduler } from './proactiveScheduler.js'
 export { SceneManager, sceneManager } from './sceneManager.js';
 export { PerformanceProfilerService, performanceProfiler } from './profiler/PerformanceProfilerService.js';
 export { MemoryService, memoryService, MEMORY_CATEGORIES } from './memory/MemoryService.js';
+export { MemoryRepository } from './memory/MemoryRepository.js';
 export { MCPClientManager, mcpClientManager } from './mcp/MCPClientManager.js';
 export { BrowserAutomationService, browserAutomationService } from './browser/BrowserAutomationService.js';
 export { MinecraftCompanionService, minecraftCompanion } from './gameIntegration/MinecraftCompanionService.js';

@@ -4,9 +4,9 @@
  * Manages structured facts, preferences, user relationship history, tasks, and semantic memory retrieval for Gemini Live.
  */
 
-import { electronBridge } from '../desktop/ElectronBridge.js';
 import { logger } from '../logger.js';
 import { eventBus, EVENTS } from '../eventBus.js';
+import { MemoryRepository } from './MemoryRepository.js';
 
 export const MEMORY_CATEGORIES = {
   FACT: 'fact',                 // Objective facts about the user (name, job, city, pets)
@@ -18,8 +18,9 @@ export const MEMORY_CATEGORIES = {
 };
 
 export class MemoryService {
-  constructor() {
-    this.storageKey = 'cristi_ai_memories_v2';
+  constructor({ repository = null } = {}) {
+    this.repository = repository || new MemoryRepository();
+    this.storageKey = this.repository.storageKey || 'cristi_ai_memories_v2';
     this.memories = [];
     this.isLoaded = false;
     this.currentSessionId = null;
@@ -104,30 +105,10 @@ export class MemoryService {
 
   async loadMemories() {
     try {
-      // 1. Try reading from persistent userData file via Electron Bridge
-      if (electronBridge?.isElectron) {
-        try {
-          const fileData = await electronBridge.readFile('cristi-memories.json');
-          if (fileData) {
-            const parsed = JSON.parse(fileData);
-          if (Array.isArray(parsed)) {
-              this.memories = parsed.map((memory) => this.normalizeMemory(memory));
-              return;
-            }
-          }
-        } catch (_) {}
-      }
-
-      // 2. Fallback to localStorage
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const local = localStorage.getItem(this.storageKey);
-        if (local) {
-          const parsed = JSON.parse(local);
-          if (Array.isArray(parsed)) {
-            this.memories = parsed.map((memory) => this.normalizeMemory(memory));
-            return;
-          }
-        }
+      const persisted = await this.repository.load();
+      if (Array.isArray(persisted)) {
+        this.memories = persisted.map((memory) => this.normalizeMemory(memory));
+        return;
       }
 
       // Default Seed Memories
@@ -188,17 +169,7 @@ export class MemoryService {
     try {
       const dataStr = JSON.stringify(this.memories, null, 2);
 
-      // 1. Save to localStorage
-      if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem(this.storageKey, dataStr);
-      }
-
-      // 2. Save to userData file
-      if (electronBridge?.isElectron) {
-        try {
-          await electronBridge.writeFile('cristi-memories.json', dataStr);
-        } catch (_) {}
-      }
+      await this.repository.save(this.memories);
 
       eventBus.emit(EVENTS.CONFIG_CHANGED, { type: 'memory_updated', count: this.memories.length });
     } catch (err) {

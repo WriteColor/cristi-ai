@@ -20,7 +20,12 @@ test('domain event envelopes are traceable and wildcard listeners are isolated',
 });
 
 test('memory sessions persist summaries and supersede contradictions', async () => {
-  const memory = new MemoryService();
+  let stored = [];
+  const memory = new MemoryService({ repository: {
+    storageKey: 'test-memory',
+    async load() { return stored; },
+    async save(records) { stored = structuredClone(records); return true; }
+  }});
   await memory.initialize();
   memory.startSession('test-session');
   memory.recordTurn({ role: 'user', text: 'Me gusta jugar Minecraft por las noches.' });
