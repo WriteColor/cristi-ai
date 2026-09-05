@@ -2,12 +2,22 @@ import { logger } from './logger.js';
 import { virtualTerminal } from './virtualTerminalService.js';
 import { eventBus, EVENTS } from './eventBus.js';
 import { electronBridge } from './desktop/ElectronBridge.js';
+import { memoryService } from './memory/MemoryService.js';
+import { browserAutomationService } from './browser/BrowserAutomationService.js';
+import { minecraftCompanion } from './gameIntegration/MinecraftCompanionService.js';
+import { discordCompanion } from './discord/DiscordCompanionService.js';
+import { mcpClientManager } from './mcp/MCPClientManager.js';
+import { visionStreamManager } from './vision/VisionStreamManager.js';
+import { proactiveScheduler } from './proactiveScheduler.js';
+import { spotifyService } from './spotify/SpotifyService.js';
+import { playwrightService } from './playwright/PlaywrightService.js';
 
 export class ToolExecutor {
   constructor({
     onGestureTrigger,
     onMotionTrigger,
     onAvatarMove,
+    onModelSwitch,
     onToolExecutionStart,
     onToolExecutionEnd,
     onScreenRegionChange,
@@ -20,6 +30,7 @@ export class ToolExecutor {
     this.onGestureTrigger = onGestureTrigger || (() => {});
     this.onMotionTrigger = onMotionTrigger || (() => {});
     this.onAvatarMove = onAvatarMove || (() => {});
+    this.onModelSwitch = onModelSwitch || (() => {});
     this.onToolExecutionStart = onToolExecutionStart || (() => {});
     this.onToolExecutionEnd = onToolExecutionEnd || (() => {});
     this.onScreenRegionChange = onScreenRegionChange || (() => {});
@@ -64,6 +75,10 @@ export class ToolExecutor {
     }
 
     return responses;
+  }
+
+  async executeTool(name, args = {}) {
+    return this.executeSingleTool(name, args);
   }
 
   async executeSingleTool(name, args = {}) {
@@ -158,8 +173,9 @@ export class ToolExecutor {
         const title = typeof args.title === 'string' ? args.title : 'Recordatorio de Cristi';
         const time = typeof args.time === 'string' ? args.time : new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
         const tag = typeof args.tag === 'string' ? args.tag : 'Cristi';
+        const id = `reminder_${Date.now()}`;
         const widgetData = {
-          id: String(Date.now()),
+          id,
           type: 'reminder',
           title,
           time,
@@ -167,10 +183,11 @@ export class ToolExecutor {
           done: false,
           created_at: Date.now()
         };
+        proactiveScheduler.scheduleReminder({ id, time, title, tag });
         eventBus.emit(EVENTS.WIDGET_TRIGGERED, widgetData);
         return {
           status: 'success',
-          message: `Recordatorio "${title}" creado para las ${time}.`,
+          message: `Recordatorio "${title}" programado para las ${time}. Cristi estará atenta para avisarte cuando se acerque.`,
           widget: widgetData
         };
       }
@@ -178,18 +195,20 @@ export class ToolExecutor {
       case 'set_alarm': {
         const time = typeof args.time === 'string' ? args.time : '10:00';
         const label = typeof args.label === 'string' ? args.label : 'Alarma';
+        const id = `alarm_${Date.now()}`;
         const widgetData = {
-          id: String(Date.now()),
+          id,
           type: 'alarm',
           title: `Alarma: ${label}`,
           time,
           tag: 'Alarma',
           done: false
         };
+        proactiveScheduler.scheduleAlarm({ id, time, label });
         eventBus.emit(EVENTS.WIDGET_TRIGGERED, widgetData);
         return {
           status: 'success',
-          message: `Alarma programada para las ${time} (${label}).`,
+          message: `Alarma "${label}" programada para las ${time}. Cristi estará al tanto y te avisará cuando falte poco tiempo y cuando suene.`,
           widget: widgetData
         };
       }
@@ -645,8 +664,214 @@ export class ToolExecutor {
         }
       }
 
-      default:
+      // ─────────────────────────────────────────────────────────────────
+      // MEMORIA PERMANENTE Y CONTEXTUAL AVANZADA
+      // ─────────────────────────────────────────────────────────────────
+      case 'remember_fact': {
+        const memory = await memoryService.remember({
+          key: args.key,
+          content: args.content,
+          category: args.category || 'fact',
+          importance: args.importance || 0.8
+        });
+        return {
+          status: 'success',
+          action: 'remembered',
+          memory,
+          message: `Dato fijado en la memoria permanente: "${args.key}"`
+        };
+      }
+
+      case 'search_memory': {
+        const found = memoryService.search(args.query);
+        return {
+          status: 'success',
+          query: args.query,
+          resultsCount: found.length,
+          memories: found
+        };
+      }
+
+      case 'delete_memory': {
+        const removed = await memoryService.deleteMemory(args.id_or_key);
+        return {
+          status: removed ? 'success' : 'not_found',
+          message: removed ? `Recuerdo "${args.id_or_key}" eliminado.` : `No se encontró recuerdo con ID/clave "${args.id_or_key}".`
+        };
+      }
+
+      // ─────────────────────────────────────────────────────────────────
+      // NAVEGACIÓN WEB (BRAVE)
+      // ─────────────────────────────────────────────────────────────────
+      case 'search_internet': {
+        return await browserAutomationService.searchInternet(args.query);
+      }
+
+      case 'browse_web_page': {
+        return await browserAutomationService.extractPageContent(args.url);
+      }
+
+      case 'open_in_brave_browser': {
+        const success = await browserAutomationService.openInBrave(args.url);
+        return {
+          status: success ? 'success' : 'error',
+          url: args.url,
+          message: success ? `Abriendo ${args.url} en Brave Browser.` : `No se pudo abrir ${args.url}.`
+        };
+      }
+
+      // ─────────────────────────────────────────────────────────────────
+      // MINECRAFT COMPANION (AIRI INSPIRED)
+      // ─────────────────────────────────────────────────────────────────
+      case 'minecraft_connect': {
+        return await minecraftCompanion.connect(args);
+      }
+
+      case 'minecraft_disconnect': {
+        return await minecraftCompanion.disconnect();
+      }
+
+      case 'minecraft_get_status': {
+        return await minecraftCompanion.getStatus();
+      }
+
+      case 'minecraft_chat': {
+        return await minecraftCompanion.sendChat(args.message);
+      }
+
+      case 'minecraft_move_to': {
+        return await minecraftCompanion.moveTo(args.x, args.y, args.z);
+      }
+
+      case 'minecraft_follow_player': {
+        return await minecraftCompanion.followPlayer(args.player_name);
+      }
+
+      case 'minecraft_stop_moving': {
+        return await minecraftCompanion.stop();
+      }
+
+      case 'minecraft_mine_block': {
+        return await minecraftCompanion.mineBlock(args.x, args.y, args.z);
+      }
+
+      case 'minecraft_place_block': {
+        return await minecraftCompanion.placeBlock(args.x, args.y, args.z, args.block_name);
+      }
+
+      case 'minecraft_attack_entity': {
+        return await minecraftCompanion.attackEntity(args.entity_name);
+      }
+
+      // ─────────────────────────────────────────────────────────────────
+      // DISCORD COMPANION (AIRI INSPIRED)
+      // ─────────────────────────────────────────────────────────────────
+      case 'discord_send_message': {
+        return await discordCompanion.sendMessage(args.channel_id, args.content);
+      }
+
+      case 'discord_set_status': {
+        return await discordCompanion.setStatus(args.status_text, args.activity_type);
+      }
+
+      // ─────────────────────────────────────────────────────────────────
+      // CAMBIO DE MODELO DE AVATAR (LIVE2D)
+      // ─────────────────────────────────────────────────────────────────
+      case 'switch_avatar_model': {
+        const modelId = args.model_id || 'yanderegirl';
+        this.onModelSwitch('live2d', modelId);
+        return {
+          status: 'success',
+          model_type: 'live2d',
+          model_id: modelId,
+          message: `Avatar Live2D cambiado exitosamente a "${modelId}".`
+        };
+      }
+
+      // ─────────────────────────────────────────────────────────────────
+      // SPOTIFY MUSIC PLAYER (DESKTOP / WEB API / PLAYWRIGHT)
+      // ─────────────────────────────────────────────────────────────────
+      case 'spotify_play': {
+        return await spotifyService.play({
+          query: args.query,
+          uri: args.uri,
+          useWeb: args.use_web
+        });
+      }
+
+      case 'spotify_pause': {
+        return await spotifyService.pause();
+      }
+
+      case 'spotify_next': {
+        return await spotifyService.next();
+      }
+
+      case 'spotify_previous': {
+        return await spotifyService.previous();
+      }
+
+      case 'spotify_get_status': {
+        return await spotifyService.getStatus();
+      }
+
+      case 'spotify_search': {
+        return await spotifyService.search({
+          query: args.query,
+          type: args.type || 'track'
+        });
+      }
+
+      case 'spotify_set_volume': {
+        return await spotifyService.setVolume({
+          direction: args.direction || 'up'
+        });
+      }
+
+      // ─────────────────────────────────────────────────────────────────
+      // PLAYWRIGHT FULL BROWSER AUTOMATION (BRAVE BROWSER POWERED)
+      // ─────────────────────────────────────────────────────────────────
+      case 'playwright_navigate': {
+        return await playwrightService.navigate(args.url);
+      }
+
+      case 'playwright_click': {
+        return await playwrightService.click(args.selector);
+      }
+
+      case 'playwright_fill': {
+        return await playwrightService.fill(args.selector, args.value);
+      }
+
+      case 'playwright_press': {
+        return await playwrightService.press(args.selector, args.key);
+      }
+
+      case 'playwright_screenshot': {
+        return await playwrightService.screenshot({
+          fullPage: Boolean(args.full_page)
+        });
+      }
+
+      case 'playwright_get_content': {
+        return await playwrightService.getContent(args.selector);
+      }
+
+      case 'playwright_evaluate': {
+        return await playwrightService.evaluate(args.script);
+      }
+
+      case 'playwright_close': {
+        return await playwrightService.close();
+      }
+
+      default: {
+        // Check if tool belongs to connected MCP server
+        if (mcpClientManager.discoveredTools.has(name)) {
+          return await mcpClientManager.executeMCPTool(name, args);
+        }
         return { status: 'error', error: 'unknown_tool', name, message: `Herramienta "${name}" no reconocida.` };
+      }
     }
   }
 }

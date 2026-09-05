@@ -15,9 +15,10 @@ import { ConfigManager } from '../src/services/configManager.js';
 import { Live2DPhysicsEngine } from '../src/services/live2d/Live2DPhysicsEngine.js';
 import { Live2DAdapter } from '../src/services/live2d/Live2DAdapter.js';
 import { Live2DController } from '../src/services/live2d/Live2DController.js';
-import { SpeakerRecognitionService } from '../src/services/audio/SpeakerRecognitionService.js';
 import { ScreenCaptureService } from '../src/services/screenCaptureService.js';
 import { CameraService } from '../src/services/cameraService.js';
+import { AudioInputService } from '../src/services/audioInputService.js';
+import { AudioOutputService } from '../src/services/audioOutputService.js';
 
 console.log('⚔️ [AGENT 9] INICIANDO SUITE ADVERSARIAL DE INTEGRIDAD, REGRESIONES Y RESISTENCIA...');
 
@@ -185,62 +186,46 @@ console.log('\n[TEST 3] Sometiendo Físicas Live2D 2.0 a saltos de tiempo masivo
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. AUDIO DSP & SPEAKER BIOMETRICS HOSTILE EDGE CASES
+// 4. AUDIO DSP & RESAMPLING HOSTILE EDGE CASES
 // ─────────────────────────────────────────────────────────────────────────────
-console.log('\n[TEST 4] Sometiendo Biometría Vocal y DSP a señales acústicas degeneradas...');
+console.log('\n[TEST 4] Sometiendo Audio DSP y Resampling a señales acústicas degeneradas...');
 {
-  const speaker = new SpeakerRecognitionService();
+  const audioIn = new AudioInputService({});
+  const audioOut = new AudioOutputService({});
 
   // Test A: Audio vacío o de longitud sub-mínima
-  const emptyRes = speaker.extractEmbedding(new Float32Array(0));
-  if (emptyRes !== null) throw new Error('extractEmbedding debería retornar null con buffer vacío.');
-
-  const shortRes = speaker.extractEmbedding(new Float32Array(100)); // < 50ms
-  if (shortRes !== null) throw new Error('extractEmbedding debería retornar null con audio sub-mínimo.');
+  const emptyRes = audioIn.resampleAudio(new Float32Array(0), 48000, 16000);
+  if (emptyRes.length !== 0) throw new Error('resampleAudio debería retornar buffer vacío con input vacío.');
 
   // Test B: Audio con silencio puro (todos ceros)
   const zeros = new Float32Array(16000); // 1s de silencio
-  const zeroEmb = speaker.extractEmbedding(zeros);
-  if (!zeroEmb || zeroEmb.embedding.length !== 192) {
-    throw new Error('Fallo al procesar vector en audio silencioso.');
+  const zeroPCM = audioIn.floatTo16BitPCM(zeros);
+  if (zeroPCM.byteLength !== 32000) {
+    throw new Error('Fallo al procesar buffer PCM en audio silencioso.');
   }
-  for (const val of zeroEmb.embedding) {
-    if (isNaN(val) || !isFinite(val)) {
-      throw new Error(`NaN/Inf detectado en embedding de silencio: ${val}`);
+
+  // Test C: Audio con ruido blanco saturado (> 1.0 clipping)
+  const noise = new Float32Array(16000);
+  for (let i = 0; i < noise.length; i++) {
+    noise[i] = (Math.random() * 2 - 1) * 3.0; // Severe clipping over [-3, 3]
+  }
+  const clippedPCM = audioIn.floatTo16BitPCM(noise);
+  const pcmView = new Int16Array(clippedPCM);
+  for (let i = 0; i < pcmView.length; i++) {
+    if (pcmView[i] < -32768 || pcmView[i] > 32767) {
+      throw new Error(`Overflow no clipeado en PCM: ${pcmView[i]}`);
     }
   }
 
-  // Test C: Audio con ruido blanco saturado
-  const noise = new Float32Array(16000);
-  for (let i = 0; i < noise.length; i++) {
-    noise[i] = (Math.random() * 2 - 1) * 2.0; // Clipping over [-1, 1]
-  }
-  const noiseEmb = speaker.extractEmbedding(noise);
-  if (!noiseEmb || noiseEmb.embedding.length !== 192) {
-    throw new Error('Fallo al procesar embedding de audio con clipping severo.');
+  // Test D: Rapid Mute & StopImmediate stress
+  for (let i = 0; i < 500; i++) {
+    audioIn.mute();
+    audioIn.unmute();
+    audioIn.toggleMute();
+    audioOut.stopImmediate();
   }
 
-  // Test D: Enrolamiento multi-muestra y verificación
-  speaker.enrollSamples('Jeremy Dueño', [
-    { id: 's1', audioSamples: noise },
-    { id: 's2', audioSamples: noise }
-  ]);
-
-  if (!speaker.hasEnrolledProfile()) {
-    throw new Error('Perfil no registrado tras enrolamiento.');
-  }
-
-  const decision = speaker.verifySpeaker(noise);
-  if (!decision.hasProfile || typeof decision.score !== 'number' || isNaN(decision.score)) {
-    throw new Error(`Decisión de verificación inválida: ${JSON.stringify(decision)}`);
-  }
-
-  speaker.clearProfile();
-  if (speaker.hasEnrolledProfile()) {
-    throw new Error('clearProfile() no limpió el perfil.');
-  }
-
-  console.log('  ✅ Inmunidad acústica a silencio, clipping, vectores nulos y verificación biométrica validada.');
+  console.log('  ✅ Inmunidad acústica a silencio, clipping severo, desbordamiento PCM y barge-in validada.');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

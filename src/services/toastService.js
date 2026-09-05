@@ -41,6 +41,10 @@ export class ToastService {
     icon = null,
     badge = null
   }) {
+    // Prevent strict mode / double-render duplication by title within 500ms
+    const recentDuplicate = this.toasts.find(t => t.title === title && (Date.now() - t.createdAt) < 500);
+    if (recentDuplicate) return recentDuplicate.id;
+
     const id = 'toast_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
     const toast = {
       id,
@@ -94,12 +98,12 @@ export class ToastService {
     return this.warning(title, description, options);
   }
 
-  warn(title, description, options = {}) {
-    return this.warning(title, description, options);
-  }
-
   error(title, description, options = {}) {
     return this.show({ title, description, type: 'error', duration: 6000, ...options });
+  }
+
+  alarm(title, description, options = {}) {
+    return this.show({ title, description, type: 'alarm', duration: 0, badge: 'ALARMA', ...options });
   }
 
   tool(toolName, description, options = {}) {

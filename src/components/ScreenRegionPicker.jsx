@@ -148,7 +148,7 @@ export function ScreenRegionPicker({ onRegionSelected, onCancel }) {
   return (
     <div
       ref={overlayRef}
-      className="screen-picker-overlay"
+      className="fixed inset-0 z-[9999] cursor-crosshair bg-black/40"
       {...interactiveProps}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -156,32 +156,32 @@ export function ScreenRegionPicker({ onRegionSelected, onCancel }) {
       onPointerCancel={handlePointerCancel}
     >
       {/* Instruction */}
-      <div className="screen-picker-instruction">
-        <span className="screen-picker-icon">🎯</span>
-        <span>Arrastra para definir el área de visión de Cristi</span>
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-zinc-950/95 text-zinc-200 px-3.5 py-1.5 rounded-sm flex items-center gap-3 shadow-2xl border border-zinc-800 font-mono text-xs backdrop-blur-md">
+        <span className="w-2 h-2 bg-zinc-400 rounded-none shrink-0" />
+        <span className="tracking-wide">Arrastra para definir el área de visión</span>
         <button
           type="button"
-          className="screen-picker-cancel-btn"
+          className="ml-2 px-2.5 py-0.5 bg-zinc-900 border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white rounded-sm text-[11px] transition-colors"
           onClick={(e) => {
             e.stopPropagation();
             onCancel();
           }}
         >
-          Cancelar
+          Cancelar (Esc)
         </button>
       </div>
 
       {/* Selection rectangle directly manipulated in DOM */}
       <div
         ref={selectionRef}
-        className="screen-picker-selection"
+        className="fixed border-2 border-zinc-300 bg-zinc-500/10 pointer-events-none rounded-none shadow-sm"
         style={{ display: 'none' }}
       >
-        <div className="screen-picker-sel-corner screen-picker-sel-tl" />
-        <div className="screen-picker-sel-corner screen-picker-sel-tr" />
-        <div className="screen-picker-sel-corner screen-picker-sel-bl" />
-        <div className="screen-picker-sel-corner screen-picker-sel-br" />
-        <span ref={sizeLabelRef} className="screen-picker-size-label" />
+        <div className="absolute w-1.5 h-1.5 bg-zinc-200 -top-1 -left-1" />
+        <div className="absolute w-1.5 h-1.5 bg-zinc-200 -top-1 -right-1" />
+        <div className="absolute w-1.5 h-1.5 bg-zinc-200 -bottom-1 -left-1" />
+        <div className="absolute w-1.5 h-1.5 bg-zinc-200 -bottom-1 -right-1" />
+        <span ref={sizeLabelRef} className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-mono text-zinc-200 bg-zinc-900 border border-zinc-700 px-1.5 py-0.5 rounded-none shadow whitespace-nowrap" />
       </div>
     </div>
   );

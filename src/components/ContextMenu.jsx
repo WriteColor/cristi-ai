@@ -1,477 +1,497 @@
+/**
+ * Cristi AI - Minimalist Obsidian Context Menu (v3)
+ * Completely rewritten from scratch:
+ * - 100% Tailwind CSS & Shadcn Dark Zinc Minimalist Aesthetic
+ * - Zero overflow clipping for tactical dropdowns
+ * - Rock-solid click-through management (never locks passthrough on close)
+ * - Exclusively 4 verified female voices
+ * - Clean accordions for Avatar, Scene, AI Model/Voice, and Tactical Tools
+ */
+
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
-  Settings,
-  X,
-  Pin,
-  Sparkles,
-  Smile,
-  Zap,
-  Volume2,
-  Tv,
-  Monitor,
-  ChevronDown,
-  ChevronRight,
-  ShieldCheck,
-  Sliders,
-  Image as ImageIcon,
-  FolderPlus,
-  Activity
+  X, Pin, Smile, Zap, Monitor, Volume2,
+  ChevronDown, ChevronRight, Check, Sliders, Image as ImageIcon, Activity,
+  FolderPlus, Settings, LogOut
 } from 'lucide-react';
 import { live2dModelRegistry } from '../services/live2d/index.js';
-import { GEMINI_MODELS, GEMINI_MODELS_LIST } from '../config/models.js';
+import { GEMINI_MODELS_LIST, DEFAULT_MODEL_ID } from '../config/models.js';
 import { GEMINI_STANDARD_VOICES } from '../config/voices.js';
+import { DEFAULT_SCENE_ID } from '../config/scenes.js';
 import { sceneManager } from '../services/sceneManager.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';
 import { electronBridge } from '../services/desktop/ElectronBridge.js';
 import { soundFxService } from '../services/soundFxService.js';
-import { TacticalDropdown } from './TacticalDropdown.jsx';
 
+// ── Dropdown Táctico Shadcn con Menú Flotante Seguro ───────────────────────────
+function TacticalDropdown({
+  options = [],
+  value,
+  onChange,
+  placeholder = 'Seleccionar...',
+  icon: Icon
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      window.addEventListener('pointerdown', handleClickOutside);
+    }
+    return () => window.removeEventListener('pointerdown', handleClickOutside);
+  }, [isOpen]);
+
+  const selectedOption = options.find((opt) => opt.value === value);
+
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          electronBridge.setIgnoreMouseEvents(false);
+          soundFxService.playClick();
+          setIsOpen(!isOpen);
+        }}
+        className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border border-zinc-700/80 rounded-sm transition-colors text-left font-mono"
+      >
+        <div className="flex items-center gap-2 truncate min-w-0">
+          {Icon && <Icon size={13} className="text-zinc-400 shrink-0" />}
+          <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
+        </div>
+        <ChevronDown size={12} className={`text-zinc-400 transition-transform shrink-0 ml-1.5 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-[100] max-h-48 overflow-y-auto bg-zinc-950 border border-zinc-700 rounded-sm shadow-2xl py-1 divide-y divide-zinc-800/40">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                electronBridge.setIgnoreMouseEvents(false);
+                soundFxService.playClick();
+                onChange(opt.value);
+                setIsOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs text-left transition-colors font-mono ${
+                opt.value === value
+                  ? 'bg-zinc-800 text-white font-medium'
+                  : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'
+              }`}
+            >
+              <span className="truncate">{opt.label}</span>
+              {opt.value === value && <Check size={12} className="text-zinc-200 shrink-0 ml-1.5" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Componente Principal ContextMenu ─────────────────────────────────────────
 export function ContextMenu({
-  isOpen,
+  isOpen = false,
   position,
-  coords,
+  posX,
+  posY,
   onClose,
-  activeModelId,
-  onSwitchLive2DModel,
-  activeAiModelId,
-  onSwitchAiModel,
-  activeVoiceName,
-  onSwitchVoice,
-  isCameraActive,
-  onToggleCamera,
-  isAlwaysOnTop,
+  isAlwaysOnTop = true,
   onToggleAlwaysOnTop,
-  isMuted,
-  onToggleMute,
-  isScreenWatchActive,
-  onToggleScreenWatch,
   onOpenSettings,
   onOpenRegionPicker,
   onOpenVoiceEnrollment,
   onOpenSpeakerHUD,
   onTogglePerformanceHUD,
-  isZenMode,
-  onToggleZenMode
+  onSwitchLive2DModel,
+  onSwitchAiModel,
+  onSwitchVoice,
+  activeModelId = 'yanderegirl',
+  activeAiModelId = DEFAULT_MODEL_ID || 'gemini-3.1-flash-live-preview',
+  activeVoiceName = 'Aoede'
 }) {
   const menuRef = useRef(null);
-  const [activeSection, setActiveSection] = useState(null); // 'avatar' | 'scene' | 'ai' | 'tools' | 'system'
-  const [activeScene, setActiveScene] = useState(sceneManager.getScene().sceneId);
-  const [availableScenes, setAvailableScenes] = useState(sceneManager.getAvailableScenes());
+  const [activeSection, setActiveSection] = useState(null);
   const [currentActiveExpr, setCurrentActiveExpr] = useState(null);
+  const [activeScene, setActiveScene] = useState(() => sceneManager.selectedSceneId || DEFAULT_SCENE_ID);
 
-  const posX = coords?.x ?? position?.x ?? 60;
-  const posY = coords?.y ?? position?.y ?? 60;
-
-  const { interactiveProps } = useClickThrough();
-
-  useEffect(() => {
-    return sceneManager.onSceneChange((s) => {
-      setActiveScene(s.sceneId);
-      setAvailableScenes(sceneManager.getAvailableScenes());
-    });
-  }, []);
-
-  // Collapse section and play sound on open
+  // Resetear estado interno cada vez que el menú se abre de nuevo
   useEffect(() => {
     if (isOpen) {
-      soundFxService.playMenuOpen();
       setActiveSection(null);
+      setCurrentActiveExpr(null);
+      setActiveScene(sceneManager.selectedSceneId || DEFAULT_SCENE_ID);
+      electronBridge.setIgnoreMouseEvents(false);
     }
   }, [isOpen]);
 
-  // Adjust menu position so it never overflows screen bounds
+  const { interactiveProps } = useClickThrough();
+
+  // Posicionamiento inteligente
+  const leftPos = position?.x ?? posX ?? 300;
+  const topPos = position?.y ?? posY ?? 200;
+
   useLayoutEffect(() => {
     if (!isOpen || !menuRef.current) return;
     const menuEl = menuRef.current;
     const rect = menuEl.getBoundingClientRect();
-    const padding = 12;
+    const margin = 16;
 
-    let targetLeft = posX;
-    let targetTop = posY;
+    let targetLeft = leftPos;
+    let targetTop = topPos;
 
-    if (targetLeft + rect.width > window.innerWidth - padding) {
-      targetLeft = window.innerWidth - rect.width - padding;
+    if (targetLeft + rect.width > window.innerWidth - margin) {
+      targetLeft = window.innerWidth - rect.width - margin;
     }
-    if (targetLeft < padding) targetLeft = padding;
+    if (targetLeft < margin) targetLeft = margin;
 
-    if (targetTop + rect.height > window.innerHeight - padding) {
-      targetTop = window.innerHeight - rect.height - padding;
+    if (targetTop + rect.height > window.innerHeight - margin) {
+      targetTop = window.innerHeight - rect.height - margin;
     }
-    if (targetTop < padding) targetTop = padding;
+    if (targetTop < margin) targetTop = margin;
 
     menuEl.style.left = `${Math.round(targetLeft)}px`;
     menuEl.style.top = `${Math.round(targetTop)}px`;
-  }, [isOpen, posX, posY, activeSection]);
+  }, [isOpen, leftPos, topPos, activeSection]);
 
-  // Close on outside click, window blur or Escape
+  // Cierre inteligente por clic fuera y tecla Escape
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleOutsideClick = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        soundFxService.playClick();
-        onClose();
-      }
-    };
+    let isSubscribed = true;
+    let removeClickFn = null;
+
+    const timer = setTimeout(() => {
+      if (!isSubscribed) return;
+      const handleOutsideClick = (e) => {
+        if (menuRef.current && !menuRef.current.contains(e.target)) {
+          onClose?.();
+        }
+      };
+      window.addEventListener('pointerdown', handleOutsideClick);
+      removeClickFn = () => window.removeEventListener('pointerdown', handleOutsideClick);
+    }, 120);
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        e.stopImmediatePropagation?.();
         soundFxService.playClick();
-        onClose();
+        onClose?.();
       }
     };
-
-    const handleBlur = () => {
-      onClose();
-    };
-
-    window.addEventListener('pointerdown', handleOutsideClick, { capture: true });
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('blur', handleBlur);
 
     return () => {
-      window.removeEventListener('pointerdown', handleOutsideClick, { capture: true });
+      isSubscribed = false;
+      clearTimeout(timer);
+      removeClickFn?.();
       window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('blur', handleBlur);
     };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
-  const toggleSection = (sectionKey) => {
-    soundFxService.playClick();
-    setActiveSection((prev) => (prev === sectionKey ? null : sectionKey));
-  };
+  // Catálogos de opciones (Modelos Live2D)
+  const live2dList = live2dModelRegistry.getAllModels();
+  const modelOptions = live2dList.map((m) => ({ value: m.id, label: m.name }));
 
-  const allLive2dModels = live2dModelRegistry.getAllModels();
+  const sceneOptions = sceneManager
+    .getAvailableScenes()
+    .filter((s) => s.id !== 'transparent')
+    .map((s) => ({
+      value: s.id,
+      label: s.name
+    }));
+
+  const aiModelOptions = GEMINI_MODELS_LIST.map((m) => ({
+    value: m.id,
+    label: m.name
+  }));
+
+  // Exclusivamente las 4 voces femeninas verificadas
+  const voiceOptions = GEMINI_STANDARD_VOICES
+    .filter((v) => v.gender === 'Femenina')
+    .map((v) => ({ value: v.name, label: v.name }));
+
   const activeModel = live2dModelRegistry.getModel(activeModelId);
+
+  const toggleSection = (sectionName) => {
+    soundFxService.playClick();
+    setActiveSection((prev) => (prev === sectionName ? null : sectionName));
+  };
 
   const handleExpressionClick = (expr) => {
     soundFxService.playClick();
-    if (!window.__cristiAvatar) return;
-    const av = window.__cristiAvatar;
-    if (currentActiveExpr === expr) {
-      if (av.controller?.setEmotion) av.controller.setEmotion('idle');
-      else if (av.setExpression) av.setExpression('none');
-      setCurrentActiveExpr(null);
-    } else {
-      if (av.controller?.setEmotion) av.controller.setEmotion(expr);
-      else if (av.setExpression) av.setExpression(expr);
-      setCurrentActiveExpr(expr);
+    setCurrentActiveExpr(expr);
+    if (window.__cristiAvatar?.setExpression) {
+      window.__cristiAvatar.setExpression(expr);
     }
   };
 
-  const handleImportCustomSceneFile = async (e) => {
-    e.stopPropagation();
+  const handleImportCustomSceneFile = async () => {
     soundFxService.playClick();
-    if (typeof window !== 'undefined' && window.electronAPI?.importCustomSceneFile) {
-      const res = await window.electronAPI.importCustomSceneFile();
-      if (!res.canceled && res.filePath) {
-        sceneManager.addCustomScene({
-          id: `custom_${Date.now()}`,
-          name: res.name || 'Fondo Importado',
-          url: res.fileUrl || res.filePath,
-          type: res.type
-        });
-        setActiveScene(sceneManager.getScene().sceneId);
-        setAvailableScenes(sceneManager.getAvailableScenes());
+    if (electronBridge?.importCustomSceneFile) {
+      const result = await electronBridge.importCustomSceneFile();
+      if (!result.canceled && result.filePath) {
+        sceneManager.setScene('custom_file', result.fileUrl);
+        setActiveScene('custom_file');
       }
     }
   };
 
   const handleCloseApp = () => {
     soundFxService.playClick();
-    onClose();
-    electronBridge.quitApp();
+    if (electronBridge?.closeApp) {
+      electronBridge.closeApp();
+    } else {
+      window.close();
+    }
   };
-
-  // Prepare options for TacticalDropdowns
-  const modelOptions = allLive2dModels.map((m) => ({
-    value: m.id,
-    label: m.name,
-    badge: m.badge || '2D',
-    subtitle: m.theme
-  }));
-
-  const sceneOptions = availableScenes.map((s) => ({
-    value: s.id,
-    label: s.name,
-    badge: s.category === 'custom' ? 'CUSTOM' : s.category?.toUpperCase(),
-    subtitle: s.description
-  }));
-
-  const aiModelsList = Array.isArray(GEMINI_MODELS_LIST) && GEMINI_MODELS_LIST.length > 0
-    ? GEMINI_MODELS_LIST
-    : Object.values(GEMINI_MODELS || {});
-
-  const aiModelOptions = aiModelsList.map((m) => ({
-    value: m.id,
-    label: m.displayName || m.name || m.id,
-    badge: m.badge || 'IA',
-    subtitle: m.description
-  }));
-
-  const voiceOptions = GEMINI_STANDARD_VOICES.map((v) => ({
-    value: v.name,
-    label: v.name,
-    badge: v.gender || '24kHz',
-    subtitle: v.trait
-  }));
 
   return (
     <div
       ref={menuRef}
-      className="custom-context-menu-minimal"
+      className="fixed z-[99999] w-64 bg-zinc-950/98 border border-zinc-800 text-zinc-300 font-sans shadow-2xl rounded-sm backdrop-blur-md select-none pointer-events-auto"
+      style={{ left: leftPos, top: topPos }}
       {...interactiveProps}
-      onClick={(e) => e.stopPropagation()}
-      onMouseDown={(e) => e.stopPropagation()}
-      onContextMenu={(e) => e.stopPropagation()}
+      onPointerDown={(e) => {
+        electronBridge.setIgnoreMouseEvents(false);
+        e.stopPropagation();
+      }}
+      onClick={(e) => {
+        electronBridge.setIgnoreMouseEvents(false);
+        e.stopPropagation();
+      }}
     >
-      <span className="hud-corner hud-corner-tl" />
-      <span className="hud-corner hud-corner-tr" />
-      <span className="hud-corner hud-corner-bl" />
-      <span className="hud-corner hud-corner-br" />
+      {/* ── Encabezado Minimalista Shadcn ───────────────────────────────── */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800 bg-zinc-900/60">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 bg-zinc-400" />
+          <span className="text-xs font-semibold tracking-wide text-zinc-100 font-mono">Cristi AI</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            soundFxService.playClick();
+            onClose?.();
+          }}
+          className="p-0.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-sm transition-colors"
+          title="Cerrar menú"
+        >
+          <X size={13} />
+        </button>
+      </div>
 
-      {/* Ultra-Compact Tactical Header */}
-      <div className="ctx-mini-header">
-        <div className="ctx-mini-title">CRISTI AI</div>
-        <div className="ctx-mini-badge">
-          <Sparkles size={10} /> {activeModel?.badge || 'V2.0'}
+      <div className="p-1.5 space-y-1">
+        {/* ── 1. CATEGORÍA: PERSONAJE (2D / 3D) ─────────────────────────── */}
+        <div className="border border-zinc-800/80 rounded-sm bg-zinc-900/30">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/50 transition-colors font-mono rounded-sm"
+            onClick={() => toggleSection('avatar')}
+          >
+            <div className="flex items-center gap-2">
+              <Smile size={13} className="text-zinc-400" />
+              <span>Personaje &amp; Modelo</span>
+            </div>
+            {activeSection === 'avatar' ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          </button>
+
+          {activeSection === 'avatar' && (
+            <div className="p-2 pt-1 border-t border-zinc-800/60 bg-zinc-950/50 space-y-2">
+              <TacticalDropdown
+                options={modelOptions}
+                value={activeModelId}
+                onChange={(val) => onSwitchLive2DModel?.(val)}
+                placeholder="Elegir avatar..."
+                icon={Smile}
+              />
+
+              {activeModel?.expressions && activeModel.expressions.length > 0 && (
+                <div className="grid grid-cols-2 gap-1 pt-1 border-t border-zinc-800/40">
+                  {activeModel.expressions.slice(0, 6).map((expr) => (
+                    <button
+                      key={expr}
+                      type="button"
+                      className={`px-1.5 py-1 text-[11px] font-mono rounded-sm border transition-colors truncate ${
+                        currentActiveExpr === expr
+                          ? 'bg-zinc-800 text-white border-zinc-600 font-medium'
+                          : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:bg-zinc-800 hover:text-zinc-200'
+                      }`}
+                      onClick={() => handleExpressionClick(expr)}
+                    >
+                      {expr}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── 2. CATEGORÍA: FONDO & ESCENA ─────────────────────────────── */}
+        <div className="border border-zinc-800/80 rounded-sm bg-zinc-900/30">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/50 transition-colors font-mono rounded-sm"
+            onClick={() => toggleSection('scene')}
+          >
+            <div className="flex items-center gap-2">
+              <ImageIcon size={13} className="text-zinc-400" />
+              <span>Fondo &amp; Escena</span>
+            </div>
+            {activeSection === 'scene' ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          </button>
+
+          {activeSection === 'scene' && (
+            <div className="p-2 pt-1 border-t border-zinc-800/60 bg-zinc-950/50 space-y-2">
+              <TacticalDropdown
+                options={sceneOptions}
+                value={activeScene}
+                onChange={(val) => {
+                  sceneManager.setScene(val);
+                  setActiveScene(val);
+                }}
+                placeholder="Elegir fondo..."
+                icon={ImageIcon}
+              />
+
+              <button
+                type="button"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 rounded-sm border border-zinc-800 transition-colors font-mono"
+                onClick={handleImportCustomSceneFile}
+              >
+                <FolderPlus size={12} />
+                <span>Importar Archivo Local</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── 3. CATEGORÍA: MODELO IA & VOZ ────────────────────────────── */}
+        <div className="border border-zinc-800/80 rounded-sm bg-zinc-900/30">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/50 transition-colors font-mono rounded-sm"
+            onClick={() => toggleSection('ai')}
+          >
+            <div className="flex items-center gap-2">
+              <Zap size={13} className="text-zinc-400" />
+              <span>Modelo &amp; Voz</span>
+            </div>
+            {activeSection === 'ai' ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          </button>
+
+          {activeSection === 'ai' && (
+            <div className="p-2 pt-1 border-t border-zinc-800/60 bg-zinc-950/50 space-y-2">
+              <TacticalDropdown
+                options={aiModelOptions}
+                value={activeAiModelId}
+                onChange={(val) => onSwitchAiModel?.(val)}
+                placeholder="Elegir modelo IA..."
+                icon={Zap}
+              />
+
+              <TacticalDropdown
+                options={voiceOptions}
+                value={activeVoiceName}
+                onChange={(val) => onSwitchVoice?.(val)}
+                placeholder="Elegir voz..."
+                icon={Volume2}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* ── 4. CATEGORÍA: HERRAMIENTAS TÁCTICAS ───────────────────────── */}
+        <div className="border border-zinc-800/80 rounded-sm bg-zinc-900/30">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/50 transition-colors font-mono rounded-sm"
+            onClick={() => toggleSection('tools')}
+          >
+            <div className="flex items-center gap-2">
+              <Sliders size={13} className="text-zinc-400" />
+              <span>Herramientas Tácticas</span>
+            </div>
+            {activeSection === 'tools' ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          </button>
+
+          {activeSection === 'tools' && (
+            <div className="p-1.5 border-t border-zinc-800/60 bg-zinc-950/50 space-y-0.5">
+              <button
+                type="button"
+                className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/80 rounded-sm transition-colors text-left font-mono"
+                onClick={() => {
+                  soundFxService.playClick();
+                  onOpenRegionPicker?.();
+                  onClose?.();
+                }}
+              >
+                <Monitor size={12} className="text-zinc-400 shrink-0" />
+                <span>Capturar Región de Pantalla</span>
+              </button>
+
+              <button
+                type="button"
+                className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/80 rounded-sm transition-colors text-left font-mono"
+                onClick={() => {
+                  soundFxService.playClick();
+                  onTogglePerformanceHUD?.();
+                  onClose?.();
+                }}
+              >
+                <Activity size={12} className="text-zinc-400 shrink-0" />
+                <span>Telemetría &amp; FPS (F3)</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ── 1. CATEGORÍA: AVATAR LIVE2D ──────────────────────────────────────── */}
-      <div className={`ctx-mini-category ${activeSection === 'avatar' ? 'open' : ''}`}>
+      {/* ── 5. PIE DE ACCIONES MINIMALISTA ─────────────────────────────── */}
+      <div className="grid grid-cols-3 border-t border-zinc-800 bg-zinc-900/60 p-1 gap-1">
         <button
           type="button"
-          className="ctx-mini-category-btn"
-          onClick={() => toggleSection('avatar')}
-        >
-          <div className="ctx-mini-category-left">
-            <Smile size={13} className="ctx-icon" />
-            <span>Personaje</span>
-          </div>
-          {activeSection === 'avatar' ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        </button>
-
-        {activeSection === 'avatar' && (
-          <div className="ctx-mini-drawer">
-            {/* Tactical Model Selector Dropdown */}
-            <TacticalDropdown
-              options={modelOptions}
-              value={activeModelId}
-              onChange={(val) => onSwitchLive2DModel?.(val)}
-              placeholder="Elegir personaje..."
-              icon={Smile}
-            />
-
-            {/* Quick Expressions Chips */}
-            {activeModel?.expressions && activeModel.expressions.length > 0 && (
-              <div className="ctx-chips-grid">
-                {activeModel.expressions.slice(0, 6).map((expr) => (
-                  <button
-                    key={expr}
-                    type="button"
-                    className={`ctx-chip-btn ${currentActiveExpr === expr ? 'active' : ''}`}
-                    onClick={() => handleExpressionClick(expr)}
-                  >
-                    {expr}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── 2. CATEGORÍA: ESCENA & FONDO ─────────────────────────────────────── */}
-      <div className={`ctx-mini-category ${activeSection === 'scene' ? 'open' : ''}`}>
-        <button
-          type="button"
-          className="ctx-mini-category-btn"
-          onClick={() => toggleSection('scene')}
-        >
-          <div className="ctx-mini-category-left">
-            <ImageIcon size={13} className="ctx-icon" />
-            <span>Fondo & Escena</span>
-          </div>
-          {activeSection === 'scene' ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        </button>
-
-        {activeSection === 'scene' && (
-          <div className="ctx-mini-drawer">
-            {/* Tactical Scene Selector Dropdown */}
-            <TacticalDropdown
-              options={sceneOptions}
-              value={activeScene}
-              onChange={(val) => {
-                sceneManager.setScene(val);
-                setActiveScene(val);
-              }}
-              placeholder="Elegir escena..."
-              icon={ImageIcon}
-            />
-
-            {typeof window !== 'undefined' && window.electronAPI?.importCustomSceneFile && (
-              <button
-                type="button"
-                className="ctx-action-item"
-                onClick={handleImportCustomSceneFile}
-              >
-                <FolderPlus size={11} />
-                <span>Importar Archivo Local</span>
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── 3. CATEGORÍA: IA & VOZ ───────────────────────────────────────────── */}
-      <div className={`ctx-mini-category ${activeSection === 'ai' ? 'open' : ''}`}>
-        <button
-          type="button"
-          className="ctx-mini-category-btn"
-          onClick={() => toggleSection('ai')}
-        >
-          <div className="ctx-mini-category-left">
-            <Zap size={13} className="ctx-icon" />
-            <span>Modelo & Voz</span>
-          </div>
-          {activeSection === 'ai' ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        </button>
-
-        {activeSection === 'ai' && (
-          <div className="ctx-mini-drawer">
-            {/* Tactical AI Model Selector */}
-            <TacticalDropdown
-              options={aiModelOptions}
-              value={activeAiModelId}
-              onChange={(val) => onSwitchAiModel?.(val)}
-              placeholder="Elegir modelo IA..."
-              icon={Zap}
-            />
-
-            {/* Tactical Voice Selector */}
-            <TacticalDropdown
-              options={voiceOptions}
-              value={activeVoiceName}
-              onChange={(val) => onSwitchVoice?.(val)}
-              placeholder="Elegir voz..."
-              icon={Volume2}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* ── 4. CATEGORÍA: HERRAMIENTAS TÁCTICAS ───────────────────────────────── */}
-      <div className={`ctx-mini-category ${activeSection === 'tools' ? 'open' : ''}`}>
-        <button
-          type="button"
-          className="ctx-mini-category-btn"
-          onClick={() => toggleSection('tools')}
-        >
-          <div className="ctx-mini-category-left">
-            <Sliders size={13} className="ctx-icon" />
-            <span>Herramientas</span>
-          </div>
-          {activeSection === 'tools' ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        </button>
-
-        {activeSection === 'tools' && (
-          <div className="ctx-mini-drawer ctx-actions-list">
-            <button
-              type="button"
-              className="ctx-action-item"
-              onClick={() => {
-                soundFxService.playClick();
-                onOpenRegionPicker?.();
-                onClose();
-              }}
-            >
-              <Monitor size={12} />
-              <span>Capturar Región</span>
-            </button>
-
-            <button
-              type="button"
-              className="ctx-action-item"
-              onClick={() => {
-                soundFxService.playClick();
-                onOpenVoiceEnrollment?.();
-                onClose();
-              }}
-            >
-              <Volume2 size={12} />
-              <span>Biometría Vocal</span>
-            </button>
-
-            <button
-              type="button"
-              className="ctx-action-item"
-              onClick={() => {
-                soundFxService.playClick();
-                onOpenSpeakerHUD?.();
-                onClose();
-              }}
-            >
-              <Tv size={12} />
-              <span>Diagnóstico Audio</span>
-            </button>
-
-            <button
-              type="button"
-              className="ctx-action-item"
-              onClick={() => {
-                soundFxService.playClick();
-                onTogglePerformanceHUD?.();
-                onClose();
-              }}
-            >
-              <Activity size={12} />
-              <span>Telemetría &amp; FPS (F3)</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* ── 5. CATEGORÍA: SISTEMA & ACCIONES DIRECTAS ────────────────────────── */}
-      <div className="ctx-mini-footer">
-        <button
-          type="button"
-          className="ctx-footer-action"
+          className="flex items-center justify-center gap-1.5 py-1.5 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-sm transition-colors font-mono"
           onClick={() => {
             soundFxService.playClick();
             onToggleAlwaysOnTop?.();
           }}
           title="Fijar siempre visible"
         >
-          <Pin size={12} className={isAlwaysOnTop ? 'text-cyan' : ''} />
-          <span>{isAlwaysOnTop ? 'Fijado' : 'Flotante'}</span>
+          <Pin size={11} className={isAlwaysOnTop ? 'text-zinc-100' : 'text-zinc-500'} />
+          <span>{isAlwaysOnTop ? 'Fijado' : 'Libre'}</span>
         </button>
 
         <button
           type="button"
-          className="ctx-footer-action"
+          className="flex items-center justify-center gap-1.5 py-1.5 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-sm transition-colors font-mono"
           onClick={() => {
             soundFxService.playClick();
             onOpenSettings?.();
-            onClose();
+            onClose?.();
           }}
-          title="Abrir Ajustes"
+          title="Abrir ventana de ajustes"
         >
-          <Settings size={12} />
+          <Settings size={11} />
           <span>Ajustes</span>
         </button>
 
         <button
           type="button"
-          className="ctx-footer-action ctx-footer-danger"
+          className="flex items-center justify-center gap-1.5 py-1.5 text-xs text-zinc-400 hover:text-rose-300 hover:bg-rose-950/40 rounded-sm transition-colors font-mono"
           onClick={handleCloseApp}
-          title="Salir de la aplicación"
+          title="Salir de Cristi AI"
         >
-          <X size={12} />
+          <LogOut size={11} />
           <span>Salir</span>
         </button>
       </div>

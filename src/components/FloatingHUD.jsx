@@ -7,164 +7,158 @@ import {
   PhoneCall,
   PhoneOff,
   Settings,
-  Layers,
   Sparkles,
   Monitor,
   MonitorOff,
   Crosshair,
   Trash2,
   User,
-  EyeOff
+  Maximize2,
+  Frame,
+  Activity
 } from 'lucide-react';
-import { getModelDisplayName } from '../config/models.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';
 import { soundFxService } from '../services/soundFxService.js';
+import { clickThroughService } from '../services/desktop/ClickThroughService.js';
 
 /**
- * Cristi AI - Cyberpunk Tactical HUD Dock & Status Bar
- * Square/chamfered sharp corners, micro-crosshairs, hairline dotted frames.
+ * Cristi AI - Barra de Herramientas Flotante (Floating HUD)
+ * 100% Tailwind CSS Architecture - Estilo Shadcn Gris Minimalista
+ * Bordes finos, esquinas puntiagudas (rounded-sm), paleta dark zinc y estados hover limpios.
  */
 export function FloatingHUD({
   isConnected = false,
   isConnecting = false,
   isMuted = false,
   isCameraActive = false,
+  isSolidBackdrop = false,
+  modelId = null,
+  voiceName = null,
   isSpeaking = false,
   isListening = false,
-  isScreenWatchActive = false,
-  hasScreenRegion = false,
-  modelId,
-  voiceName = 'Aoede',
   activeToolName = null,
-  isSolidBackdrop = true,
-  viewMode = 'torso',
-  isZenMode = false,
-  isUiVisible = true,
   onToggleConnection,
   onToggleMute,
   onToggleCamera,
   onToggleBackdrop,
   onOpenSettings,
+  isScreenWatchActive = false,
+  hasScreenRegion = false,
   onToggleScreenWatch,
   onOpenRegionPicker,
   onClearScreenRegion,
+  viewMode = 'torso',
   onToggleViewMode,
+  isZenMode = false,
   onToggleZenMode,
-  onWakeUi
+  isUiVisible = true,
+  onWakeUi,
+  onTogglePerformanceHUD
 }) {
-  const topBarRef = useRef(null);
   const dockRef = useRef(null);
   const [isIdleFade, setIsIdleFade] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
+  const [, setIsHovered] = useState(false);
 
   const { interactiveProps } = useClickThrough();
 
-  // Auto-idle Zen Mode: Softly fade HUD after 4.0s of inactivity
+  // Detector de inactividad para atenuación suave (Zen / Idle) con aceleración sin bloqueo
   useEffect(() => {
-    let idleTimer = null;
-
-    const resetIdle = () => {
+    let timer = null;
+    let lastReset = 0;
+    const resetTimer = () => {
+      const now = Date.now();
+      if (now - lastReset < 500) return; // Limitar a máximo 2 eventos por segundo
+      lastReset = now;
       setIsIdleFade(false);
-      if (idleTimer) clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => {
-        if (!isHovered && !isConnecting && !isSpeaking) {
-          setIsIdleFade(true);
-        }
-      }, 4000);
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        setIsIdleFade(true);
+      }, 6000);
     };
 
-    window.addEventListener('mousemove', resetIdle, { passive: true });
-    window.addEventListener('pointermove', resetIdle, { passive: true });
-    resetIdle();
+    window.addEventListener('mousemove', resetTimer, { passive: true });
+    window.addEventListener('keydown', resetTimer, { passive: true });
+    resetTimer();
 
     return () => {
-      if (idleTimer) clearTimeout(idleTimer);
-      window.removeEventListener('mousemove', resetIdle);
-      window.removeEventListener('pointermove', resetIdle);
+      clearTimeout(timer);
+      window.removeEventListener('mousemove', resetTimer);
+      window.removeEventListener('keydown', resetTimer);
     };
-  }, [isHovered, isConnecting, isSpeaking]);
+  }, []);
 
-
-  const modelShortName = getModelDisplayName(modelId);
-
-  let statusClass = 'hud-status-standby';
-  if (isConnecting) {
-    statusClass = 'hud-status-connecting';
-  } else if (isConnected) {
-    if (isSpeaking) {
-      statusClass = 'hud-status-speaking';
-    } else if (isListening) {
-      statusClass = 'hud-status-listening';
+  // Sincronizar hitbox interactivo del Dock de herramientas con Electron Main
+  useEffect(() => {
+    if (dockRef.current && isUiVisible && !isZenMode) {
+      const rect = dockRef.current.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        clickThroughService.registerHitbox('hud', {
+          x: Math.round(rect.left),
+          y: Math.round(rect.top),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height)
+        });
+      }
     } else {
-      statusClass = 'hud-status-live';
+      clickThroughService.unregisterHitbox('hud');
     }
-  }
+  }, [isUiVisible, isZenMode]);
 
-  const hiddenClass = !isUiVisible ? 'zen-ui-hidden' : isIdleFade ? 'hud-idle-faded' : '';
+  if (!isUiVisible || isZenMode) return null;
 
   const handleConnectionClick = () => {
+    soundFxService.playClick();
     if (isConnected) {
       soundFxService.playDisconnect();
     } else {
       soundFxService.playConnect();
     }
-    onToggleConnection();
+    onToggleConnection?.();
   };
 
   const handleMuteClick = () => {
     soundFxService.playMuteToggle(!isMuted);
-    onToggleMute();
+    onToggleMute?.();
   };
 
-  const handleGenericClick = (callback) => {
+  const handleCameraClick = () => {
     soundFxService.playClick();
-    callback?.();
+    onToggleCamera?.();
+  };
+
+  const handleScreenWatchClick = () => {
+    soundFxService.playClick();
+    onToggleScreenWatch?.();
+  };
+
+  const handleSettingsClick = () => {
+    soundFxService.playMenuOpen();
+    onOpenSettings?.();
   };
 
   return (
     <>
-      {/* Top Left Floating Dynamic Badges (Only shown when tool or screen watch is active) */}
-      {(activeToolName || isScreenWatchActive) && (
+      {/* Indicador superior de visión de pantalla activa (sin badges de acción/pensamiento) */}
+      {isScreenWatchActive && (
         <div
-          ref={topBarRef}
-          className={`hud-top-bar zen-fadeable-ui ${hiddenClass}`}
+          className={`fixed top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 rounded-sm bg-zinc-950/90 backdrop-blur-md border border-zinc-800 text-zinc-300 font-mono text-xs shadow-xl z-[99] transition-opacity duration-300 ${
+            isIdleFade ? 'opacity-40 hover:opacity-100' : 'opacity-100'
+          }`}
           {...interactiveProps}
-          onMouseEnter={(e) => {
-            setIsHovered(true);
-            setIsIdleFade(false);
-            onWakeUi?.();
-            interactiveProps.onMouseEnter?.(e);
-          }}
-          onMouseLeave={(e) => {
-            setIsHovered(false);
-            interactiveProps.onMouseLeave?.(e);
-          }}
         >
-          {activeToolName && (
-            <div className="hud-tool-badge">
-              <span className="hud-corner hud-corner-tl" />
-              <span className="hud-corner hud-corner-br" />
-              <Sparkles size={11} className="hud-spin-icon" />
-              <span>{activeToolName}</span>
-            </div>
-          )}
-
-          {/* Screen Watch Indicator */}
-          {isScreenWatchActive && (
-            <div className="hud-screen-watch-badge">
-              <span className="hud-corner hud-corner-tl" />
-              <span className="hud-corner hud-corner-br" />
-              <span className="hud-screen-watch-dot" />
-              <Monitor size={11} />
-              <span>VISION_DESKTOP</span>
-            </div>
-          )}
+          <div className="flex items-center gap-1.5 px-2 py-0.5 bg-zinc-900 border border-zinc-700 text-zinc-300 text-[11px] rounded-sm">
+            <span className="w-1.5 h-1.5 rounded-none bg-emerald-400" />
+            <Monitor size={11} />
+            <span>VISIÓN_ACTIVA</span>
+          </div>
         </div>
       )}
 
-      {/* Bottom Floating Tactical Control Dock */}
+      {/* Barra de Herramientas Principal Flotante (Dock) */}
       <div
-        className={`hud-bottom-dock-wrapper zen-fadeable-ui ${hiddenClass}`}
+        className={`fixed bottom-5 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5 z-[99] select-none transition-opacity duration-300 ${
+          isIdleFade ? 'opacity-40 hover:opacity-100 hud-idle-faded' : 'opacity-100'
+        }`}
         {...interactiveProps}
         onMouseEnter={(e) => {
           setIsHovered(true);
@@ -177,134 +171,167 @@ export function FloatingHUD({
           interactiveProps.onMouseLeave?.(e);
         }}
       >
-        <div ref={dockRef} className="hud-dock">
-          <span className="hud-corner hud-corner-tl" />
-          <span className="hud-corner hud-corner-tr" />
-          <span className="hud-corner hud-corner-bl" />
-          <span className="hud-corner hud-corner-br" />
-
-          {/* Main Action: Start / Stop Voice Call */}
+        <div
+          ref={dockRef}
+          className="flex items-center gap-1 px-2 py-1.5 rounded-sm bg-zinc-950/95 backdrop-blur-md border border-zinc-800 shadow-2xl font-mono text-xs"
+        >
+          {/* Botón Maestro: Conectar / Hablar con Gemini Live */}
           <button
             type="button"
-            className={`hud-call-btn ${isConnected ? 'active' : ''} ${isConnecting ? 'connecting' : ''}`}
             onClick={handleConnectionClick}
             disabled={isConnecting}
-            title={isConnected ? 'Terminar Enlace de Voz' : 'Iniciar Enlace Neuronal en Vivo'}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-medium rounded-sm border transition-colors ${
+              isConnected
+                ? 'bg-zinc-800 text-emerald-300 border-emerald-700/60 hover:bg-zinc-700'
+                : isConnecting
+                ? 'bg-zinc-900 text-amber-300 border-zinc-700'
+                : 'bg-zinc-100 text-zinc-950 border-zinc-300 hover:bg-white'
+            }`}
+            title={isConnected ? 'Desconectar llamada en vivo' : 'Iniciar llamada con Cristi en vivo'}
           >
-            <span className="hud-corner hud-corner-tl" />
-            <span className="hud-corner hud-corner-br" />
             {isConnected ? (
               <>
-                <PhoneOff size={15} />
+                <PhoneOff size={13} />
                 <span>DESCONECTAR</span>
               </>
             ) : isConnecting ? (
               <>
-                <div className="hud-spinner-mini" />
+                <div className="w-2.5 h-2.5 border-2 border-zinc-900 border-t-transparent rounded-full animate-spin" />
                 <span>ENLAZANDO...</span>
               </>
             ) : (
               <>
-                <PhoneCall size={15} />
+                <PhoneCall size={13} />
                 <span>HABLAR EN VIVO</span>
               </>
             )}
           </button>
 
-          <div className="hud-dock-divider" />
+          <div className="w-px h-5 bg-zinc-800 mx-1" />
 
-          {/* Mute Toggle */}
+          {/* Micrófono / Silenciar */}
           <button
             type="button"
-            className={`hud-icon-btn ${isMuted ? 'muted' : ''}`}
             onClick={handleMuteClick}
-            title={isMuted ? 'Activar Micrófono (Ctrl+Shift+M)' : 'Silenciar Micrófono (Ctrl+Shift+M)'}
+            className={`p-1.5 rounded-sm border transition-colors ${
+              isMuted
+                ? 'bg-rose-950/60 text-rose-300 border-rose-800'
+                : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:bg-zinc-800 hover:text-zinc-200'
+            }`}
+            title={isMuted ? 'Activar micrófono' : 'Silenciar micrófono'}
           >
-            {isMuted ? <MicOff size={16} /> : <Mic size={16} />}
+            {isMuted ? <MicOff size={13} /> : <Mic size={13} />}
           </button>
 
-          {/* Camera Sensor Toggle */}
+          {/* Visión por Cámara */}
           <button
             type="button"
-            className={`hud-icon-btn ${isCameraActive ? 'active' : ''}`}
-            onClick={() => handleGenericClick(onToggleCamera)}
-            title={isCameraActive ? 'Desactivar Sensor Cámara' : 'Activar Visión por Cámara'}
+            onClick={handleCameraClick}
+            className={`p-1.5 rounded-sm border transition-colors ${
+              isCameraActive
+                ? 'bg-zinc-800 text-white border-zinc-600'
+                : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:bg-zinc-800 hover:text-zinc-200'
+            }`}
+            title={isCameraActive ? 'Desactivar cámara' : 'Activar visión por cámara web'}
           >
-            {isCameraActive ? <Video size={16} /> : <VideoOff size={16} />}
+            {isCameraActive ? <Video size={13} /> : <VideoOff size={13} />}
           </button>
 
-          {/* Screen Watch Toggle */}
+          {/* Visión de Pantalla Completa (Mutuamente Exclusiva con Región) */}
           <button
             type="button"
-            className={`hud-icon-btn ${isScreenWatchActive ? 'active screen-watch' : ''}`}
-            onClick={() => handleGenericClick(onToggleScreenWatch)}
-            title={isScreenWatchActive ? 'Desactivar Vigilancia de Pantalla' : 'Activar Vigilancia de Pantalla (Cristi ve tu escritorio)'}
+            onClick={handleScreenWatchClick}
+            className={`p-1.5 rounded-sm border transition-colors ${
+              isScreenWatchActive && !hasScreenRegion
+                ? 'bg-zinc-800 text-white border-zinc-600'
+                : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:bg-zinc-800 hover:text-zinc-200'
+            }`}
+            title={isScreenWatchActive && !hasScreenRegion ? 'Detener transmisión de pantalla completa' : 'Transmitir pantalla completa a Cristi'}
           >
-            {isScreenWatchActive ? <Monitor size={16} /> : <MonitorOff size={16} />}
+            {isScreenWatchActive && !hasScreenRegion ? <Monitor size={13} /> : <MonitorOff size={13} />}
           </button>
 
-          {/* Region Picker */}
+          {/* Recorte de Región de Pantalla (Mutuamente Exclusiva con Pantalla Completa) */}
           <button
             type="button"
-            className={`hud-icon-btn ${hasScreenRegion ? 'active' : ''}`}
-            onClick={() => handleGenericClick(onOpenRegionPicker)}
-            title="Definir Región de Visión (arrastra para seleccionar)"
+            onClick={() => {
+              soundFxService.playClick();
+              onOpenRegionPicker?.();
+            }}
+            className={`p-1.5 rounded-sm border transition-colors ${
+              hasScreenRegion
+                ? 'bg-zinc-800 text-white border-zinc-600'
+                : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:bg-zinc-800 hover:text-zinc-200'
+            }`}
+            title={hasScreenRegion ? 'Región recortada activa (clic para redefinir)' : 'Seleccionar región específica de la pantalla'}
           >
-            <Crosshair size={16} />
+            <Crosshair size={13} />
           </button>
 
-          {/* Clear Region Button */}
           {hasScreenRegion && (
             <button
               type="button"
-              className="hud-icon-btn danger"
-              onClick={() => handleGenericClick(onClearScreenRegion)}
-              title="Restablecer a Pantalla Completa"
+              onClick={() => {
+                soundFxService.playClick();
+                onClearScreenRegion?.();
+              }}
+              className="p-1.5 rounded-sm border bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:bg-rose-950/60 hover:text-rose-300 hover:border-rose-800 transition-colors"
+              title="Limpiar región y detener visión"
             >
-              <Trash2 size={14} />
+              <Trash2 size={13} />
             </button>
           )}
 
-          <div className="hud-dock-divider" />
+          <div className="w-px h-5 bg-zinc-800 mx-1" />
 
-          {/* Torso vs Full body framing */}
+          {/* Encuadre de Vista (Torso / Completo) */}
           <button
             type="button"
-            className={`hud-icon-btn ${viewMode === 'torso' ? 'active' : ''}`}
-            onClick={() => handleGenericClick(onToggleViewMode)}
-            title={viewMode === 'torso' ? 'Modo Busto Activo (Clic para ver cuerpo completo)' : 'Modo Cuerpo Completo (Clic para encuadrar torso)'}
+            onClick={() => {
+              soundFxService.playClick();
+              onToggleViewMode?.();
+            }}
+            className="p-1.5 rounded-sm border bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
+            title={`Encuadre: ${viewMode === 'torso' ? 'Torso' : 'Completo'}`}
           >
-            <User size={16} />
+            {viewMode === 'torso' ? <User size={13} /> : <Maximize2 size={13} />}
           </button>
 
-          {/* Transparent Backdrop (VTuber mode) Toggle */}
+          {/* Fondo Solido / Transparente */}
           <button
             type="button"
-            className={`hud-icon-btn ${!isSolidBackdrop ? 'active' : ''}`}
-            onClick={() => handleGenericClick(onToggleBackdrop)}
-            title={isSolidBackdrop ? 'Fondo Transparente (Modo VTuber)' : 'Fondo Sólido'}
+            onClick={onToggleBackdrop}
+            className={`p-1.5 rounded-sm border transition-colors ${
+              isSolidBackdrop
+                ? 'bg-zinc-800 text-white border-zinc-600 shadow-sm'
+                : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:bg-zinc-800 hover:text-zinc-200'
+            }`}
+            title={isSolidBackdrop ? 'Fondo de escena activo (Click para modo transparente)' : 'Fondo transparente activo (Click para mostrar escena)'}
           >
-            <Layers size={16} />
+            <Frame size={13} />
           </button>
 
-          {/* Zen Mode / Hide UI Toggle */}
+          {/* Telemetría & FPS (F3) */}
           <button
             type="button"
-            className="hud-icon-btn"
-            onClick={() => handleGenericClick(onToggleZenMode)}
-            title="Modo Zen: Ocultar controles (Presiona tecla 'H' para alternar)"
+            onClick={() => {
+              soundFxService.playClick();
+              onTogglePerformanceHUD?.();
+            }}
+            className="p-1.5 rounded-sm border bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
+            title="Telemetría y Rendimiento (F3)"
           >
-            <EyeOff size={16} />
+            <Activity size={13} />
           </button>
 
-          {/* Settings Modal Toggle */}
+          {/* Panel de Ajustes */}
           <button
             type="button"
-            className="hud-icon-btn"
-            onClick={() => handleGenericClick(onOpenSettings)}
-            title="Ajustes (Modelo, Voces, API Key)"
+            onClick={handleSettingsClick}
+            className="p-1.5 rounded-sm border bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
+            title="Abrir Panel de Configuración"
           >
-            <Settings size={16} />
+            <Settings size={13} />
           </button>
         </div>
       </div>
@@ -313,4 +340,3 @@ export function FloatingHUD({
 }
 
 export default React.memo(FloatingHUD);
-

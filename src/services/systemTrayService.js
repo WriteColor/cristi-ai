@@ -13,14 +13,12 @@ export class SystemTrayService {
     onToggleMute,
     onToggleViewMode,
     onToggleAlwaysOnTop,
-    onOpenVoiceEnrollment,
     onExitApp
   } = {}) {
     this.onRestoreWindow = onRestoreWindow || (() => {});
     this.onToggleMute = onToggleMute || (() => {});
     this.onToggleViewMode = onToggleViewMode || (() => {});
     this.onToggleAlwaysOnTop = onToggleAlwaysOnTop || (() => {});
-    this.onOpenVoiceEnrollment = onOpenVoiceEnrollment || (() => {});
     this.onExitApp = onExitApp || (() => {});
     this.isInitialized = false;
   }
@@ -52,3 +50,4 @@ export class SystemTrayService {
 }
 
 export default SystemTrayService;
+

@@ -112,7 +112,9 @@ export class ConfigManager {
       live2dModelId: typeof config.live2dModelId === 'string' && config.live2dModelId.trim() ? config.live2dModelId.trim() : 'yanderegirl',
       voiceName: typeof config.voiceName === 'string' && config.voiceName.trim() ? config.voiceName.trim() : 'Aoede',
       temperature: typeof config.temperature === 'number' && !isNaN(config.temperature) ? Math.max(0, Math.min(2, config.temperature)) : 0.75,
-      systemPrompt: typeof config.systemPrompt === 'string' && config.systemPrompt.trim() ? config.systemPrompt : SYSTEM_PERSONA_PROMPT,
+      systemPrompt: typeof config.systemPrompt === 'string' && config.systemPrompt.trim() && !config.systemPrompt.includes('1. Respuestas habladas, fluidas, íntimas y concisas:') && config.systemPrompt.includes('PROHIBICIÓN TOTAL DE COLETILLAS VOCALES') ? config.systemPrompt : SYSTEM_PERSONA_PROMPT,
+      spotifyClientId: typeof config.spotifyClientId === 'string' ? config.spotifyClientId.trim() : '',
+      spotifyClientSecret: typeof config.spotifyClientSecret === 'string' ? config.spotifyClientSecret.trim() : '',
       updatedAt: config.updatedAt && typeof config.updatedAt === 'string' ? config.updatedAt : new Date().toISOString()
     };
   }

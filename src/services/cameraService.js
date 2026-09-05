@@ -172,22 +172,30 @@ export class CameraService {
   startPeriodicStreaming(fps = 1) {
     this.streamFps = fps;
     if (this.intervalId) {
-      clearInterval(this.intervalId);
+      clearTimeout(this.intervalId);
     }
 
     const intervalMs = Math.round(1000 / fps);
-    this.intervalId = setInterval(() => {
+    let inFlight = false;
+    const capture = () => {
       if (!this.isStreaming) return;
-      const frameBase64 = this.captureFrameJPEG();
-      if (frameBase64) {
-        this.onFrameCaptured(frameBase64);
+      if (!inFlight) {
+        inFlight = true;
+        try {
+          const frameBase64 = this.captureFrameJPEG();
+          if (frameBase64) this.onFrameCaptured(frameBase64);
+        } finally {
+          inFlight = false;
+        }
       }
-    }, intervalMs);
+      if (this.isStreaming) this.intervalId = setTimeout(capture, intervalMs);
+    };
+    this.intervalId = setTimeout(capture, 0);
   }
 
   stopPeriodicStreaming() {
     if (this.intervalId) {
-      clearInterval(this.intervalId);
+      clearTimeout(this.intervalId);
       this.intervalId = null;
     }
   }

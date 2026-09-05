@@ -236,9 +236,11 @@ export const EVENTS = {
   // Futuristic HUD Toast Notifications
   TOAST_TRIGGERED: 'toast_triggered',
 
-  // Dynamic Desktop Tactical Widgets
+  // Dynamic Desktop Tactical Widgets & Alarms
   WIDGET_TRIGGERED: 'widget_triggered',
-  WIDGET_DISMISSED: 'widget_dismissed'
+  WIDGET_DISMISSED: 'widget_dismissed',
+  ALARM_TRIGGERED: 'alarm_triggered',
+  ALARM_APPROACHING: 'alarm_approaching'
 };
 
 export default eventBus;

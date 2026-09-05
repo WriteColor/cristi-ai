@@ -22,6 +22,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setIgnoreMouseEvents: (ignore, options) => {
     ipcRenderer.send('set-ignore-mouse-events', Boolean(ignore), options || {});
   },
+  syncHitboxes: (hitboxes) => {
+    ipcRenderer.send('sync-interactive-hitboxes', hitboxes);
+  },
 
   // ── Window Management ─────────────────────────────────────────────────────
   setAlwaysOnTop: (value) => {
@@ -37,6 +40,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showWindow: () => ipcRenderer.send('show-window'),
   hideWindow: () => ipcRenderer.send('hide-window'),
   quitApp: () => ipcRenderer.send('quit-app'),
+  relaunchApp: () => ipcRenderer.invoke('relaunch-app'),
+  reloadWindow: () => ipcRenderer.invoke('reload-window'),
 
   // ── Native OS Operations ──────────────────────────────────────────────────
   execCommand: (command, options) => ipcRenderer.invoke('exec-command', command, options),
@@ -53,8 +58,48 @@ contextBridge.exposeInMainWorld('electronAPI', {
   captureScreenNative: (region) => ipcRenderer.invoke('capture-screen-native', region),
   importCustomSceneFile: () => ipcRenderer.invoke('import-custom-scene-file'),
   getProcessMemoryInfo: () => ipcRenderer.invoke('get-process-memory-info'),
-  getGpuFeatureStatus: () => ipcRenderer.invoke('get-gpu-feature-status'),
   getGpuInfo: () => ipcRenderer.invoke('get-gpu-info'),
+
+  // ── Playwright Native Automation API ───────────────────────────────────────
+  playwrightExecute: (action, params) => ipcRenderer.invoke('playwright-execute', action, params),
+
+  // ── Spotify Native & Media Control API ────────────────────────────────────
+  spotifyControl: (action, params) => ipcRenderer.invoke('spotify-control', action, params),
+
+  // ── Minecraft Companion API ────────────────────────────────────────────────
+  minecraftConnect: (opts) => ipcRenderer.invoke('minecraft-connect', opts),
+  minecraftDisconnect: () => ipcRenderer.invoke('minecraft-disconnect'),
+  minecraftChat: (msg) => ipcRenderer.invoke('minecraft-chat', msg),
+  minecraftGetStatus: () => ipcRenderer.invoke('minecraft-get-status'),
+  minecraftMoveTo: (coords) => ipcRenderer.invoke('minecraft-move-to', coords),
+  minecraftFollow: (player) => ipcRenderer.invoke('minecraft-follow', player),
+  minecraftStop: () => ipcRenderer.invoke('minecraft-stop'),
+  minecraftMineBlock: (coords) => ipcRenderer.invoke('minecraft-mine-block', coords),
+  minecraftPlaceBlock: (payload) => ipcRenderer.invoke('minecraft-place-block', payload),
+  minecraftAttack: (payload) => ipcRenderer.invoke('minecraft-attack', payload),
+  onMinecraftChat: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (event, data) => callback(data);
+    ipcRenderer.on('minecraft-chat', listener);
+    return () => {
+      try { ipcRenderer.removeListener('minecraft-chat', listener); } catch (_) {}
+    };
+  },
+
+  // ── Discord Companion API ──────────────────────────────────────────────────
+  discordConnect: (opts) => ipcRenderer.invoke('discord-connect', opts),
+  discordDisconnect: () => ipcRenderer.invoke('discord-disconnect'),
+  discordSendMessage: (payload) => ipcRenderer.invoke('discord-send-message', payload),
+  discordGetMessages: (payload) => ipcRenderer.invoke('discord-get-messages', payload),
+  discordSetStatus: (opts) => ipcRenderer.invoke('discord-set-status', opts),
+  onDiscordMessage: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (event, data) => callback(data);
+    ipcRenderer.on('discord-message', listener);
+    return () => {
+      try { ipcRenderer.removeListener('discord-message', listener); } catch (_) {}
+    };
+  },
 
   // ── Auto-Updater API ───────────────────────────────────────────────────────
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
@@ -118,6 +163,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => {
       try {
         ipcRenderer.removeListener('companion-resume', listener);
+      } catch (_) {}
+    };
+  },
+  onSettingsWindowState: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (event, data) => callback(data);
+    ipcRenderer.on('settings-window-state', listener);
+    return () => {
+      try {
+        ipcRenderer.removeListener('settings-window-state', listener);
+      } catch (_) {}
+    };
+  },
+
+  // ── Standalone Camera Window ──────────────────────────────────────────────
+  openCameraWindow: () => ipcRenderer.invoke('open-camera-window'),
+  closeCameraWindow: () => ipcRenderer.invoke('close-camera-window'),
+  isCameraWindowOpen: () => ipcRenderer.invoke('is-camera-window-open'),
+  onCameraWindowState: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (event, data) => callback(data);
+    ipcRenderer.on('camera-window-state', listener);
+    return () => {
+      try {
+        ipcRenderer.removeListener('camera-window-state', listener);
       } catch (_) {}
     };
   },

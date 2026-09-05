@@ -1,32 +1,50 @@
 /**
  * Cristi AI - Cinematic Background Scene & Atmosphere Manager
- * Manages built-in procedural scenes and custom imported media scenes (local videos/images & direct URLs)
+ * Manages built-in atmospheric scenes, custom media, and transparent companion mode.
+ *
+ * Architecture:
+ * - selectedSceneId: The configured atmospheric scene (e.g. 'deep_nebula', 'cyber_loft').
+ *   Persisted across sessions and never overwritten by transparent mode.
+ * - isSceneVisible: Whether the background scene is active (opaque) or transparent.
+ *   Toggled via toolbar button without losing the selected scene.
  */
 
 import { BACKGROUND_SCENES, DEFAULT_SCENE_ID } from '../config/scenes.js';
 import { eventBus, EVENTS } from './eventBus.js';
 import { logger } from './logger.js';
 
-const STORAGE_KEY_SCENE = 'cristi_ai_scene_v2';
+const STORAGE_KEY_SELECTED_SCENE = 'cristi_ai_selected_scene_v3';
+const STORAGE_KEY_SCENE_VISIBLE = 'cristi_ai_scene_visible_v3';
 const STORAGE_KEY_CUSTOM_URL = 'cristi_ai_custom_scene_url_v2';
 const STORAGE_KEY_CUSTOM_LIST = 'cristi_ai_custom_scenes_list_v2';
 
 export class SceneManager {
   constructor() {
-    this.currentSceneId = this.loadSavedScene();
+    this.selectedSceneId = this.loadSavedSelectedScene();
+    this.isSceneVisible = this.loadSavedSceneVisibility();
     this.customSceneUrl = this.loadSavedCustomUrl();
     this.customScenesList = this.loadSavedCustomList();
     this.listeners = new Set();
   }
 
-  loadSavedScene() {
+  loadSavedSelectedScene() {
     try {
       if (typeof localStorage !== 'undefined') {
-        const saved = localStorage.getItem(STORAGE_KEY_SCENE);
-        if (saved) return saved;
+        const saved = localStorage.getItem(STORAGE_KEY_SELECTED_SCENE) || localStorage.getItem('cristi_ai_scene_v2');
+        if (saved && saved !== 'transparent') return saved;
       }
     } catch (_) {}
     return DEFAULT_SCENE_ID;
+  }
+
+  loadSavedSceneVisibility() {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const saved = localStorage.getItem(STORAGE_KEY_SCENE_VISIBLE);
+        if (saved !== null) return saved === 'true';
+      }
+    } catch (_) {}
+    return false; // By default on desktop launch: transparent companion mode
   }
 
   loadSavedCustomUrl() {
@@ -56,14 +74,35 @@ export class SceneManager {
     } catch (_) {}
   }
 
+  saveState() {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY_SELECTED_SCENE, this.selectedSceneId);
+        localStorage.setItem(STORAGE_KEY_SCENE_VISIBLE, this.isSceneVisible ? 'true' : 'false');
+        localStorage.setItem(STORAGE_KEY_CUSTOM_URL, this.customSceneUrl);
+      }
+    } catch (_) {}
+  }
+
   getScene() {
     let customUrl = this.customSceneUrl;
     let sceneType = 'procedural';
 
-    if (this.currentSceneId === 'custom_wallpaper') {
+    if (!this.isSceneVisible) {
+      return {
+        sceneId: 'transparent',
+        selectedSceneId: this.selectedSceneId,
+        customUrl: '',
+        sceneType: 'transparent',
+        isTransparent: true,
+        isSceneVisible: false
+      };
+    }
+
+    if (this.selectedSceneId === 'custom_wallpaper') {
       sceneType = 'custom';
     } else {
-      const customItem = this.customScenesList.find(s => s.id === this.currentSceneId);
+      const customItem = this.customScenesList.find((s) => s.id === this.selectedSceneId);
       if (customItem) {
         customUrl = customItem.url || customItem.mainPath;
         sceneType = customItem.type || 'video';
@@ -71,15 +110,17 @@ export class SceneManager {
     }
 
     return {
-      sceneId: this.currentSceneId,
+      sceneId: this.selectedSceneId,
+      selectedSceneId: this.selectedSceneId,
       customUrl,
       sceneType,
-      isTransparent: this.currentSceneId === 'transparent'
+      isTransparent: false,
+      isSceneVisible: true
     };
   }
 
   getAvailableScenes() {
-    const customScenes = this.customScenesList.map(s => ({
+    const customScenes = this.customScenesList.map((s) => ({
       id: s.id,
       name: s.name,
       category: 'custom',
@@ -89,7 +130,9 @@ export class SceneManager {
       description: s.description || 'Fondo importado por el usuario'
     }));
 
-    return [...BACKGROUND_SCENES, ...customScenes];
+    // Filter out any legacy 'transparent' from list
+    const builtIn = BACKGROUND_SCENES.filter((s) => s.id !== 'transparent');
+    return [...builtIn, ...customScenes];
   }
 
   addCustomScene(sceneData) {
@@ -103,30 +146,44 @@ export class SceneManager {
       description: sceneData.description || 'Fondo importado por el usuario'
     };
 
-    this.customScenesList = [newScene, ...this.customScenesList.filter(s => s.id !== id)];
+    this.customScenesList = [newScene, ...this.customScenesList.filter((s) => s.id !== id)];
     this.saveCustomList();
     this.setScene(id, newScene.url);
   }
 
   removeCustomScene(id) {
-    this.customScenesList = this.customScenesList.filter(s => s.id !== id);
+    this.customScenesList = this.customScenesList.filter((s) => s.id !== id);
     this.saveCustomList();
-    if (this.currentSceneId === id) {
+    if (this.selectedSceneId === id) {
       this.setScene(DEFAULT_SCENE_ID);
     } else {
       this.notify();
     }
   }
 
+  /**
+   * Set and immediately activate an atmospheric scene.
+   * Selecting a scene automatically sets isSceneVisible = true.
+   */
   setScene(sceneId, customUrl = '') {
-    const allScenes = this.getAvailableScenes();
-    const matched = allScenes.find(s => s.id === sceneId);
+    if (sceneId === 'transparent') {
+      this.isSceneVisible = false;
+      this.saveState();
+      logger.info('SCENE', 'Fondo transparente activado (Desktop Mate)');
+      eventBus.emit(EVENTS.SCENE_CHANGED, this.getScene());
+      this.notify();
+      return;
+    }
 
-    if (!matched && sceneId !== 'transparent' && sceneId !== 'custom_wallpaper') {
+    const allScenes = this.getAvailableScenes();
+    const matched = allScenes.find((s) => s.id === sceneId);
+
+    if (!matched && sceneId !== 'custom_wallpaper') {
       sceneId = DEFAULT_SCENE_ID;
     }
 
-    this.currentSceneId = sceneId;
+    this.selectedSceneId = sceneId;
+    this.isSceneVisible = true;
 
     if (matched && matched.category === 'custom') {
       this.customSceneUrl = matched.mainPath || customUrl || '';
@@ -136,25 +193,30 @@ export class SceneManager {
       this.customSceneUrl = '';
     }
 
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(STORAGE_KEY_SCENE, sceneId);
-        localStorage.setItem(STORAGE_KEY_CUSTOM_URL, this.customSceneUrl);
-      }
-    } catch (_) {}
-
-    logger.info('SCENE', `Escena de fondo cambiada a: ${sceneId} (${this.customSceneUrl})`);
+    this.saveState();
+    logger.info('SCENE', `Escena seleccionada y activada: ${sceneId} (${this.customSceneUrl})`);
     eventBus.emit(EVENTS.SCENE_CHANGED, this.getScene());
     this.notify();
   }
 
+  /**
+   * Toggle between the configured active scene and transparent desktop mate mode.
+   * @returns {boolean} New isSceneVisible state
+   */
+  toggleBackdrop() {
+    this.isSceneVisible = !this.isSceneVisible;
+    this.saveState();
+    logger.info('SCENE', `Alternancia de fondo: ${this.isSceneVisible ? `Escena "${this.selectedSceneId}" visible` : 'Transparente'}`);
+    eventBus.emit(EVENTS.SCENE_CHANGED, this.getScene());
+    this.notify();
+    return this.isSceneVisible;
+  }
+
   setTransparent(enabled) {
-    if (enabled) {
-      this.setScene('transparent');
-    } else {
-      const saved = this.loadSavedScene();
-      this.setScene(saved === 'transparent' ? DEFAULT_SCENE_ID : saved);
-    }
+    this.isSceneVisible = !enabled;
+    this.saveState();
+    eventBus.emit(EVENTS.SCENE_CHANGED, this.getScene());
+    this.notify();
   }
 
   onSceneChange(callback) {
@@ -164,11 +226,11 @@ export class SceneManager {
 
   notify() {
     const state = this.getScene();
-    this.listeners.forEach(cb => {
+    this.listeners.forEach((cb) => {
       try {
         cb(state);
       } catch (err) {
-        logger.error('SCENE', 'Error en callback de onSceneChange', { error: err.message });
+        console.error('[SceneManager] Error en callback de listener:', err);
       }
     });
   }

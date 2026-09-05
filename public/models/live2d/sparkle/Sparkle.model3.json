@@ -1,0 +1,110 @@
+{
+  "Version": 3,
+  "FileReferences": {
+    "Moc": "Sparkle.moc3",
+    "Textures": [
+      "Sparkle.4096/texture_00.png",
+      "Sparkle.4096/texture_01.png",
+      "Sparkle.4096/texture_02.png",
+      "Sparkle.4096/texture_03.png",
+      "Sparkle.4096/texture_04.png",
+      "Sparkle.4096/texture_05.png"
+    ],
+    "Physics": "Sparkle.physics3.json",
+    "DisplayInfo": "Sparkle.cdi3.json",
+    "Expressions": [
+      {
+        "Name": "hide_highlights",
+        "File": "hide_highlights.exp3.json"
+      },
+      {
+        "Name": "高光隐藏",
+        "File": "hide_highlights.exp3.json"
+      },
+      {
+        "Name": "dark_eyes",
+        "File": "hide_highlights.exp3.json"
+      },
+      {
+        "Name": "hand_pose",
+        "File": "hand_pose.exp3.json"
+      },
+      {
+        "Name": "手姿势",
+        "File": "hand_pose.exp3.json"
+      },
+      {
+        "Name": "fan",
+        "File": "hand_pose.exp3.json"
+      },
+      {
+        "Name": "leg_pose",
+        "File": "leg_pose.exp3.json"
+      },
+      {
+        "Name": "正常腿",
+        "File": "leg_pose.exp3.json"
+      }
+    ],
+    "Motions": {
+      "Idle": [
+        {
+          "File": "Scene1.motion3.json"
+        }
+      ],
+      "idle": [
+        {
+          "File": "Scene1.motion3.json"
+        }
+      ],
+      "Tap": [
+        {
+          "File": "2.motion3.json"
+        }
+      ],
+      "Special": [
+        {
+          "File": "2.motion3.json"
+        },
+        {
+          "File": "3.motion3.json"
+        },
+        {
+          "File": "daqiu.motion3.json"
+        }
+      ],
+      "daqiu": [
+        {
+          "File": "daqiu.motion3.json"
+        }
+      ],
+      "ball": [
+        {
+          "File": "daqiu.motion3.json"
+        }
+      ],
+      "motion2": [
+        {
+          "File": "2.motion3.json"
+        }
+      ],
+      "motion3": [
+        {
+          "File": "3.motion3.json"
+        }
+      ]
+    }
+  },
+  "Groups": [
+    {
+      "Target": "Parameter",
+      "Name": "LipSync",
+      "Ids": []
+    },
+    {
+      "Target": "Parameter",
+      "Name": "EyeBlink",
+      "Ids": []
+    }
+  ]
+}

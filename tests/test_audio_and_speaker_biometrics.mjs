@@ -1,21 +1,18 @@
 /**
- * Cristi Desktop - Audio DSP, AudioWorklet, Jitter Buffering & Speaker Biometrics Test Suite (Endurecida)
+ * Cristi Desktop - Audio DSP, AudioWorklet, Jitter Buffering & Audio Analysis Test Suite (Endurecida)
  * Validates:
  * 1. AudioInputService DSP, HPF, 16kHz Resampling, Base64 Chunking & Mute State
  * 2. AudioOutputService Jitter Buffering & StopImmediate
  * 3. GeminiLiveSocket Resilient Reconnection & Interrupted Signal
- * 4. SpeechRecognitionService Fallback
- * 5. SpeakerRecognitionService Cosine Biometrics
- * 6. Burst of 2,000 Out-of-Order PCM Chunks with Extreme Jitter
- * 7. 100 Simultaneous / Rapid User Interruption (Barge-in) Cycles
- * 8. Concurrent Voice Biometrics across 50 Audio Utterances
+ * 4. AudioAnalysisService Spectral & Rhythm Dynamics
+ * 5. Burst of 2,000 Out-of-Order PCM Chunks with Extreme Jitter
+ * 6. 100 Simultaneous / Rapid User Interruption (Barge-in) Cycles
  */
 
 import { AudioInputService } from '../src/services/audioInputService.js';
 import { AudioOutputService } from '../src/services/audioOutputService.js';
 import { GeminiLiveSocket } from '../src/services/geminiLiveSocket.js';
-import { SpeakerRecognitionService } from '../src/services/audio/SpeakerRecognitionService.js';
-import { SpeechRecognitionService } from '../src/services/speechRecognition.js';
+import { AudioAnalysisService } from '../src/services/audioAnalysisService.js';
 
 let passed = 0;
 let total = 0;
@@ -32,11 +29,11 @@ function assert(condition, message) {
 }
 
 console.log('================================================================');
-console.log('🎙️ CRISTI DESKTOP - AUDIO SUBSYSTEM & SPEAKER BIOMETRICS (HARDENED)');
+console.log('🎙️ CRISTI DESKTOP - AUDIO SUBSYSTEM & DSP HARDENED VALIDATION');
 console.log('================================================================');
 
 // ── 1. AudioInputService DSP & Resampling ────────────────────────────────────
-console.log('\n[1/8] Verificando AudioInputService (DSP, HPF 80Hz, Resampling 16kHz & Mute)...');
+console.log('\n[1/6] Verificando AudioInputService (DSP, HPF 80Hz, Resampling 16kHz & Mute)...');
 const audioIn = new AudioInputService({});
 assert(audioIn.targetSampleRate === 16000, 'Frecuencia de muestreo objetivo establecida en 16,000 Hz.');
 assert(audioIn.rollingBufferSize === 64000, 'Buffer rotativo de telemetría de 4 segundos inicializado.');
@@ -67,7 +64,7 @@ assert(audioIn.isMuted === true, 'audioIn.toggleMute() conmuta correctamente.');
 audioIn.unmute();
 
 // ── 2. AudioOutputService Jitter Buffering & Barge-in ─────────────────────────
-console.log('\n[2/8] Verificando AudioOutputService, Jitter Buffering & Reset en Barge-in...');
+console.log('\n[2/6] Verificando AudioOutputService, Jitter Buffering & Reset en Barge-in...');
 const audioOut = new AudioOutputService({});
 assert(audioOut.sampleRate === 24000, 'Frecuencia de salida configurada a 24,000 Hz (Gemini Live standard).');
 assert(audioOut.jitterLeadTime === 0.035, 'Buffer de jitter configurado con lead-time de 35ms.');
@@ -81,7 +78,7 @@ assert(audioOut.isPlaying === false, 'stopImmediate detiene el estado isPlaying.
 assert(audioOut.activeSources.length === 0, 'stopImmediate vacía todas las fuentes activas.');
 
 // ── 3. GeminiLiveSocket Resilient Reconnection & Barge-in ─────────────────────
-console.log('\n[3/8] Verificando GeminiLiveSocket (Exponential Backoff & Barge-in Dispatch)...');
+console.log('\n[3/6] Verificando GeminiLiveSocket (Exponential Backoff & Barge-in Dispatch)...');
 let errorReported = null;
 const socketWithoutKey = new GeminiLiveSocket({
   apiKey: '',
@@ -103,84 +100,27 @@ liveSocket.handleServerMessage(JSON.stringify({
 }));
 assert(interruptedFired === true, 'Mensaje de interrupción del servidor activa onInterrupted inmediatamente.');
 
-// ── 4. SpeechRecognitionService Graceful Handling ────────────────────────────
-console.log('\n[4/8] Verificando SpeechRecognitionService (Compatibilidad Dual & Degradación Elegante)...');
-let speechResultText = null;
-const speechService = new SpeechRecognitionService({
-  onResult: (text, isFinal) => {
-    speechResultText = text;
-  }
-});
-assert(typeof speechService.start === 'function', 'SpeechRecognitionService expone método start.');
-assert(typeof speechService.stop === 'function', 'SpeechRecognitionService expone método stop.');
-assert(typeof speechService.destroy === 'function', 'SpeechRecognitionService expone método destroy.');
-assert(speechService.isSupported() === false || speechService.isSupported() === true, 'isSupported() evaluado sin excepciones.');
-speechService.start();
-speechService.stop();
-speechService.destroy();
-assert(speechService.shouldStayActive === false, 'destroy() apaga shouldStayActive de forma segura.');
+// ── 4. AudioAnalysisService Spectral & Rhythm Dynamics ───────────────────────
+console.log('\n[4/6] Verificando AudioAnalysisService (FFT, Visemas y Dinámicas Vocales)...');
+const mockAudioContext = {
+  createAnalyser: () => ({
+    fftSize: 512,
+    smoothingTimeConstant: 0.25,
+    frequencyBinCount: 256,
+    getByteFrequencyData: (arr) => arr.fill(100),
+    getByteTimeDomainData: (arr) => arr.fill(128),
+    connect: () => {}
+  })
+};
 
-// ── 5. SpeakerRecognitionService Cosine Biometrics ──────────────────────────
-console.log('\n[5/8] Verificando SpeakerRecognitionService (MFCC + Cosine Similarity)...');
-const speakerService = new SpeakerRecognitionService();
+const audioAnalysis = new AudioAnalysisService(mockAudioContext);
+assert(typeof audioAnalysis.start === 'function', 'AudioAnalysisService expone método start.');
+assert(typeof audioAnalysis.stop === 'function', 'AudioAnalysisService expone método stop.');
+assert(typeof audioAnalysis.connectSource === 'function', 'AudioAnalysisService expone método connectSource.');
+assert(audioAnalysis.isRunning === false, 'AudioAnalysisService inicia en estado detenido.');
 
-// Synthetic Voice Generator (Harmonic Formants)
-function generateVoiceUtterance(f0, durationSec = 1.5) {
-  const numSamples = Math.floor(16000 * durationSec);
-  const samples = new Float32Array(numSamples);
-  for (let i = 0; i < numSamples; i++) {
-    const t = i / 16000;
-    const s =
-      0.5 * Math.sin(2 * Math.PI * f0 * t) +
-      0.3 * Math.sin(2 * Math.PI * 500 * t) +
-      0.2 * Math.sin(2 * Math.PI * 1500 * t) +
-      0.1 * Math.sin(2 * Math.PI * 2500 * t);
-    const envelope = Math.sin(Math.PI * (i / numSamples));
-    samples[i] = s * envelope;
-  }
-  return samples;
-}
-
-// Enroll 3 Owner Samples (F0 ~ 138-142 Hz)
-const ownerSampleList = [
-  { id: 's1', label: 'Muestra 1', audioSamples: generateVoiceUtterance(138) },
-  { id: 's2', label: 'Muestra 2', audioSamples: generateVoiceUtterance(142) },
-  { id: 's3', label: 'Muestra 3', audioSamples: generateVoiceUtterance(140) }
-];
-
-const enrolledProfile = speakerService.enrollSamples('Jeremy', ownerSampleList);
-assert(speakerService.hasEnrolledProfile(), 'Perfil del dueño enrolado con centroide 192D exitoso.');
-assert(enrolledProfile.samples.length === 3, '3 muestras de voz agregadas al perfil biométrico.');
-
-// Test Owner Verification
-const ownerTestAudio = generateVoiceUtterance(139);
-const ownerDecision = speakerService.verifySpeaker(ownerTestAudio);
-assert(ownerDecision.isOwner === true, `Dueño autenticado correctamente (Score: ${ownerDecision.score}, Confianza: ${ownerDecision.confidence}%).`);
-assert(ownerDecision.score >= speakerService.matchThreshold, `Score del dueño (${ownerDecision.score}) supera umbral de match (${speakerService.matchThreshold}).`);
-
-// Test Stranger Rejection (F0 = 260 Hz with different harmonic distribution)
-function generateStrangerUtterance(f0 = 260, durationSec = 1.5) {
-  const numSamples = Math.floor(16000 * durationSec);
-  const samples = new Float32Array(numSamples);
-  for (let i = 0; i < numSamples; i++) {
-    const t = i / 16000;
-    const s =
-      0.5 * Math.sin(2 * Math.PI * f0 * t) +
-      0.4 * Math.sin(2 * Math.PI * 850 * t) +
-      0.3 * Math.sin(2 * Math.PI * 3100 * t);
-    const envelope = Math.sin(Math.PI * (i / numSamples));
-    samples[i] = s * envelope;
-  }
-  return samples;
-}
-
-const strangerTestAudio = generateStrangerUtterance(260);
-const strangerDecision = speakerService.verifySpeaker(strangerTestAudio);
-assert(strangerDecision.isOwner === false, `Voz de tercero rechazada exitosamente (Score: ${strangerDecision.score}, Label: ${strangerDecision.label}).`);
-assert(strangerDecision.score < speakerService.rejectThreshold, `Score de tercero (${strangerDecision.score}) cae por debajo del umbral de rechazo (${speakerService.rejectThreshold}).`);
-
-// ── 6. RÁFAGAS DE 2,000 CHUNKS PCM CON JITTER EXTREMO Y DESORDEN ─────────────
-console.log('\n[6/8] ⚡ SOBRECARGA: Procesamiento de ráfaga de 2,000 chunks PCM desordenados con jitter extremo...');
+// ── 5. RÁFAGAS DE 2,000 CHUNKS PCM CON JITTER EXTREMO Y DESORDEN ─────────────
+console.log('\n[5/6] ⚡ SOBRECARGA: Procesamiento de ráfaga de 2,000 chunks PCM desordenados con jitter extremo...');
 
 const tStartJitter = performance.now();
 const chunks = [];
@@ -233,8 +173,8 @@ assert(validEncodingCount === 2000, `2,000/2,000 codificaciones Base64 e Int16 P
 assert(totalResampledLength > 0, `Resampler procesó flujo continuo de audio sin pérdidas.`);
 console.log(`    ⚡ 2,000 chunks procesados en ${jitterDuration}ms.`);
 
-// ── 7. SIMULACIÓN DE 100 INTERRUPCIONES DE USUARIO SIMULTÁNEAS (BARGE-IN) ──────
-console.log('\n[7/8] 🛡️ RESILIENCIA: Simulación de 100 interrupciones concurrentes / rápidas (Barge-in)...');
+// ── 6. SIMULACIÓN DE 100 INTERRUPCIONES DE USUARIO SIMULTÁNEAS (BARGE-IN) ──────
+console.log('\n[6/6] 🛡️ RESILIENCIA: Simulación de 100 interrupciones concurrentes / rápidas (Barge-in)...');
 
 let bargeInSuccessCount = 0;
 let socketInterruptedCount = 0;
@@ -272,66 +212,6 @@ for (let i = 0; i < 100; i++) {
 
 assert(bargeInSuccessCount === 100, `100/100 ciclos de Barge-in ejecutaron vaciado y reset de fuentes a 0.`);
 assert(socketInterruptedCount === 100, `100/100 señales de interrupción de GeminiLiveSocket despachadas sin error.`);
-
-// ── 8. CÁLCULO DE BIOMETRÍA VOCAL CONCURRENTE EN 50 MUESTRAS DE AUDIO ───────────
-console.log('\n[8/8] 🧬 BIOMETRÍA VOCAL: Cálculo concurrente en 50 muestras de audio sintéticas...');
-
-const tStartBiometrics = performance.now();
-const testUtterances = [];
-
-// Generate 50 diverse utterances (15 owner-like, 35 strangers across different F0 spectrums)
-for (let i = 0; i < 50; i++) {
-  const isOwnerCandidate = i < 15;
-  const f0 = isOwnerCandidate ? 138 + (i % 5) * 0.8 : 80 + i * 5.5;
-  const duration = 0.8 + (i % 4) * 0.3;
-  testUtterances.push({
-    id: `eval_sample_${i + 1}`,
-    expectedOwner: isOwnerCandidate,
-    audio: isOwnerCandidate ? generateVoiceUtterance(f0, duration) : generateStrangerUtterance(f0, duration)
-  });
-}
-
-// Concurrently verify all 50 voice samples using Promise.all
-const verificationPromises = testUtterances.map(async (u) => {
-  const decision = speakerService.verifySpeaker(u.audio);
-  const embResult = speakerService.extractEmbedding(u.audio);
-  return {
-    ...u,
-    decision,
-    embResult
-  };
-});
-
-const verificationResults = await Promise.all(verificationPromises);
-
-let validVectorsCount = 0;
-let ownerCorrectlyIdentified = 0;
-let strangersCorrectlyRejected = 0;
-
-verificationResults.forEach((res) => {
-  // Check 192D embedding vector validity
-  if (res.embResult && res.embResult.embedding.length === 192) {
-    // Check L2 norm is ~1.0
-    let norm = 0;
-    for (let k = 0; k < 192; k++) norm += res.embResult.embedding[k] * res.embResult.embedding[k];
-    if (Math.abs(Math.sqrt(norm) - 1.0) < 1e-4) {
-      validVectorsCount++;
-    }
-  }
-
-  if (res.expectedOwner && res.decision.isOwner === true) {
-    ownerCorrectlyIdentified++;
-  } else if (!res.expectedOwner && res.decision.isOwner === false) {
-    strangersCorrectlyRejected++;
-  }
-});
-
-const biometricsDuration = (performance.now() - tStartBiometrics).toFixed(1);
-assert(verificationResults.length === 50, `50 muestras de voz evaluadas concurrentemente.`);
-assert(validVectorsCount === 50, `50/50 vectores biométricos 192D normalizados en esfera unitaria L2.`);
-assert(ownerCorrectlyIdentified >= 14, `Muestras del dueño autenticadas con alta precisión (${ownerCorrectlyIdentified}/15).`);
-assert(strangersCorrectlyRejected >= 32, `Muestras de terceros rechazadas con alta especificidad (${strangersCorrectlyRejected}/35).`);
-console.log(`    🧬 50 verificaciones biométricas completadas en ${biometricsDuration}ms.`);
 
 console.log('\n================================================================');
 console.log(`📊 RESULTADO FINAL: ${passed}/${total} PRUEBAS EXITOSAS (100%)`);

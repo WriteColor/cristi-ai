@@ -1,11 +1,24 @@
+/**
+ * Cristi AI - Interface Diagnostic & Error Boundary (Shadcn Dark Zinc Edition)
+ * Catches unhandled React render exceptions and provides an executive,
+ * minimal recovery dialog with technical diagnostic details.
+ */
+
 import React from 'react';
-import { ShieldAlert, RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw, RotateCcw, Copy, Check, ChevronDown, ChevronUp, Terminal } from 'lucide-react';
 import { electronBridge } from '../services/desktop/ElectronBridge.js';
+import { soundFxService } from '../services/soundFxService.js';
 
 export class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = {
+      hasError: false,
+      error: null,
+      errorInfo: null,
+      showStack: false,
+      copied: false
+    };
   }
 
   static getDerivedStateFromError(error) {
@@ -13,122 +26,178 @@ export class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('ErrorBoundary capturó una excepción:', error, errorInfo);
+    console.error('[ErrorBoundary] Capturó una excepción de interfaz:', error, errorInfo);
+    this.setState({ errorInfo });
     try {
+      electronBridge.resetInteractionLock();
       electronBridge.setIgnoreMouseEvents(false);
     } catch (_) {}
   }
 
-  handleReload = () => {
-    window.location.reload();
+  handleReload = async () => {
+    try { soundFxService.playClick(); } catch (_) {}
+    try {
+      await electronBridge.relaunchApp();
+    } catch (_) {
+      try {
+        await electronBridge.reloadWindow();
+      } catch (_) {
+        window.location.reload();
+      }
+    }
+  };
+
+  handleRelaunch = async () => {
+    try { soundFxService.playClick(); } catch (_) {}
+    try {
+      await electronBridge.relaunchApp();
+    } catch (_) {
+      window.location.reload();
+    }
+  };
+
+  handleResetDefaults = async () => {
+    try { soundFxService.playClick(); } catch (_) {}
+    try {
+      localStorage.removeItem('cristi_app_config');
+      localStorage.removeItem('cristi_active_model_id');
+      localStorage.removeItem('cristi_avatar_type');
+    } catch (_) {}
+    try {
+      await electronBridge.relaunchApp();
+    } catch (_) {
+      window.location.reload();
+    }
+  };
+
+  handleCopyDiagnostic = () => {
+    try { soundFxService.playClick(); } catch (_) {}
+    const { error, errorInfo } = this.state;
+    const text = [
+      'CRISTI AI // DIAGNÓSTICO DE INTERFAZ',
+      '==================================',
+      `Fecha: ${new Date().toISOString()}`,
+      `Error: ${error?.message || error}`,
+      '',
+      'Component Stack:',
+      errorInfo?.componentStack || 'No component stack available',
+      '',
+      'Error Stack:',
+      error?.stack || 'No stack available'
+    ].join('\n');
+
+    navigator.clipboard.writeText(text).then(() => {
+      this.setState({ copied: true });
+      setTimeout(() => this.setState({ copied: false }), 2500);
+    });
   };
 
   render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(6, 7, 10, 0.98)',
-          color: '#f8fafc',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '24px',
-          zIndex: 99999,
-          fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif"
-        }}>
-          <div style={{
-            position: 'relative',
-            maxWidth: '540px',
-            width: '100%',
-            background: 'rgba(12, 14, 22, 0.95)',
-            border: '1px dotted rgba(244, 63, 94, 0.6)',
-            borderRadius: '12px',
-            padding: '32px 28px',
-            textAlign: 'center',
-            boxShadow: '0 24px 60px rgba(0,0,0,0.9), 0 0 30px rgba(244, 63, 94, 0.15)'
-          }}>
-            <span className="hud-corner hud-corner-tl" />
-            <span className="hud-corner hud-corner-tr" />
-            <span className="hud-corner hud-corner-bl" />
-            <span className="hud-corner hud-corner-br" />
+    if (!this.state.hasError) {
+      return this.props.children;
+    }
 
-            <div style={{
-              width: '52px',
-              height: '52px',
-              borderRadius: '12px',
-              background: 'rgba(244, 63, 94, 0.12)',
-              border: '1px dotted rgba(244, 63, 94, 0.4)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px',
-              color: '#f43f5e'
-            }}>
-              <ShieldAlert size={26} />
+    const { error, errorInfo, showStack, copied } = this.state;
+
+    return (
+      <div
+        className="fixed inset-0 z-[999999] flex items-center justify-center bg-zinc-950/95 backdrop-blur-md p-4 select-none font-sans text-zinc-100 pointer-events-auto cursor-default"
+        onMouseEnter={() => {
+          try {
+            electronBridge.resetInteractionLock();
+            electronBridge.setIgnoreMouseEvents(false);
+          } catch (_) {}
+        }}
+      >
+        <div className="w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-lg shadow-2xl p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200 pointer-events-auto">
+          
+          {/* Header & Badges */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-md bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-400 shrink-0">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono tracking-wider uppercase px-1.5 py-0.5 bg-zinc-800 text-zinc-400 border border-zinc-700/60 rounded">
+                    Diagnóstico // Excepción
+                  </span>
+                </div>
+                <h2 className="text-sm font-semibold tracking-wide text-zinc-100 mt-1">
+                  Se produjo una interrupción en la interfaz
+                </h2>
+              </div>
             </div>
+          </div>
 
-            <span style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: '0.7rem',
-              color: '#f43f5e',
-              background: 'rgba(244, 63, 94, 0.1)',
-              padding: '2px 8px',
-              borderRadius: '4px',
-              border: '1px dotted rgba(244, 63, 94, 0.3)',
-              display: 'inline-block',
-              marginBottom: '10px'
-            }}>
-              DIAGNOSTIC // INTERFACE_EXCEPTION
-            </span>
+          <p className="text-xs text-zinc-400 leading-relaxed">
+            Cristi AI detectó una excepción imprevista durante el ciclo de renderizado. Puedes reiniciar la interfaz de usuario o restablecer los ajustes a sus valores seguros predeterminados.
+          </p>
 
-            <h2 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '8px', letterSpacing: '0.01em' }}>
-              Se produjo una interrupción en la interfaz
-            </h2>
-
-            <div style={{
-              background: 'rgba(0, 0, 0, 0.5)',
-              border: '1px dotted rgba(255, 255, 255, 0.1)',
-              borderRadius: '6px',
-              padding: '10px 14px',
-              margin: '14px 0 20px',
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: '0.78rem',
-              color: '#fda4af',
-              textAlign: 'left',
-              wordBreak: 'break-word'
-            }}>
-              {this.state.error?.message || 'Error de renderizado'}
+          {/* Monospace Error Box */}
+          <div className="bg-zinc-950/90 border border-zinc-800 rounded-md p-3 font-mono text-[11px] text-rose-300 break-words select-text">
+            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-zinc-800/80 text-[10px] text-zinc-500">
+              <span className="flex items-center gap-1.5">
+                <Terminal size={11} /> Mensaje del Error
+              </span>
+              <button
+                type="button"
+                onClick={this.handleCopyDiagnostic}
+                className="hover:text-zinc-300 flex items-center gap-1 transition-colors"
+                title="Copiar diagnóstico al portapapeles"
+              >
+                {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+                <span>{copied ? 'Copiado' : 'Copiar'}</span>
+              </button>
             </div>
+            {error?.message || String(error) || 'Error desconocido de renderizado'}
+          </div>
+
+          {/* Collapsible Stack Trace */}
+          {(errorInfo?.componentStack || error?.stack) && (
+            <div className="border border-zinc-800/80 rounded-md overflow-hidden bg-zinc-950/50">
+              <button
+                type="button"
+                onClick={() => this.setState((prev) => ({ showStack: !prev.showStack }))}
+                className="w-full px-3 py-2 text-[11px] font-mono text-zinc-400 hover:text-zinc-200 flex items-center justify-between transition-colors"
+              >
+                <span>Detalles técnicos (Stack Trace)</span>
+                {showStack ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              </button>
+
+              {showStack && (
+                <div className="p-3 border-t border-zinc-800/80 bg-zinc-950 font-mono text-[10px] text-zinc-400 max-h-40 overflow-y-auto leading-normal whitespace-pre-wrap select-text">
+                  {errorInfo?.componentStack || error?.stack}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800/80">
+            <button
+              type="button"
+              onClick={this.handleResetDefaults}
+              className="px-3 py-1.5 text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 border border-zinc-800 rounded-md transition-colors flex items-center gap-1.5"
+            >
+              <RotateCcw size={12} />
+              <span>Ajustes por Defecto</span>
+            </button>
 
             <button
+              type="button"
               onClick={this.handleReload}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 20px',
-                background: 'linear-gradient(135deg, #a855f7, #7c3aed)',
-                color: '#ffffff',
-                border: '1px dotted rgba(255, 255, 255, 0.3)',
-                borderRadius: '8px',
-                fontSize: '0.82rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                boxShadow: '0 0 20px rgba(168, 85, 247, 0.35)',
-                transition: 'all 0.2s'
-              }}
+              className="px-3.5 py-1.5 text-xs font-semibold font-mono bg-zinc-100 hover:bg-white text-zinc-900 rounded-md transition-colors shadow-sm flex items-center gap-1.5"
             >
-              <RefreshCw size={14} />
+              <RefreshCw size={12} />
               <span>Reinicializar Cristi AI</span>
             </button>
           </div>
-        </div>
-      );
-    }
 
-    return this.props.children;
+        </div>
+      </div>
+    );
   }
 }
+
+export default ErrorBoundary;

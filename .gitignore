@@ -24,6 +24,15 @@ neutralinojs.log
 # Temporary Test Artifacts & Videos
 tests/screenshots/
 tests/videos/
+tests/output/electron-probe-*/
+tests/output/live-call-probe.json
+tests/output/live-vision-probe.json
+tests/output/packaged-call-report.json
+tests/output/packaged-subtitles.png
+tests/output/refactor-lint-*.json
+tests/artifacts/
+tests/output/call-probe.wav
+tests/output/vision-probe-*.jpg
 *.rar
 *.zip
 *.tar.gz
@@ -42,4 +51,3 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
-

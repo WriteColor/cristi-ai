@@ -99,9 +99,9 @@ assert(pickerSrc.includes('setPointerCapture'), 'ScreenRegionPicker utiliza setP
 assert(pickerSrc.includes('requestAnimationFrame'), 'ScreenRegionPicker utiliza requestAnimationFrame');
 assert(pickerSrc.includes('clampedX'), 'ScreenRegionPicker aplica clamping seguro a coordenadas');
 
-const previewSrc = fs.readFileSync('src/components/CameraPreview.jsx', 'utf8');
-assert(previewSrc.includes('feedbackTimeoutRef'), 'CameraPreview utiliza feedbackTimeoutRef para limpieza en unmount');
-assert(previewSrc.includes('clearTimeout'), 'CameraPreview cancela timers pendientes al desmontar');
+const cameraAppSrc = fs.readFileSync('src/camera/CameraApp.jsx', 'utf8');
+assert(cameraAppSrc.includes('navigator.mediaDevices.getUserMedia'), 'CameraApp utiliza WebRTC nativo');
+assert(cameraAppSrc.includes('cristi_camera_stream'), 'CameraApp transmite fotogramas a BroadcastChannel para Gemini Live');
 
 const cssSrc = fs.readFileSync('src/index.css', 'utf8');
 const pickerOverlayMatch = cssSrc.match(/\.screen-picker-overlay\s*\{([^}]+)\}/);

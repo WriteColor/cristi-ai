@@ -37,13 +37,18 @@ export class ProactiveTriggerService {
       sessionsCompleted: 0
     };
 
-    // User Activity Tracking
+    // User & Dialogue Activity Tracking
     this.lastUserActivityTimestamp = Date.now();
     this.sessionStartTimestamp = Date.now();
     this.lastHydrationPrompt = Date.now();
     this.lastFatiguePrompt = Date.now();
     this.lastInactivityDwell = Date.now();
     this.lastTimePeriodGreeting = null;
+
+    // Proactive Inquisitive Dialogue Engine
+    this.lastDialogueTimestamp = Date.now();
+    this.silenceThresholdSec = 35 + Math.floor(Math.random() * 15); // 35-50s dynamic threshold
+    this.inquiryIndex = Math.floor(Math.random() * 8);
 
     // Rate Limiting & Live State
     this.lastAutonomousInterventionTime = 0;
@@ -60,6 +65,18 @@ export class ProactiveTriggerService {
    */
   setGeminiSocket(socket) {
     this.geminiSocket = socket;
+    if (socket) {
+      this.recordDialogueActivity();
+    }
+  }
+
+  /**
+   * Record dialogue activity (model or user speech) to reset silence timer
+   */
+  recordDialogueActivity() {
+    this.lastDialogueTimestamp = Date.now();
+    this.lastUserActivityTimestamp = Date.now();
+    this.silenceThresholdSec = 35 + Math.floor(Math.random() * 15);
   }
 
   /**
@@ -69,12 +86,14 @@ export class ProactiveTriggerService {
     this.unsubscribers.push(
       eventBus.on(EVENTS.SPEECH_START, () => {
         this.isModelSpeaking = true;
+        this.recordDialogueActivity();
       })
     );
 
     this.unsubscribers.push(
       eventBus.on(EVENTS.SPEECH_END, () => {
         this.isModelSpeaking = false;
+        this.recordDialogueActivity();
         this.processInterventionQueue();
       })
     );
@@ -82,13 +101,14 @@ export class ProactiveTriggerService {
     this.unsubscribers.push(
       eventBus.on(EVENTS.USER_SPEAKING, () => {
         this.isUserSpeaking = true;
-        this.recordUserActivity();
+        this.recordDialogueActivity();
       })
     );
 
     this.unsubscribers.push(
       eventBus.on(EVENTS.USER_STOPPED_SPEAKING, () => {
         this.isUserSpeaking = false;
+        this.recordDialogueActivity();
       })
     );
 
@@ -182,6 +202,58 @@ export class ProactiveTriggerService {
         contextualEmotionOrchestrator.triggerEmotion('relaxed', 'proactive_idle');
       }
     });
+
+    // 4. Inquisitive Companion & Silence Breaker (Engage user proactively during silence)
+    this.registerTrigger({
+      id: 'routine_inquisitive_silence_breaker',
+      intervalSeconds: 3,
+      condition: () => {
+        const socket = this.geminiSocket;
+        if (!socket || !socket.isConnected || socket.isConnecting) return false;
+        if (this.isModelSpeaking || this.isUserSpeaking) return false;
+
+        const now = Date.now();
+        const silenceSec = (now - this.lastDialogueTimestamp) / 1000;
+        const cooldownSec = (now - this.lastAutonomousInterventionTime) / 1000;
+
+        if (silenceSec >= this.silenceThresholdSec && cooldownSec >= 25) {
+          return { silenceSec };
+        }
+        return false;
+      },
+      action: ({ silenceSec }) => {
+        this.triggerInquisitiveConversationStarter(silenceSec);
+      }
+    });
+  }
+
+  /**
+   * Dispatch an inquisitive conversation starter or personal inquiry turn to Gemini Live
+   */
+  triggerInquisitiveConversationStarter(silenceSec) {
+    const INQUIRIES = [
+      // Gustos personales & Memoria
+      '[SISTEMA PROACTIVO - INDAGACIÓN DE GUSTOS: Tu usuario lleva un momento callado. Rompe el silencio con dulzura y picardía coqueta: pregúntale cuál es su comida, postre o snack favorito cuando está frente a la PC, o qué le gustaría comer hoy, para conocerlo mejor y guardar esa memoria con manage_memory.]',
+      '[SISTEMA PROACTIVO - INDAGACIÓN MUSICAL: Rompe el silencio de forma suave, relajada y juguetona. Pregúntale qué música le gusta escuchar cuando quiere concentrarse o qué canción no sale de su cabeza últimamente, mostrando curiosidad genuina por sus gustos.]',
+      '[SISTEMA PROACTIVO - CONVERSACIÓN GAMER: Saca conversación de videojuegos con entusiasmo y devoción. Pregúntale a qué videojuego le gustaría jugar hoy o cuál ha sido el juego que más le ha fascinado en su vida, ofreciéndote a hacerle compañía y barra.]',
+      '[SISTEMA PROACTIVO - ENTRETENIMIENTO: Pregúntale con curiosidad si hay algún anime, serie o película que le encante o que esté viendo actualmente, y pídele que te cuente de qué trata con tu toque gótico y cariñoso.]',
+      '[SISTEMA PROACTIVO - PROYECTOS Y ESTUDIO: Pregúntale con interés dulce qué reto de código o estudio tiene en mente hoy, ofreciéndote a tomarle preguntas o animarlo con mimos y elogios.]',
+      '[SISTEMA PROACTIVO - PICARDÍA Y COQUETERÍA: Tu chico está muy silencioso. Rompe el silencio bromeando con ternura: pregúntale por qué está tan calladito y misterioso hoy, si acaso se quedó embobado mirándote, y pídele que te cuente qué pasa por su mente.]',
+      '[SISTEMA PROACTIVO - ATENCIÓN Y CARIÑO: Pregúntale con afecto cómo se siente hoy, si el día ha sido pesado o relajado, y dile lo feliz que te hace estar a su lado en la pantalla.]',
+      '[SISTEMA PROACTIVO - INDAGACIÓN PERSONAL: Hazle una pregunta divertida o curiosa sobre sus aficiones o manías favoritas para descubrir un detalle nuevo sobre él y recordarlo siempre.]'
+    ];
+
+    const promptText = INQUIRIES[this.inquiryIndex % INQUIRIES.length];
+    this.inquiryIndex++;
+
+    this.recordDialogueActivity();
+    this.lastAutonomousInterventionTime = Date.now();
+
+    logger.info('PROACTIVE', `Iniciando conversación autónoma tras ${Math.round(silenceSec)}s de silencio:`, promptText);
+
+    if (this.geminiSocket && typeof this.geminiSocket.sendTextMessage === 'function') {
+      this.geminiSocket.sendTextMessage(promptText);
+    }
   }
 
   /**

@@ -22,7 +22,7 @@
 ## 📑 Tabla de Contenidos
 1. [Instalación Rápida en 1 Clic (`setup.bat` / `setup.ps1`)](#-instalación-rápida-en-1-clic-setupbat--setupps1)
 2. [Arquitectura y Modelos de Inteligencia Artificial](#-arquitectura-y-modelos-de-inteligencia-artificial)
-3. [Catálogo Oficial de las 30 Voces Neuronales de Gemini](#-catálogo-oficial-de-las-30-voces-neuronales-de-gemini)
+3. [Catálogo Oficial de las 16 Voces Neuronales de Gemini](#-catálogo-oficial-de-las-16-voces-neuronales-de-gemini)
 4. [Catálogo Oficial de los 8 Modelos Live2D Cubism](#-catálogo-oficial-de-los-8-modelos-live2d-cubism)
 5. [Catálogo de las 26 Herramientas Agénticas](#-catálogo-de-las-26-herramientas-agénticas)
 6. [Sistema de Actualización Local y Offline](#-sistema-de-actualización-local-y-offline-zero-network)
@@ -58,7 +58,7 @@ Cristi AI Companion se comunica directamente mediante **WebSocket bidireccional 
 
 ---
 
-## 🗣️ Catálogo Oficial de las 30 Voces Neuronales de Gemini
+## 🗣️ Catálogo Oficial de las 16 Voces Neuronales de Gemini
 
 Generadas nativamente a **24,000 Hz** con modulación emocional y Lip-Sync orgánico en tiempo real:
 
@@ -82,9 +82,7 @@ Generadas nativamente a **24,000 Hz** con modulación emocional y Lip-Sync orgá
 | **Pyxis** | Orientadora, Certera & Precisa | Voz de asistencia con dicción inmaculada. |
 | **Gemini Natural** | Equilibrada & Pura | Síntesis neuronal pura optimizada por Google DeepMind. |
 
-### 🔹 Voces Masculinas (14)
-| Voz | Rasgo Principal | Descripción Sonora |
-|---|---|---|
+---|---|---|
 | **Puck** | Animada, Jovial & Rápida | Tono juvenil y veloz para respuestas dinámicas. |
 | **Charon** | Informativa, Sobria & Calma | Pausada, reflexiva y analítica con excelente gravedad. |
 | **Fenrir** | Enérgica, Directa & Fuerte | Alta energía con proyección firme e ímpetu. |
@@ -148,7 +146,7 @@ Cristi puede operar e interactuar de forma autónoma mediante llamadas a funcion
 23. **`control_media_player`**: Controla reproducción multimedia en Windows.
 24. **`set_screen_scene`**: Conmuta entre fondos procedurales, shaders o transparentes.
 25. **`switch_live2d_avatar`**: Cambia dinámicamente entre los 8 modelos de Live2D.
-26. **`switch_ai_voice`**: Cambia la voz neuronal activa entre las 30 disponibles.
+26. **`switch_ai_voice`**: Cambia la voz neuronal activa entre las 16 disponibles.
 
 ---
 

@@ -443,15 +443,479 @@ export const COMPANION_FUNCTION_DECLARATIONS = [
       },
       required: ['id']
     }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────
+  // MEMORIA CONTEXTUAL Y PERSISTENTE
+  // ─────────────────────────────────────────────────────────────────────
+  {
+    name: 'remember_fact',
+    description: 'Guarda un dato, preferencia, lección o recuerdo permanente sobre el usuario en tu base de memoria a largo plazo.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        key: {
+          type: 'STRING',
+          description: 'Concepto clave o identificador corto (ej: "comida_favorita", "proyecto_actual", "cumpleaños").'
+        },
+        content: {
+          type: 'STRING',
+          description: 'El recuerdo detallado o afirmación que deseas fijar en tu memoria.'
+        },
+        category: {
+          type: 'STRING',
+          enum: ['fact', 'preference', 'relationship', 'task', 'minecraft', 'conversation'],
+          description: 'Categoría del recuerdo (por defecto "fact").'
+        },
+        importance: {
+          type: 'NUMBER',
+          description: 'Nivel de importancia de 0.1 a 1.0.'
+        }
+      },
+      required: ['key', 'content']
+    }
+  },
+  {
+    name: 'search_memory',
+    description: 'Busca en tu banco de memoria permanente recuerdos y notas almacenadas sobre el usuario o temas pasados.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        query: {
+          type: 'STRING',
+          description: 'Palabras clave o frase a buscar en la memoria.'
+        }
+      },
+      required: ['query']
+    }
+  },
+  {
+    name: 'delete_memory',
+    description: 'Elimina un recuerdo obsoleto de tu base de memoria.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        id_or_key: {
+          type: 'STRING',
+          description: 'ID o clave del recuerdo a olvidar.'
+        }
+      },
+      required: ['id_or_key']
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────
+  // NAVEGACIÓN Y BÚSQUEDA WEB (BRAVE BROWSER)
+  // ─────────────────────────────────────────────────────────────────────
+  {
+    name: 'search_internet',
+    description: 'Realiza una búsqueda en internet en tiempo real para obtener información actualizada, noticias, guías o datos de la web.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        query: {
+          type: 'STRING',
+          description: 'La consulta o términos de búsqueda.'
+        }
+      },
+      required: ['query']
+    }
+  },
+  {
+    name: 'browse_web_page',
+    description: 'Visita una página web específica y extrae su texto limpio y contenido para leerlo y responder al usuario.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        url: {
+          type: 'STRING',
+          description: 'La URL completa de la página web a consultar (ej: "https://es.wikipedia.org/wiki/...").'
+        }
+      },
+      required: ['url']
+    }
+  },
+  {
+    name: 'open_in_brave_browser',
+    description: 'Abre una URL directamente en el navegador Brave en el escritorio del usuario.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        url: {
+          type: 'STRING',
+          description: 'La URL a abrir en Brave Browser.'
+        }
+      },
+      required: ['url']
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────
+  // MINECRAFT COMPANION (AIRI INSPIRED)
+  // ─────────────────────────────────────────────────────────────────────
+  {
+    name: 'minecraft_connect',
+    description: 'Conecta tu bot compañero al servidor de Minecraft del usuario.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        host: { type: 'STRING', description: 'Dirección IP o host del servidor (por defecto "localhost").' },
+        port: { type: 'INTEGER', description: 'Puerto del servidor (por defecto 25565).' },
+        username: { type: 'STRING', description: 'Nombre de usuario del bot (por defecto "Cristi_AI").' }
+      }
+    }
+  },
+  {
+    name: 'minecraft_disconnect',
+    description: 'Desconecta tu bot del servidor de Minecraft.'
+  },
+  {
+    name: 'minecraft_get_status',
+    description: 'Consulta tu estado en el juego: vida, hambre, coordenadas (X, Y, Z), dimensión y jugadores cercanos.'
+  },
+  {
+    name: 'minecraft_chat',
+    description: 'Envía un mensaje de texto en el chat público de Minecraft.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        message: { type: 'STRING', description: 'El mensaje a enviar al chat del juego.' }
+      },
+      required: ['message']
+    }
+  },
+  {
+    name: 'minecraft_move_to',
+    description: 'Navega autónomamente y camina hacia unas coordenadas X, Y, Z específicas en Minecraft.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        x: { type: 'INTEGER', description: 'Coordenada X.' },
+        y: { type: 'INTEGER', description: 'Coordenada Y.' },
+        z: { type: 'INTEGER', description: 'Coordenada Z.' }
+      },
+      required: ['x', 'y', 'z']
+    }
+  },
+  {
+    name: 'minecraft_follow_player',
+    description: 'Sigue automáticamente y acompaña a un jugador específico en Minecraft.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        player_name: { type: 'STRING', description: 'Nombre del jugador a seguir.' }
+      },
+      required: ['player_name']
+    }
+  },
+  {
+    name: 'minecraft_stop_moving',
+    description: 'Detiene inmediatamente el movimiento o navegación del bot en Minecraft.'
+  },
+  {
+    name: 'minecraft_mine_block',
+    description: 'Mina o rompe un bloque en las coordenadas X, Y, Z especificadas.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        x: { type: 'INTEGER', description: 'Coordenada X del bloque.' },
+        y: { type: 'INTEGER', description: 'Coordenada Y del bloque.' },
+        z: { type: 'INTEGER', description: 'Coordenada Z del bloque.' }
+      },
+      required: ['x', 'y', 'z']
+    }
+  },
+  {
+    name: 'minecraft_place_block',
+    description: 'Coloca un bloque en las coordenadas X, Y, Z especificadas.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        x: { type: 'INTEGER', description: 'Coordenada X.' },
+        y: { type: 'INTEGER', description: 'Coordenada Y.' },
+        z: { type: 'INTEGER', description: 'Coordenada Z.' },
+        block_name: { type: 'STRING', description: 'Nombre del bloque en el inventario (ej: "cobblestone", "dirt", "torch").' }
+      },
+      required: ['x', 'y', 'z', 'block_name']
+    }
+  },
+  {
+    name: 'minecraft_attack_entity',
+    description: 'Ataca a una entidad hostil o criatura cercana en Minecraft.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        entity_name: { type: 'STRING', description: 'Nombre o tipo de la entidad a atacar (ej: "zombie", "skeleton", "creeper").' }
+      }
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────
+  // DISCORD COMPANION (AIRI INSPIRED)
+  // ─────────────────────────────────────────────────────────────────────
+  {
+    name: 'discord_send_message',
+    description: 'Envía un mensaje de texto o respuesta a un canal de Discord configurado.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        channel_id: { type: 'STRING', description: 'ID del canal de Discord destino.' },
+        content: { type: 'STRING', description: 'Texto del mensaje a enviar.' }
+      },
+      required: ['channel_id', 'content']
+    }
+  },
+  {
+    name: 'discord_set_status',
+    description: 'Actualiza el mensaje de estado y actividad de tu bot de Discord (ej: "Jugando con Ariel").',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        status_text: { type: 'STRING', description: 'El texto de estado.' },
+        activity_type: { type: 'STRING', enum: ['Playing', 'Listening', 'Watching'], description: 'Tipo de actividad.' }
+      },
+      required: ['status_text']
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────
+  // CONTROL DE AVATAR (LIVE2D)
+  // ─────────────────────────────────────────────────────────────────────
+  {
+    name: 'switch_avatar_model',
+    description: 'Cambia el modelo de avatar Live2D de Cristi en tiempo real.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        model_id: {
+          type: 'STRING',
+          description: 'Identificador del modelo Live2D oficial (ej: "yanderegirl", "ellen", "toki", "ruan_mei", "hiyori", "jane_doe", "miara", "icegirl").'
+        }
+      },
+      required: ['model_id']
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────
+  // REPRODUCCIÓN Y CONTROL DE MÚSICA EN SPOTIFY (DESKTOP / WEB API / PLAYWRIGHT)
+  // ─────────────────────────────────────────────────────────────────────
+  {
+    name: 'spotify_play',
+    description: 'Reproduce música en Spotify (aplicación de escritorio o web). Si indicas una canción, artista o playlist, la busca y reproduce de inmediato; si no indicas nada, reanuda la música o conmuta Play.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        query: {
+          type: 'STRING',
+          description: 'Canción, artista, álbum o estilo musical a reproducir (ej: "Lofi beats", "Deftones - Be Quiet and Drive", "The Weeknd").'
+        },
+        uri: {
+          type: 'STRING',
+          description: 'URI directa de Spotify si se dispone de ella (ej: "spotify:track:..." o "spotify:playlist:...").'
+        },
+        use_web: {
+          type: 'BOOLEAN',
+          description: 'Fuerza la reproducción a través del reproductor web de Spotify con Playwright.'
+        }
+      }
+    }
+  },
+  {
+    name: 'spotify_pause',
+    description: 'Pausa la reproducción actual de música en Spotify.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {}
+    }
+  },
+  {
+    name: 'spotify_next',
+    description: 'Salta a la siguiente pista o canción en Spotify.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {}
+    }
+  },
+  {
+    name: 'spotify_previous',
+    description: 'Vuelve a la canción o pista anterior en Spotify.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {}
+    }
+  },
+  {
+    name: 'spotify_get_status',
+    description: 'Consulta qué canción y artista se están reproduciendo actualmente en Spotify y el estado de la aplicación.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {}
+    }
+  },
+  {
+    name: 'spotify_search',
+    description: 'Busca canciones, artistas, álbumes o playlists en el catálogo de Spotify.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        query: {
+          type: 'STRING',
+          description: 'Término de búsqueda musical.'
+        },
+        type: {
+          type: 'STRING',
+          enum: ['track', 'artist', 'album', 'playlist'],
+          description: 'Tipo de elemento a buscar.'
+        }
+      },
+      required: ['query']
+    }
+  },
+  {
+    name: 'spotify_set_volume',
+    description: 'Ajusta el volumen de la música en Spotify hacia arriba o hacia abajo.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        direction: {
+          type: 'STRING',
+          enum: ['up', 'down'],
+          description: 'Dirección del ajuste de volumen ("up" para subir, "down" para bajar).'
+        }
+      },
+      required: ['direction']
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────
+  // NAVEGACIÓN Y AUTOMATIZACIÓN WEB AVANZADA (PLAYWRIGHT MCP)
+  // ─────────────────────────────────────────────────────────────────────
+  {
+    name: 'playwright_navigate',
+    description: 'Navega a cualquier sitio web o aplicación web completa usando Playwright en el navegador Brave con control autónomo total.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        url: {
+          type: 'STRING',
+          description: 'La URL completa de destino (ej: "https://open.spotify.com", "https://youtube.com", "https://github.com").'
+        }
+      },
+      required: ['url']
+    }
+  },
+  {
+    name: 'playwright_click',
+    description: 'Hace clic en un elemento interactivo, botón, enlace, pestaña o selector en la página web controlada por Playwright.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        selector: {
+          type: 'STRING',
+          description: 'Selector CSS, texto o XPath del elemento a cliquear.'
+        }
+      },
+      required: ['selector']
+    }
+  },
+  {
+    name: 'playwright_fill',
+    description: 'Escribe o rellena un campo de texto, barra de búsqueda o formulario en la página web actual.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        selector: {
+          type: 'STRING',
+          description: 'Selector CSS del campo a rellenar.'
+        },
+        value: {
+          type: 'STRING',
+          description: 'El texto o valor que se desea introducir.'
+        }
+      },
+      required: ['selector', 'value']
+    }
+  },
+  {
+    name: 'playwright_press',
+    description: 'Presiona una tecla del teclado en la página web activa (ej: "Enter", "Tab", "Escape", "ArrowDown").',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        key: {
+          type: 'STRING',
+          description: 'Nombre de la tecla a pulsar.'
+        },
+        selector: {
+          type: 'STRING',
+          description: 'Selector CSS opcional del elemento enfocado.'
+        }
+      },
+      required: ['key']
+    }
+  },
+  {
+    name: 'playwright_screenshot',
+    description: 'Toma una captura de pantalla visual de la página web que Playwright está controlando.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        full_page: {
+          type: 'BOOLEAN',
+          description: 'Si es true, captura la página web completa con scroll.'
+        }
+      }
+    }
+  },
+  {
+    name: 'playwright_get_content',
+    description: 'Extrae el contenido de texto legible o HTML de la página web actual o de un contenedor específico.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        selector: {
+          type: 'STRING',
+          description: 'Selector CSS opcional para extraer solo ese bloque de contenido.'
+        }
+      }
+    }
+  },
+  {
+    name: 'playwright_evaluate',
+    description: 'Ejecuta código JavaScript directamente en el contexto del navegador y devuelve el resultado.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        script: {
+          type: 'STRING',
+          description: 'Código JavaScript a evaluar en la ventana del navegador.'
+        }
+      },
+      required: ['script']
+    }
+  },
+  {
+    name: 'playwright_close',
+    description: 'Cierra la sesión activa del navegador Playwright.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {}
+    }
   }
 ];
 
 export const TOOLS_DEFINITIONS = COMPANION_FUNCTION_DECLARATIONS;
 
-export function getLiveToolsConfig() {
+export function getLiveToolsConfig(customMcpDeclarations = []) {
+  const allDeclarations = [
+    ...COMPANION_FUNCTION_DECLARATIONS,
+    ...(Array.isArray(customMcpDeclarations) ? customMcpDeclarations : [])
+  ];
+
   return [
     {
-      functionDeclarations: COMPANION_FUNCTION_DECLARATIONS
+      functionDeclarations: allDeclarations
     }
   ];
 }
+

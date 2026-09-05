@@ -117,11 +117,11 @@ controller.setEmotion('mad');
 assert(controller.targetPupilAperture === 0.85, 'Contracción pupilar reactiva para emoción "mad" (0.85).');
 
 // ── 4. Multi-Model Registry Verification (All 8 Models) ─────────────────────
-console.log('\n[4/11] Verificando catálogo completo de 8 modelos Live2D oficiales...');
-const expectedModels = ['yanderegirl', 'icegirl', 'hiyori', 'miara', 'toki', 'ellen', 'jane_doe', 'ruan_mei'];
+console.log('\n[4/11] Verificando catálogo completo de 13 modelos Live2D oficiales...');
+const expectedModels = ['yanderegirl', 'icegirl', 'hiyori', 'miara', 'toki', 'ellen', 'jane_doe', 'ruan_mei', 'belle', 'sparkle', 'huohuo', 'vivian', 'goth_loli'];
 const allModels = live2dModelRegistry.getAllModels();
 
-assert(allModels.length === 8, `Catálogo contiene exactamente 8 modelos registrados (encontrados: ${allModels.length}).`);
+assert(allModels.length === 13, `Catálogo contiene exactamente 13 modelos registrados (encontrados: ${allModels.length}).`);
 
 expectedModels.forEach((mId) => {
   const model = live2dModelRegistry.getModel(mId);

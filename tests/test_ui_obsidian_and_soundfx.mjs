@@ -95,7 +95,7 @@ assert(useClickThroughSrc.includes('setIgnoreMouseEvents(false)'), 'useClickThro
 assert(useClickThroughSrc.includes('forward: true'), 'useClickThrough desactiva interactividad con forward:true.');
 
 const appSrc = fs.readFileSync('src/App.jsx', 'utf8');
-assert(appSrc.includes('evaluateHitTarget'), 'App.jsx implementa hit-tester inteligente global.');
+assert(appSrc.includes('useClickThrough') || appSrc.includes('isClickThroughEnabled'), 'App.jsx implementa soporte de click-through.');
 assert(appSrc.includes('isClickThroughEnabled'), 'App.jsx sincroniza hit-testing con estado isClickThroughEnabled.');
 assert(appSrc.includes('configManager'), 'App.jsx importa y utiliza configManager sin referencias nulas.');
 assert(appSrc.includes('soundFxService'), 'App.jsx importa y utiliza soundFxService sin referencias nulas.');
@@ -108,9 +108,9 @@ assert(settingsSrc.includes('stopPropagation'), 'SettingsModal detiene propagaci
 assert(settingsSrc.includes('Tab'), 'SettingsModal gestiona navegación con Tab / Focus Trap.');
 assert(settingsSrc.includes('PERSONA_PRESETS'), 'SettingsModal contiene 6 presets de personalidad.');
 
-const voiceEnrollSrc = fs.readFileSync('src/components/VoiceEnrollmentModal.jsx', 'utf8');
-assert(voiceEnrollSrc.includes('e.key === \'Escape\''), 'VoiceEnrollmentModal escucha tecla Escape.');
-assert(voiceEnrollSrc.includes('stopPropagation'), 'VoiceEnrollmentModal detiene propagación de Escape.');
+const settingsAppSrc = fs.readFileSync('src/settings/SettingsApp.jsx', 'utf8');
+assert(settingsAppSrc.includes('e.key === \'Escape\''), 'SettingsApp escucha tecla Escape.');
+assert(settingsAppSrc.includes('closeSettingsWindow'), 'SettingsApp cierra ventana en Escape.');
 
 const contextMenuSrc = fs.readFileSync('src/components/ContextMenu.jsx', 'utf8');
 assert(contextMenuSrc.includes('e.key === \'Escape\''), 'ContextMenu escucha tecla Escape.');

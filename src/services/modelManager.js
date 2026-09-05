@@ -54,15 +54,6 @@ export const AI_MODELS_REGISTRY = {
     required: false
   },
 
-  // 2. Audio & Speaker Recognition Engine
-  speaker_biometrics_extractor: {
-    id: 'speaker_biometrics_extractor',
-    name: 'Cristi 192D Deep Speaker Embedding Extractor',
-    category: 'audio',
-    engine: 'web-dsp-tensor',
-    required: true
-  },
-
   // 3. Live2D Core Engine
   live2d_cubism_core: {
     id: 'live2d_cubism_core',
@@ -162,3 +153,4 @@ export class ModelManager {
 
 export const modelManager = new ModelManager();
 export default modelManager;
+

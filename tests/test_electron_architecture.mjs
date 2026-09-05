@@ -4,6 +4,7 @@
  */
 
 import fs from 'fs';
+import { execSync } from 'child_process';
 
 console.log('================================================================');
 console.log('🧪 CRISTI DESKTOP - VERIFICACIÓN DE ARQUITECTURA ELECTRON (MATE)');
@@ -79,14 +80,20 @@ assert(hookContent.includes('onMouseLeave: disableInteraction'), 'Handler onMous
 
 // 5. Check Interactive Components have useClickThrough
 console.log('\n[5/7] Verificando integración de useClickThrough en componentes...');
+
+// Live2DCanvas usa arquitectura hitTarget directa con electronBridge
+const live2dContent = fs.readFileSync('src/components/Live2DCanvas.jsx', 'utf8');
+assert(live2dContent.includes('electronBridge.setIgnoreMouseEvents(false)'), 'Live2DCanvas.jsx: hitTarget activa interacción en handlePointerEnter');
+assert(live2dContent.includes('electronBridge.setIgnoreMouseEvents(true, { forward: true })'), 'Live2DCanvas.jsx: hitTarget reactiva click-through en handlePointerLeave');
+assert(live2dContent.includes('modelReady'), 'Live2DCanvas.jsx: hitTarget usa modelReady como guardia de pointer-events');
+assert(live2dContent.includes('pointerEvents: modelReady'), 'Live2DCanvas.jsx: hitTarget tiene pointer-events dinámico por modelReady');
+assert(!live2dContent.includes("style={{ left: 0, top: 0, width: '100%', height: '100%' }}"), 'Live2DCanvas.jsx: hitTarget NO cubre pantalla completa desde inicio');
+
+// Los demás overlays UI usan useClickThrough
 const interactiveComponents = [
-  'Live2DCanvas.jsx',
   'FloatingHUD.jsx',
   'ContextMenu.jsx',
   'SettingsModal.jsx',
-  'VoiceEnrollmentModal.jsx',
-  'CameraPreview.jsx',
-  'SpeakerDiagnosticsHUD.jsx',
   'ToastContainer.jsx',
   'DesktopWidgets.jsx',
   'ScreenRegionPicker.jsx'

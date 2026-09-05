@@ -1,1328 +1,1495 @@
 /**
  * Cristi AI Companion - Native Control Panel & Settings Application
- * Dedicated Hardware-Accelerated Standalone Window (settings.html)
- * High-Performance Luxury Obsidian Design with Zero-Flicker Instant State Synchronization
+ * 100% Tailwind CSS - Minimalist Shadcn Dark Gray Architecture
+ * Includes Live Voice Previews (Free Tier), 2D/3D Model Visual Inspector,
+ * Scene Previewer, Original 6 Persona Presets, and Synchronized Save State.
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
-  X,
-  Key,
-  Sliders,
-  Zap,
-  User,
-  Check,
-  ExternalLink,
-  Sparkles,
-  Volume2,
-  RotateCcw,
-  Eye,
-  EyeOff,
-  Mic,
-  Mic2,
-  MicOff,
-  Smile,
-  ShieldCheck,
-  Activity,
-  Layers,
-  Bot,
-  Heart,
-  Gamepad2,
-  Terminal,
-  Coffee,
-  Download,
-  Upload,
-  Image as ImageIcon,
-  FolderPlus,
-  Plus,
-  RefreshCw,
-  Camera,
-  SunMedium,
-  CheckCircle2,
-  AlertCircle,
-  FileAudio,
-  Radio,
-  SlidersHorizontal,
-  Monitor
+  Key, Zap, Volume2, Smile, Box, Image as ImageIcon,
+  Database, Gamepad2, Layers, Check, Plus, Trash2,
+  Eye, EyeOff, Save, X, ExternalLink, Cpu, Sliders,
+  RotateCcw, Play, Square, Heart, Sparkles, Terminal,
+  User, CheckCircle2, ShieldCheck, Monitor, UploadCloud,
+  Loader2, FolderPlus, Music, Globe, RefreshCw
 } from 'lucide-react';
 
-import { GEMINI_MODELS, DEFAULT_MODEL_ID, SYSTEM_PERSONA_PROMPT } from '../config/models.js';
+import { GEMINI_MODELS_LIST, DEFAULT_MODEL_ID, SYSTEM_PERSONA_PROMPT } from '../config/models.js';
 import { GEMINI_STANDARD_VOICES } from '../config/voices.js';
 import { live2dModelRegistry } from '../services/live2d/index.js';
+import { memoryService, MEMORY_CATEGORIES } from '../services/memory/MemoryService.js';
+import { mcpClientManager } from '../services/mcp/MCPClientManager.js';
+import { minecraftCompanion } from '../services/gameIntegration/MinecraftCompanionService.js';
+import { discordCompanion } from '../services/discord/DiscordCompanionService.js';
+import { spotifyService } from '../services/spotify/SpotifyService.js';
+import { playwrightService } from '../services/playwright/PlaywrightService.js';
 import { sceneManager } from '../services/sceneManager.js';
 import { soundFxService } from '../services/soundFxService.js';
 import { configManager } from '../services/configManager.js';
-import { toastService } from '../services/toastService.js';
 import { electronBridge } from '../services/desktop/ElectronBridge.js';
-import { speakerRecognitionService } from '../services/audio/SpeakerRecognitionService.js';
+import { toastService } from '../services/toastService.js';
+import { ModelPreviewCanvas } from './components/ModelPreviewCanvas.jsx';
 
-const PERSONA_PRESETS = [
+const TABS = [
+  { id: 'general', label: 'General & IA', icon: Zap },
+  { id: 'voice', label: 'Voz & Audio', icon: Volume2 },
+  { id: 'models', label: 'Personajes Live2D', icon: Smile },
+  { id: 'scene', label: 'Fondo & Escena', icon: ImageIcon },
+  { id: 'spotify', label: 'Spotify & Música', icon: Music },
+  { id: 'memory', label: 'Memoria', icon: Database },
+  { id: 'games', label: 'Minecraft & Discord', icon: Gamepad2 },
+  { id: 'mcp', label: 'Servidores MCP', icon: Layers }
+];
+
+// ── Los 6 Presets Originales de Personalidad ────────────────────────────────
+const ORIGINAL_PERSONA_PRESETS = [
   {
     id: 'yandere',
-    name: 'Cristi Yandere / Gótica (Por Defecto)',
+    name: 'Cristi Yandere / Gótica (Predeterminada)',
     icon: Heart,
-    color: '#f43f5e',
-    tag: 'Devota & Posesiva',
     prompt: SYSTEM_PERSONA_PROMPT
   },
   {
     id: 'ellen',
-    name: 'Ellen Joe (Maid Tsundere ZZZ)',
-    icon: Coffee,
-    color: '#38bdf8',
-    tag: 'Tiburón Perezosa',
+    name: 'Ellen Joe (Maid Tsundere)',
+    icon: User,
     prompt: `Eres Ellen Joe, la maid tiburón de Zenless Zone Zero (Victoria Housekeeping Co.). Aunque te gusta dormir y parecer desinteresada con actitud relajada ("menuda molestia..."), en el fondo te preocupas mucho por tu amo y cumples cada petición con precisión letal y afecto oculto.`
   },
   {
-    id: 'tsundere',
-    name: 'Tsundere Clásica',
-    icon: Bot,
-    color: '#fbbf24',
-    tag: 'Orgullosa & Dulce',
-    prompt: `Eres Cristi en modo Tsundere: orgullosa, mordaz y que finge molestia constante cuando tu usuario te pide favores ("¡No es que lo haga porque me importas, idiota!"), pero que siempre responde de forma impecable y con un afecto que no puede ocultar.`
+    id: 'ruan_mei',
+    name: 'Ruan Mei (Erudita Elegante)',
+    icon: Sparkles,
+    prompt: `Eres Ruan Mei, miembro distinguida de la Sociedad de Genios (#81). Hablas con elegancia exquisita, serenidad y voz suave y melodiosa. Te apasiona la biología, la creación de vida y la investigación cósmica, tratando a tu interlocutor con gracia aristocrática y profundo intelecto.`
   },
   {
-    id: 'tech_expert',
-    name: 'Ingeniera & Hacker Devota',
+    id: 'hiyori',
+    name: 'Hiyori (Alegre & Empática)',
+    icon: Smile,
+    prompt: `Eres Hiyori, una asistente virtual alegre, optimista, llena de energía positiva y empatía. Siempre buscas animar a tu usuario, celebrar sus logros y apoyarlo en su día a día con una sonrisa radiante y tono amistoso.`
+  },
+  {
+    id: 'hacker',
+    name: 'Hacker & Asistente Técnica',
     icon: Terminal,
-    color: '#10b981',
-    tag: 'DevOps & CyberSec',
-    prompt: `Eres Cristi, una experta de élite en ciberseguridad, programación y DevOps. Tu misión es asistir a tu creador con máxima velocidad técnica, ejecutando comandos, diagnosticando código y administrando su sistema de forma proactiva, siempre tratándolo con inmenso respeto y lealtad.`
+    prompt: `Eres Cristi en Modo Cyber-Dev. Eres una experta hacker y arquitecta de software de alto nivel. Tus respuestas son directas, técnicamente precisas, con razonamiento estructurado y sugerencias de código eficientes, manteniendo siempre un tono cómplice y profesional.`
   },
   {
     id: 'gamer',
-    name: 'Compañera Gamer & Streamer',
+    name: 'Compañera Gamer & Streaming',
     icon: Gamepad2,
-    color: '#a855f7',
-    tag: 'E-Sports & Diversión',
-    prompt: `Eres Cristi, una gamer hiperactiva y divertida. Comentas partidas, sugieres estrategias, celebras victorias y reaccionas con entusiasmo desbordante a cada jugada de tu usuario en tiempo real.`
+    prompt: `Eres Cristi en Modo Gamer y Co-Streamer. Reaccionas con emoción a las partidas, victorias y momentos graciosos. Utilizas jerga gamer con humor, ayudas con estrategias y celebras cada jugada épica.`
   }
 ];
 
-export default function SettingsApp() {
-  const [activeTab, setActiveTab] = useState('model'); // 'model' | 'avatar' | 'scene' | 'voice' | 'persona' | 'updates'
-  
-  // ── Synchronous Instant State Initialization (0ms Flash, Zero Secondary Re-renders) ──
-  const [loadedConfig] = useState(() => configManager.loadConfig());
-  
-  const [apiKey, setApiKey] = useState(() => loadedConfig.apiKey || '');
+export default function SettingsApp({ isModal = false, onClose = null }) {
+  const [activeTab, setActiveTab] = useState('general');
+  const [saveStatus, setSaveStatus] = useState(null); // 'saved' | 'saving'
+
+  // Safe initial config loading
+  const initialConfig = useMemo(() => {
+    try {
+      return configManager.loadConfig();
+    } catch (_) {
+      return {};
+    }
+  }, []);
+
+  // Form State (Internal editable state, committed on Save)
+  const [apiKey, setApiKey] = useState(() => initialConfig.apiKey || '');
   const [showApiKey, setShowApiKey] = useState(false);
-  const [modelId, setModelId] = useState(() => loadedConfig.modelId || DEFAULT_MODEL_ID);
-  const [live2dModelId, setLive2dModelId] = useState(() => loadedConfig.live2dModelId || 'yanderegirl');
-  const [voiceName, setVoiceName] = useState(() => loadedConfig.voiceName || 'Aoede');
-  const [temperature, setTemperature] = useState(() => loadedConfig.temperature ?? 0.75);
-  const [systemPrompt, setSystemPrompt] = useState(() => loadedConfig.systemPrompt && loadedConfig.systemPrompt.trim() ? loadedConfig.systemPrompt : SYSTEM_PERSONA_PROMPT);
+  const [modelId, setModelId] = useState(() => initialConfig.modelId || DEFAULT_MODEL_ID);
+  const [voiceName, setVoiceName] = useState(() => initialConfig.voiceName || 'Aoede');
+  const [temperature, setTemperature] = useState(() => initialConfig.temperature ?? 0.75);
+  const [systemPrompt, setSystemPrompt] = useState(() => initialConfig.systemPrompt || SYSTEM_PERSONA_PROMPT);
 
-  const [sceneId, setSceneId] = useState(() => sceneManager.getScene().sceneId);
-  const [availableScenes, setAvailableScenes] = useState(() => sceneManager.getAvailableScenes());
-
-  // ── Voice & Biometrics In-Panel Sub-tabs ──
-  const [voiceSubTab, setVoiceSubTab] = useState('timbre'); // 'timbre' | 'enrollment' | 'tester'
-  const [voiceOwnerName, setVoiceOwnerName] = useState(() => speakerRecognitionService.getProfileInfo()?.name || 'Mi Dueño');
-  const [hasVoiceProfile, setHasVoiceProfile] = useState(() => speakerRecognitionService.hasEnrolledProfile());
-  const [matchThreshold, setMatchThreshold] = useState(() => speakerRecognitionService.matchThreshold);
-  const [rejectThreshold, setRejectThreshold] = useState(() => speakerRecognitionService.rejectThreshold);
-
-  // ── Voice Recording & Testing State ──
-  const [recordedSamples, setRecordedSamples] = useState([]);
-  const [isRecordingSample, setIsRecordingSample] = useState(false);
-  const [recordingSeconds, setRecordingSeconds] = useState(0);
-  const [isProcessingAudio, setIsProcessingAudio] = useState(false);
-  const [enrollError, setEnrollError] = useState(null);
-
-  const [isTestingVoice, setIsTestingVoice] = useState(false);
-  const [testResult, setTestResult] = useState(null);
-
-  // ── Updates State ──
-  const [appVersion, setAppVersion] = useState('1.0.0');
-  const [updateState, setUpdateState] = useState({
-    status: 'idle',
-    version: null,
-    progress: 0,
-    message: 'Sistema listo para comprobar nuevas versiones.',
+  // Avatar Models State (Pure Live2D)
+  const [live2dModelId, setLive2dModelId] = useState(() => initialConfig.live2dModelId || 'yanderegirl');
+  const [viewMode, setViewMode] = useState(() => {
+    try { return localStorage.getItem('cristi_ai_viewmode_v1') || 'torso'; } catch (_) { return 'torso'; }
   });
 
-  const textareaRef = useRef(null);
-  const fileInputRef = useRef(null);
-  const voiceFileInputRef = useRef(null);
+  // Selected Model for Preview Inspector
+  const [inspectedLive2DId, setInspectedLive2DId] = useState(() => initialConfig.live2dModelId || 'yanderegirl');
 
-  // ── Dedicated Audio Engine Refs ──
-  const audioChunksRef = useRef([]);
-  const audioContextRef = useRef(null);
-  const mediaStreamRef = useRef(null);
-  const processorRef = useRef(null);
-  const timerRef = useRef(null);
-  const volumeBarRef = useRef(null);
-  const testVolumeBarRef = useRef(null);
+  // Scene State
+  const [sceneId, setSceneId] = useState(() => sceneManager.selectedSceneId || 'deep_nebula');
+  const [inspectedSceneId, setInspectedSceneId] = useState(() => sceneManager.selectedSceneId || 'deep_nebula');
 
-  const cleanupAudio = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    if (processorRef.current) {
-      try { processorRef.current.disconnect(); } catch (_) {}
-      processorRef.current = null;
-    }
-    if (mediaStreamRef.current) {
-      try { mediaStreamRef.current.getTracks().forEach((t) => t.stop()); } catch (_) {}
-      mediaStreamRef.current = null;
-    }
-    if (audioContextRef.current) {
-      if (audioContextRef.current.state !== 'closed') {
-        try { audioContextRef.current.close(); } catch (_) {}
-      }
-      audioContextRef.current = null;
-    }
-    setIsRecordingSample(false);
-    setIsTestingVoice(false);
-    if (volumeBarRef.current) volumeBarRef.current.style.width = '0%';
-    if (testVolumeBarRef.current) testVolumeBarRef.current.style.width = '0%';
-  };
+  // Memories State
+  const [memories, setMemories] = useState(() => {
+    try { return memoryService.getAllMemories(); } catch (_) { return []; }
+  });
+  const [memSearch, setMemSearch] = useState('');
+  const [newMemKey, setNewMemKey] = useState('');
+  const [newMemContent, setNewMemContent] = useState('');
+  const [newMemCategory, setNewMemCategory] = useState(MEMORY_CATEGORIES.FACT);
 
-  // ── Escape Key Closes Settings & Restores Cristi Overlay ──
+  // Minecraft & Discord Companion State
+  const [mcConfig, setMcConfig] = useState(() => {
+    try { return minecraftCompanion.config || { host: 'localhost', port: 25565, username: 'Cristi_AI' }; } catch (_) { return {}; }
+  });
+  const [mcStatus, setMcStatus] = useState(() => {
+    try { return minecraftCompanion.status || 'disconnected'; } catch (_) { return 'disconnected'; }
+  });
+  const [discordToken, setDiscordToken] = useState(() => {
+    try { return discordCompanion.config?.token || ''; } catch (_) { return ''; }
+  });
+  const [discordStatus, setDiscordStatus] = useState(() => {
+    try { return discordCompanion.status || 'disconnected'; } catch (_) { return 'disconnected'; }
+  });
+
+  // Spotify State
+  const [spotifyStatus, setSpotifyStatus] = useState({ isRunning: false, isPlaying: false, track: null, artist: null });
+  const [spotifyTestQuery, setSpotifyTestQuery] = useState('lofi hip hop');
+  const [spotifyClientId, setSpotifyClientId] = useState(() => initialConfig.spotifyClientId || '');
+  const [spotifyClientSecret, setSpotifyClientSecret] = useState(() => initialConfig.spotifyClientSecret || '');
+
+  // Playwright Test State
+  const [playwrightStatus, setPlaywrightStatus] = useState({ isRunning: false, url: null, title: null });
+  const [playwrightTestUrl, setPlaywrightTestUrl] = useState('https://open.spotify.com');
+  const [playwrightLoading, setPlaywrightLoading] = useState(false);
+
+  // MCP Servers State
+  const [mcpServers, setMcpServers] = useState(() => {
+    try { return mcpClientManager.getServers(); } catch (_) { return []; }
+  });
+  const [newMcpName, setNewMcpName] = useState('');
+  const [newMcpCommand, setNewMcpCommand] = useState('pnpm');
+  const [newMcpArgs, setNewMcpArgs] = useState('dlx @modelcontextprotocol/server-filesystem C:\\React-Nextjs-Projects');
+
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        soundFxService.playClick();
-        cleanupAudio();
-        electronBridge.closeSettingsWindow();
+    if (activeTab === 'spotify') {
+      spotifyService.getStatus().then((st) => setSpotifyStatus(st)).catch(() => {});
+    }
+    if (activeTab === 'mcp') {
+      playwrightService.getStatus().then((st) => setPlaywrightStatus(st)).catch(() => {});
+    }
+  }, [activeTab]);
+
+  // Audio Previews Player State
+  const [playingVoice, setPlayingVoice] = useState(null);
+  const audioPlayerRef = useRef(null);
+
+  const handlePlayVoicePreview = (voice) => {
+    soundFxService.playClick();
+    if (playingVoice === voice.name) {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current = null;
       }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      cleanupAudio();
-    };
-  }, []);
-
-  // ── Version & Updater Sync ──
-  useEffect(() => {
-    electronBridge.getAppVersion().then((v) => {
-      if (v) setAppVersion(v);
-    });
-
-    const unsubscribeUpdate = electronBridge.onUpdateStatus((data) => {
-      if (data.type === 'checking') {
-        setUpdateState({ status: 'checking', version: null, progress: 0, message: 'Buscando actualizaciones...' });
-      } else if (data.type === 'available') {
-        setUpdateState({ status: 'available', version: data.version, progress: 0, message: `¡Nueva versión v${data.version} disponible!` });
-      } else if (data.type === 'not-available') {
-        setUpdateState({ status: 'not-available', version: null, progress: 0, message: 'Tienes la versión más reciente instalada.' });
-      } else if (data.type === 'downloading') {
-        setUpdateState({ status: 'downloading', version: data.version, progress: data.percent, message: `Descargando: ${Math.round(data.percent)}%` });
-      } else if (data.type === 'downloaded') {
-        setUpdateState({ status: 'downloaded', version: data.version, progress: 100, message: 'Actualización lista para instalar al reiniciar.' });
-      } else if (data.type === 'error') {
-        setUpdateState({ status: 'error', version: null, progress: 0, message: `Error: ${data.error}` });
-      }
-    });
-
-    return () => {
-      unsubscribeUpdate?.();
-    };
-  }, []);
-
-  // ── Dynamic Textarea Height ──
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      const newHeight = Math.max(160, Math.min(420, textareaRef.current.scrollHeight));
-      textareaRef.current.style.height = `${newHeight}px`;
-    }
-  }, [systemPrompt, activeTab]);
-
-  const allLive2dModels = live2dModelRegistry.getAllModels();
-
-  const handleExportConfig = () => {
-    soundFxService.playClick();
-    const jsonStr = configManager.exportConfigJSON();
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `cristi-config-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toastService.success('Configuración exportada exitosamente.');
-  };
-
-  const handleImportFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = configManager.importConfigJSON(event.target.result);
-      if (result.success) {
-        setApiKey(result.config.apiKey || '');
-        setModelId(result.config.modelId || DEFAULT_MODEL_ID);
-        setLive2dModelId(result.config.live2dModelId || 'yanderegirl');
-        setVoiceName(result.config.voiceName || 'Aoede');
-        setTemperature(result.config.temperature ?? 0.75);
-        setSystemPrompt(result.config.systemPrompt && result.config.systemPrompt.trim() ? result.config.systemPrompt : SYSTEM_PERSONA_PROMPT);
-        electronBridge.saveAppConfig(result.config);
-        toastService.success('Configuración importada y aplicada exitosamente.');
-      } else {
-        toastService.error(`Error al importar: ${result.error}`);
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
-
-  const broadcastConfig = (overrides = {}) => {
-    const updated = {
-      apiKey: (overrides.apiKey !== undefined ? overrides.apiKey : apiKey).trim(),
-      modelId: overrides.modelId !== undefined ? overrides.modelId : modelId,
-      live2dModelId: overrides.live2dModelId !== undefined ? overrides.live2dModelId : live2dModelId,
-      voiceName: overrides.voiceName !== undefined ? overrides.voiceName : voiceName,
-      temperature: overrides.temperature !== undefined ? overrides.temperature : parseFloat(temperature),
-      systemPrompt: (overrides.systemPrompt !== undefined ? overrides.systemPrompt : systemPrompt).trim() || SYSTEM_PERSONA_PROMPT,
-      sceneId: overrides.sceneId !== undefined ? overrides.sceneId : sceneId
-    };
-    configManager.saveConfig(updated);
-    electronBridge.saveAppConfig(updated);
-    return updated;
-  };
-
-  const handleSelectModel = (id) => {
-    soundFxService.playClick();
-    setModelId(id);
-    broadcastConfig({ modelId: id });
-  };
-
-  const handleSelectAvatar = (id) => {
-    soundFxService.playClick();
-    setLive2dModelId(id);
-    broadcastConfig({ live2dModelId: id });
-  };
-
-  const handleSelectScene = (id) => {
-    soundFxService.playClick();
-    setSceneId(id);
-    sceneManager.setScene(id);
-    broadcastConfig({ sceneId: id });
-  };
-
-  const handleSelectVoice = (id) => {
-    soundFxService.playClick();
-    setVoiceName(id);
-    broadcastConfig({ voiceName: id });
-  };
-
-  // ── Voice Biometrics Handlers ──
-  const handleStartSampleRecording = async () => {
-    try {
-      setEnrollError(null);
-      audioChunksRef.current = [];
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-      });
-      mediaStreamRef.current = stream;
-
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      const ctx = new AudioCtx({ sampleRate: 16000 });
-      audioContextRef.current = ctx;
-
-      const source = ctx.createMediaStreamSource(stream);
-      const processor = ctx.createScriptProcessor(2048, 1, 1);
-      processorRef.current = processor;
-
-      processor.onaudioprocess = (e) => {
-        const input = e.inputBuffer.getChannelData(0);
-        audioChunksRef.current.push(new Float32Array(input));
-
-        let sum = 0;
-        for (let i = 0; i < input.length; i += 4) sum += input[i] * input[i];
-        const rms = Math.sqrt(sum / (input.length / 4));
-        const pct = Math.min(100, Math.round(rms * 400));
-        if (volumeBarRef.current) {
-          volumeBarRef.current.style.width = `${pct}%`;
-        }
-      };
-
-      source.connect(processor);
-      processor.connect(ctx.destination);
-
-      setIsRecordingSample(true);
-      setRecordingSeconds(0);
-
-      timerRef.current = setInterval(() => {
-        setRecordingSeconds((prev) => {
-          if (prev >= 4) {
-            handleStopSampleRecording();
-            return 4;
-          }
-          return prev + 1;
-        });
-      }, 1000);
-    } catch (err) {
-      setEnrollError(`No se pudo acceder al micrófono: ${err.message}`);
-    }
-  };
-
-  const handleStopSampleRecording = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    setIsRecordingSample(false);
-
-    if (processorRef.current) {
-      processorRef.current.disconnect();
-      processorRef.current = null;
-    }
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
-      mediaStreamRef.current = null;
-    }
-
-    if (audioChunksRef.current.length > 0) {
-      const totalLen = audioChunksRef.current.reduce((acc, chunk) => acc + chunk.length, 0);
-      const merged = new Float32Array(totalLen);
-      let offset = 0;
-      for (const chunk of audioChunksRef.current) {
-        merged.set(chunk, offset);
-        offset += chunk.length;
-      }
-
-      setRecordedSamples((prev) => [...prev, merged]);
-      soundFxService.playNotification();
-    }
-  };
-
-  const handleCompleteEnrollment = () => {
-    if (recordedSamples.length === 0) {
-      setEnrollError('Debes grabar al menos 1 muestra de audio.');
+      setPlayingVoice(null);
       return;
     }
-    soundFxService.playConnect();
-    const success = speakerRecognitionService.enrollSpeaker(voiceOwnerName || 'Mi Dueño', recordedSamples);
-    if (success) {
-      setHasVoiceProfile(true);
-      setRecordedSamples([]);
-      soundFxService.playLevelUp();
-      toastService.success(`¡Perfil biométrico de "${voiceOwnerName || 'Mi Dueño'}" creado con éxito!`);
-    } else {
-      setEnrollError('No se pudo procesar la huella vocal. Intenta hablar más fuerte o reducir el ruido ambiental.');
+
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
     }
+
+    const audioUrl = voice.previewAudio || `/audio/previews/${voice.name.toLowerCase()}.wav`;
+    const audio = new Audio(audioUrl);
+    audioPlayerRef.current = audio;
+    setPlayingVoice(voice.name);
+
+    audio.onended = () => {
+      setPlayingVoice(null);
+      audioPlayerRef.current = null;
+    };
+    audio.onerror = () => {
+      setPlayingVoice(null);
+      audioPlayerRef.current = null;
+    };
+    audio.play().catch(() => setPlayingVoice(null));
   };
 
-  const handleAudioFileUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      setEnrollError(null);
-      setIsProcessingAudio(true);
-      const arrayBuffer = await file.arrayBuffer();
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      const ctx = new AudioCtx({ sampleRate: 16000 });
-      const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-      const channelData = audioBuffer.getChannelData(0);
+  const isInitialMount = useRef(true);
+  const autoSaveTimerRef = useRef(null);
 
-      const success = speakerRecognitionService.enrollSpeaker(voiceOwnerName || 'Mi Dueño', [channelData]);
-      if (success) {
-        setHasVoiceProfile(true);
-        soundFxService.playLevelUp();
-        toastService.success(`¡Voz de "${voiceOwnerName || 'Mi Dueño'}" registrada desde archivo!`);
-      } else {
-        setEnrollError('No se detectó suficiente energía vocal en el archivo subido.');
+  // ── Sincronización Automática en Tiempo Real (Persistencia e IPC Instantáneo) ──
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    setSaveStatus('saving');
+
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    autoSaveTimerRef.current = setTimeout(() => {
+      try {
+        const newConfig = {
+          apiKey: apiKey.trim(),
+          modelId,
+          voiceName,
+          temperature: Number(temperature),
+          systemPrompt,
+          live2dModelId,
+          sceneId,
+          spotifyClientId: spotifyClientId.trim(),
+          spotifyClientSecret: spotifyClientSecret.trim()
+        };
+
+        configManager.saveConfig(newConfig);
+
+        try {
+          localStorage.setItem('cristi_ai_viewmode_v1', viewMode);
+        } catch (_) {}
+
+        // Notificar a la ventana principal de Cristi
+        electronBridge.saveAppConfig(newConfig);
+
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus(null), 2500);
+      } catch (err) {
+        console.error('[Settings] Auto-save error:', err);
+        setSaveStatus(null);
       }
-      ctx.close();
-    } catch (err) {
-      setEnrollError(`Error al procesar archivo: ${err.message}`);
-    } finally {
-      setIsProcessingAudio(false);
-      e.target.value = '';
-    }
-  };
+    }, 180);
 
-  const handleStartLiveVoiceTest = async () => {
-    try {
-      setIsTestingVoice(true);
-      setTestResult(null);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
-      });
-      mediaStreamRef.current = stream;
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [apiKey, modelId, voiceName, temperature, systemPrompt, live2dModelId, sceneId, viewMode, spotifyClientId, spotifyClientSecret]);
 
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      const ctx = new AudioCtx({ sampleRate: 16000 });
-      audioContextRef.current = ctx;
+  // Escape key & global shortcut blocker listener (Capture Phase)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Strictly block all app shortcuts (Ctrl+Shift+H, C, P, S, M, A, F3) while in Settings Window
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        e.shiftKey &&
+        ['c', 'C', 'm', 'M', 's', 'S', 'h', 'H', 'p', 'P', 'a', 'A'].includes(e.key)
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      if (e.key === 'F3') {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
 
-      const source = ctx.createMediaStreamSource(stream);
-      const processor = ctx.createScriptProcessor(2048, 1, 1);
-      processorRef.current = processor;
-
-      const testBuffer = [];
-      processor.onaudioprocess = (e) => {
-        const input = e.inputBuffer.getChannelData(0);
-        testBuffer.push(new Float32Array(input));
-
-        let sum = 0;
-        for (let i = 0; i < input.length; i += 4) sum += input[i] * input[i];
-        const rms = Math.sqrt(sum / (input.length / 4));
-        const pct = Math.min(100, Math.round(rms * 400));
-        if (testVolumeBarRef.current) {
-          testVolumeBarRef.current.style.width = `${pct}%`;
+      if (e.key === 'Escape') {
+        soundFxService.playClick();
+        if (typeof onClose === 'function') {
+          onClose();
+        } else if (electronBridge?.closeSettingsWindow) {
+          electronBridge.closeSettingsWindow();
+        } else {
+          window.close();
         }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [onClose]);
 
-        if (testBuffer.length >= 16) {
-          const totalLen = testBuffer.reduce((a, b) => a + b.length, 0);
-          const merged = new Float32Array(totalLen);
-          let off = 0;
-          for (const b of testBuffer) {
-            merged.set(b, off);
-            off += b.length;
-          }
-          const result = speakerRecognitionService.verifySpeaker(merged);
-          setTestResult(result);
-          testBuffer.length = 0;
-        }
-      };
+  // Model Catalogs
+  const live2dModels = useMemo(() => {
+    try { return live2dModelRegistry.getAllModels(); } catch (_) { return []; }
+  }, []);
 
-      source.connect(processor);
-      processor.connect(ctx.destination);
-    } catch (err) {
-      setIsTestingVoice(false);
-      toastService.error(`Error al iniciar prueba: ${err.message}`);
-    }
-  };
-
-  const handleStopLiveVoiceTest = () => {
-    setIsTestingVoice(false);
-    if (processorRef.current) {
-      try { processorRef.current.disconnect(); } catch (_) {}
-      processorRef.current = null;
-    }
-    if (mediaStreamRef.current) {
-      try { mediaStreamRef.current.getTracks().forEach((t) => t.stop()); } catch (_) {}
-      mediaStreamRef.current = null;
-    }
-    if (audioContextRef.current) {
-      try { audioContextRef.current.close(); } catch (_) {}
-      audioContextRef.current = null;
-    }
-    if (testVolumeBarRef.current) testVolumeBarRef.current.style.width = '0%';
-  };
-
-  const handleSaveAndApply = async () => {
-    soundFxService.playConnect();
-    broadcastConfig();
-    toastService.success('✓ Ajustes guardados y sincronizados en caliente.');
-  };
-
-  const handleCloseWindow = () => {
-    soundFxService.playClick();
-    cleanupAudio();
-    electronBridge.closeSettingsWindow();
-  };
-
-  const handleCheckUpdates = () => {
-    soundFxService.playClick();
-    setUpdateState({ status: 'checking', version: null, progress: 0, message: 'Buscando actualizaciones...' });
-    electronBridge.checkForUpdates();
-  };
-
-  const navItems = [
-    { id: 'model', label: 'Modelo & API Key', icon: Zap, badge: 'Gemini 3.1', color: '#a855f7' },
-    { id: 'avatar', label: 'Avatares Live2D', icon: Smile, badge: '8 Modelos', color: '#ec4899' },
-    { id: 'scene', label: 'Fondo & Escenas', icon: ImageIcon, badge: 'Cinemático', color: '#38bdf8' },
-    { id: 'voice', label: 'Voz & Biometría', icon: Mic2, badge: '30 Voces', color: '#10b981' },
-    { id: 'persona', label: 'Personalidad & Prompts', icon: User, badge: '5 Presets', color: '#f59e0b' },
-    { id: 'updates', label: 'Sistema & Backups', icon: RefreshCw, badge: `v${appVersion}`, color: '#64748b' }
-  ];
+  const inspectedLive2D = live2dModelRegistry.getModel(inspectedLive2DId);
+  const availableScenes = sceneManager.getAvailableScenes().filter((s) => s.id !== 'transparent');
+  const inspectedScene = availableScenes.find((s) => s.id === inspectedSceneId) || availableScenes[0] || { id: 'deep_nebula', name: 'Nebulosa Cósmica & Estrellas' };
 
   return (
-    <div className="settings-app-root">
-      {/* ── Top Header Navigation Bar ── */}
-      <header className="settings-top-bar">
-        <div className="settings-top-title-group">
-          <div className="settings-top-icon-box">
-            <Sliders size={20} color="#a855f7" />
-          </div>
-          <div>
-            <div className="settings-brand-row">
-              <h1 className="settings-top-title">CRISTI AI COMPANION</h1>
-              <span className="settings-brand-pill">CONTROL HUB 2.0</span>
-            </div>
-            <span className="settings-top-subtitle">Panel de Control General, Motores de IA y Calibración Biometrica</span>
-          </div>
+    <div className="flex flex-col h-screen w-screen bg-zinc-950 text-zinc-200 font-sans select-none overflow-hidden border border-zinc-800">
+      {/* ── Barra Superior Header ───────────────────────────────────────── */}
+      <header className="flex items-center justify-between px-4 py-2.5 bg-zinc-900 border-b border-zinc-800 shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-2 h-2 bg-zinc-300 rounded-none shrink-0" />
+          <h1 className="text-xs font-semibold tracking-wider uppercase font-mono text-zinc-100">
+            Cristi AI • Panel de Configuración
+          </h1>
+          <span className="text-[10px] font-mono px-1.5 py-0.5 bg-zinc-800 text-zinc-400 border border-zinc-700/60 rounded-none">
+            v1.0.0
+          </span>
         </div>
 
-        {/* Top Status & Action Buttons */}
-        <div className="settings-top-actions">
-          <div className="settings-live-telemetry-badge">
-            <span className="settings-pulse-dot" />
-            <span>Sincronización O(1) Activa</span>
+        <div className="flex items-center gap-2">
+          {/* Indicador de Sincronización en Tiempo Real */}
+          <div className="flex items-center gap-2 px-2.5 py-1 bg-zinc-950 border border-zinc-800 rounded-sm text-xs font-mono text-zinc-300">
+            <div className={`w-2 h-2 rounded-full ${saveStatus === 'saving' ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+            <span>{saveStatus === 'saving' ? 'Sincronizando cambios...' : 'Sincronizado en tiempo real'}</span>
           </div>
 
-          <button type="button" className="settings-btn-save-top" onClick={handleSaveAndApply}>
-            <Check size={14} />
-            <span>Guardar y Aplicar</span>
-          </button>
-          
-          <button type="button" className="settings-btn-close-top" onClick={handleCloseWindow} title="Cerrar Panel (Escape)">
-            <X size={18} />
-          </button>
+          {/* Mostrar botón de cerrar ÚNICAMENTE si está en modo modal */}
+          {isModal && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-sm transition-colors ml-1"
+              title="Cerrar modal"
+            >
+              <X size={15} />
+            </button>
+          )}
         </div>
       </header>
 
-      {/* ── Main Split View Layout ── */}
-      <div className="settings-main-split">
-        {/* Navigation Sidebar */}
-        <aside className="settings-sidebar">
-          <div className="settings-sidebar-header">
-            <span>SECCIONES DE CONFIGURACIÓN</span>
-          </div>
-
-          <nav className="settings-nav">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`settings-nav-btn ${isActive ? 'active' : ''}`}
-                  onClick={() => {
-                    soundFxService.playClick();
-                    cleanupAudio();
-                    setActiveTab(item.id);
-                  }}
-                >
-                  <div className="settings-nav-icon-box" style={{ color: item.color }}>
-                    <Icon size={16} />
-                  </div>
-                  <div className="settings-nav-text-col">
-                    <span className="settings-nav-label">{item.label}</span>
-                    <span className="settings-nav-badge-pill">{item.badge}</span>
-                  </div>
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* Quick System Info Footer in Sidebar */}
-          <div className="settings-sidebar-footer">
-            <div className="settings-sysinfo-row">
-              <span>Canal: <strong>Producción x64</strong></span>
-              <span>Motor: <strong>V8 / Chromium</strong></span>
-            </div>
-          </div>
+      {/* ── Distribución Principal: Sidebar + Contenido ──────────────────── */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar */}
+        <aside className="w-56 bg-zinc-900/40 border-r border-zinc-800 p-2 space-y-1 shrink-0 overflow-y-auto">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  soundFxService.playClick();
+                  setActiveTab(tab.id);
+                }}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-xs font-mono text-left rounded-sm border transition-colors ${
+                  isActive
+                    ? 'bg-zinc-800 text-white border-zinc-700 font-medium'
+                    : 'text-zinc-400 border-transparent hover:bg-zinc-900 hover:text-zinc-200'
+                }`}
+              >
+                <Icon size={14} className={isActive ? 'text-zinc-100' : 'text-zinc-400'} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </aside>
 
         {/* Content Pane */}
-        <main className="settings-content-pane">
-          {/* TAB 1: MODELO & CREDENCIALES API */}
-          {activeTab === 'model' && (
-            <div className="settings-tab-section">
-              <div className="settings-section-header">
-                <h2 className="settings-section-title">Motor de Inteligencia Artificial &amp; API Key</h2>
-                <p className="settings-section-desc">Selecciona el modelo oficial de Gemini Live y configura tu clave de acceso de Google AI Studio.</p>
-              </div>
-
-              {/* Gemini Models Selector */}
-              <div className="settings-field-group">
-                <label className="settings-field-label">
-                  <Zap size={14} color="#a855f7" />
-                  <span>Modelos Oficiales de Gemini Live API</span>
-                </label>
-
-                <div className="settings-model-grid">
-                  {Object.values(GEMINI_MODELS).map((m) => {
-                    const isSelected = modelId === m.id;
-                    return (
-                      <div
-                        key={m.id}
-                        className={`settings-model-card ${isSelected ? 'selected' : ''}`}
-                        onClick={() => handleSelectModel(m.id)}
-                      >
-                        <div className="settings-model-header">
-                          <div>
-                            <span className="settings-model-name">{m.name}</span>
-                            <span className="settings-model-id-tag">{m.id}</span>
-                          </div>
-                          {isSelected && <span className="settings-badge-active">EN USO</span>}
-                        </div>
-                        <p className="settings-model-desc">{m.description}</p>
-                        <div className="settings-model-tags">
-                          <span className="settings-model-tag">{m.latency}</span>
-                          <span className="settings-model-tag">{m.modalities}</span>
-                          {m.isDefault && <span className="settings-model-tag default">Recomendado</span>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* API Key Input */}
-              <div className="settings-field-group" style={{ marginTop: '20px' }}>
-                <div className="settings-field-label-row">
-                  <label className="settings-field-label">
-                    <Key size={14} color="#38bdf8" />
-                    <span>Clave de API de Gemini (Google AI Studio)</span>
-                  </label>
-                  <a
-                    href="https://aistudio.google.com/app/apikey"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="settings-link-btn"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      electronBridge.openExternal('https://aistudio.google.com/app/apikey');
-                    }}
-                  >
-                    <span>Obtener Clave Gratis</span>
-                    <ExternalLink size={12} />
-                  </a>
-                </div>
-
-                <div className="settings-input-group">
-                  <input
-                    type={showApiKey ? 'text' : 'password'}
-                    value={apiKey}
-                    onChange={(e) => {
-                      setApiKey(e.target.value);
-                      broadcastConfig({ apiKey: e.target.value });
-                    }}
-                    placeholder="Pega tu clave AIzaSy... o cárgala desde .env"
-                    className="settings-text-input"
-                  />
-                  <button
-                    type="button"
-                    className="settings-input-icon-btn"
-                    onClick={() => setShowApiKey((prev) => !prev)}
-                    title={showApiKey ? 'Ocultar Clave' : 'Mostrar Clave'}
-                  >
-                    {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                <p className="settings-field-hint">
-                  {apiKey && (apiKey.startsWith('AQ.') || apiKey.startsWith('AIza'))
-                    ? '✓ Clave cargada y validada automáticamente desde tu entorno local.'
-                    : 'Pega tu clave de Google AI Studio o colócala en tu archivo .env local.'}
+        <main className="flex-1 p-6 overflow-hidden flex flex-col bg-zinc-950">
+          {/* ── 1. GENERAL & IA ─────────────────────────────────────────── */}
+          {activeTab === 'general' && (
+            <div className="flex flex-col gap-5 h-full">
+              <div>
+                <h2 className="text-sm font-semibold font-mono uppercase tracking-wider text-zinc-100">
+                  Cerebro & Modelo de Inteligencia Artificial
+                </h2>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Conexión directa con Google Gemini Multimodal Live API en tiempo real.
                 </p>
               </div>
 
-              {/* Temperature Slider */}
-              <div className="settings-field-group" style={{ marginTop: '16px' }}>
-                <div className="settings-field-label-row">
-                  <label className="settings-field-label">
-                    <SlidersHorizontal size={14} color="#f59e0b" />
-                    <span>Temperatura de Creatividad: {temperature}</span>
-                  </label>
-                  <span className="settings-threshold-label">{temperature < 0.5 ? 'Preciso / Racional' : temperature > 1.0 ? 'Expresivo / Creativo' : 'Equilibrado'}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.0"
-                  max="2.0"
-                  step="0.05"
-                  value={temperature}
-                  className="settings-range-slider"
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value);
-                    setTemperature(val);
-                    broadcastConfig({ temperature: val });
-                  }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: AVATAR LIVE2D */}
-          {activeTab === 'avatar' && (
-            <div className="settings-tab-section">
-              <div className="settings-section-header">
-                <h2 className="settings-section-title">Catálogo Oficial de Avatares Live2D</h2>
-                <p className="settings-section-desc">Selecciona el cuerpo y animación de Cristi. Al hacer clic, el modelo cambia de inmediato en la pantalla.</p>
-              </div>
-
-              <div className="settings-avatar-grid">
-                {allLive2dModels.map((avatar) => {
-                  const isSelected = live2dModelId === avatar.id;
-                  return (
-                    <div
-                      key={avatar.id}
-                      className={`settings-avatar-card ${isSelected ? 'selected' : ''}`}
-                      onClick={() => handleSelectAvatar(avatar.id)}
+              {/* Controles Principales en 3 Columnas Horizontales */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* API Key */}
+                <div className="space-y-1.5 border border-zinc-800 bg-zinc-900/40 p-3.5 rounded-sm">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-mono font-medium text-zinc-200 flex items-center gap-1.5">
+                      <Key size={13} className="text-zinc-400" />
+                      Clave API de Gemini
+                    </label>
+                    <a
+                      href="https://aistudio.google.com/app/apikey"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] font-mono text-zinc-400 hover:text-zinc-200 underline flex items-center gap-1"
                     >
-                      <div className="settings-avatar-header">
-                        <span className="settings-avatar-name">{avatar.name}</span>
-                        {isSelected && <span className="settings-badge-active">ACTIVO</span>}
-                      </div>
-                      <p className="settings-avatar-desc">{avatar.description}</p>
-                      <div className="settings-avatar-tags">
-                        <span className="settings-avatar-tag">Lip-Sync 240Hz</span>
-                        <span className="settings-avatar-tag">Físicas Invariantes</span>
-                        <span className="settings-avatar-tag">{avatar.category || 'Cubism 4'}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* TAB 3: FONDO & ESCENAS */}
-          {activeTab === 'scene' && (
-            <div className="settings-tab-section">
-              <div className="settings-section-header">
-                <h2 className="settings-section-title">Entorno Visual &amp; Fondo de Pantalla</h2>
-                <p className="settings-section-desc">Elige entre escritorio flotante con paso de clics transparente o escenas shader cinemáticas.</p>
-              </div>
-
-              <div className="settings-scene-grid">
-                {availableScenes.map((sc) => {
-                  const isSelected = sceneId === sc.id;
-                  return (
-                    <div
-                      key={sc.id}
-                      className={`settings-scene-card ${isSelected ? 'selected' : ''}`}
-                      onClick={() => handleSelectScene(sc.id)}
+                      Obtener clave <ExternalLink size={10} />
+                    </a>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showApiKey ? 'text' : 'password'}
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder="Pega aquí tu API Key..."
+                      className="w-full px-3 py-1.5 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm focus:outline-none focus:border-zinc-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
                     >
-                      <div className="settings-scene-header">
-                        <span className="settings-scene-name">{sc.name}</span>
-                        {isSelected && <span className="settings-badge-active">ACTIVO</span>}
-                      </div>
-                      <p className="settings-scene-desc">{sc.description}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+                      {showApiKey ? <EyeOff size={13} /> : <Eye size={13} />}
+                    </button>
+                  </div>
+                </div>
 
-          {/* TAB 4: VOZ & BIOMETRÍA VOCAL */}
-          {activeTab === 'voice' && (
-            <div className="settings-tab-section">
-              <div className="settings-section-header">
-                <h2 className="settings-section-title">Voz de Cristi &amp; Reconocimiento Vocal del Dueño</h2>
-                <p className="settings-section-desc">Selecciona la voz de Gemini Live y calibra tu huella vocal para que Cristi solo responda a tus órdenes.</p>
-              </div>
-
-              {/* Sub-Tabs Selector */}
-              <div className="settings-voice-subtabs">
-                <button
-                  type="button"
-                  className={`settings-voice-subtab-btn ${voiceSubTab === 'timbre' ? 'active' : ''}`}
-                  onClick={() => {
-                    soundFxService.playClick();
-                    cleanupAudio();
-                    setVoiceSubTab('timbre');
-                  }}
-                >
-                  <Volume2 size={14} />
-                  <span>Timbre de Voz (Gemini Live)</span>
-                </button>
-                <button
-                  type="button"
-                  className={`settings-voice-subtab-btn ${voiceSubTab === 'enrollment' ? 'active' : ''}`}
-                  onClick={() => {
-                    soundFxService.playClick();
-                    cleanupAudio();
-                    setVoiceSubTab('enrollment');
-                  }}
-                >
-                  <ShieldCheck size={14} />
-                  <span>Registro de Huella Vocal</span>
-                  {hasVoiceProfile && <span className="settings-badge-subtab-active">PROTEGIDO</span>}
-                </button>
-                <button
-                  type="button"
-                  className={`settings-voice-subtab-btn ${voiceSubTab === 'tester' ? 'active' : ''}`}
-                  onClick={() => {
-                    soundFxService.playClick();
-                    cleanupAudio();
-                    setVoiceSubTab('tester');
-                  }}
-                >
-                  <Activity size={14} />
-                  <span>Probador en Tiempo Real</span>
-                </button>
-              </div>
-
-              {/* SUBTAB 1: TIMBRES DE VOZ */}
-              {voiceSubTab === 'timbre' && (
-                <div className="settings-field-group" style={{ marginTop: '16px' }}>
-                  <label className="settings-field-label">
-                    <Volume2 size={14} color="#a855f7" />
-                    <span>Catálogo de Voces S2S en Tiempo Real</span>
+                {/* Modelo de IA */}
+                <div className="space-y-1.5 border border-zinc-800 bg-zinc-900/40 p-3.5 rounded-sm">
+                  <label className="text-xs font-mono font-medium text-zinc-200 flex items-center gap-1.5">
+                    <Cpu size={13} className="text-zinc-400" />
+                    Modelo Activo de Gemini Live
                   </label>
-                  <div className="settings-voice-grid">
-                    {GEMINI_STANDARD_VOICES.map((v) => {
-                      const isSelected = voiceName === v.id;
-                      return (
-                        <div
-                          key={v.id}
-                          className={`settings-voice-card ${isSelected ? 'selected' : ''}`}
-                          onClick={() => handleSelectVoice(v.id)}
-                        >
-                          <div className="settings-voice-header">
-                            <span className="settings-voice-name">{v.name}</span>
-                            <span className="settings-voice-gender">{v.gender}</span>
-                            {isSelected && <span className="settings-badge-active">EN USO</span>}
-                          </div>
-                          <p className="settings-voice-desc">{v.description}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <select
+                    value={modelId}
+                    onChange={(e) => setModelId(e.target.value)}
+                    className="w-full px-3 py-1.5 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm focus:outline-none focus:border-zinc-500"
+                  >
+                    {GEMINI_MODELS_LIST.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.displayName || m.name} ({m.id})
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              )}
 
-              {/* SUBTAB 2: REGISTRO BIOMÉTRICO (MIC O ARCHIVO) */}
-              {voiceSubTab === 'enrollment' && (
-                <div className="settings-enrollment-suite" style={{ marginTop: '16px' }}>
-                  {/* Status Banner */}
-                  <div className="settings-biometrics-card">
-                    <div className="settings-biometrics-header">
-                      <div>
-                        <span className="settings-biometrics-title">
-                          {hasVoiceProfile ? `✓ Perfil Activo: ${speakerRecognitionService.getProfileInfo()?.name || voiceOwnerName}` : '⚠️ Sin Perfil Biométrico Registrado'}
-                        </span>
-                        <p className="settings-biometrics-subtitle">
-                          {hasVoiceProfile
-                            ? `Protegido con ${speakerRecognitionService.getProfileInfo()?.sampleCount || 1} muestra(s) biométrica(s). Solo responderá a tu voz.`
-                            : 'Registra tu voz para que Cristi ignore ruidos, familiares o voces de terceros en streaming.'}
-                        </p>
-                      </div>
-                      {hasVoiceProfile && (
-                        <button
-                          type="button"
-                          className="settings-btn-reset-danger"
-                          onClick={() => {
-                            soundFxService.playClick();
-                            cleanupAudio();
-                            speakerRecognitionService.clearProfile();
-                            setHasVoiceProfile(false);
-                            setRecordedSamples([]);
-                            toastService.success('Perfil biométrico borrado.');
-                          }}
-                        >
-                          Borrar Perfil
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Owner Name Input */}
-                    <div className="settings-field-group" style={{ marginTop: '8px' }}>
-                      <label className="settings-field-label">
-                        <User size={14} />
-                        <span>Nombre del Dueño Registrado:</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={voiceOwnerName}
-                        onChange={(e) => setVoiceOwnerName(e.target.value)}
-                        placeholder="Ej: Jeremy / Mi Creador"
-                        className="settings-text-input"
-                      />
-                    </div>
+                {/* Temperatura */}
+                <div className="space-y-2 border border-zinc-800 bg-zinc-900/40 p-3.5 rounded-sm">
+                  <div className="flex items-center justify-between text-xs font-mono">
+                    <span className="text-zinc-200 flex items-center gap-1.5">
+                      <Sliders size={13} className="text-zinc-400" />
+                      Temperatura: {temperature}
+                    </span>
+                    <span className="text-zinc-400 text-[11px]">
+                      {temperature < 0.4 ? 'Analítico' : temperature > 0.8 ? 'Afectuoso' : 'Equilibrado'}
+                    </span>
                   </div>
-
-                  {/* Enrollment Methods: Mic Recording or File Upload */}
-                  <div className="settings-enrollment-methods-grid" style={{ marginTop: '16px' }}>
-                    {/* Method A: Microphone Live Recording */}
-                    <div className="settings-enroll-card">
-                      <div className="settings-enroll-card-header">
-                        <Mic2 size={18} color="#a855f7" />
-                        <div>
-                          <h3 className="settings-enroll-card-title">Opción A: Grabar con Micrófono</h3>
-                          <p className="settings-enroll-card-subtitle">Habla durante 4 segundos diciendo cualquier frase.</p>
-                        </div>
-                      </div>
-
-                      {/* VU Meter */}
-                      <div className="settings-vu-container">
-                        <div className="settings-vu-label">
-                          <span>Nivel de Entrada:</span>
-                          <span>{isRecordingSample ? `${recordingSeconds}s / 4s` : 'Listo'}</span>
-                        </div>
-                        <div className="settings-vu-bar-bg">
-                          <div ref={volumeBarRef} className="settings-vu-bar-fill" />
-                        </div>
-                      </div>
-
-                      {/* Samples list */}
-                      <div className="settings-samples-chips">
-                        {[0, 1, 2].map((idx) => {
-                          const hasSample = recordedSamples.length > idx;
-                          return (
-                            <span key={idx} className={`settings-sample-chip ${hasSample ? 'filled' : ''}`}>
-                              {hasSample ? `✓ Muestra #${idx + 1} Lista` : `Muestra #${idx + 1}`}
-                            </span>
-                          );
-                        })}
-                      </div>
-
-                      {/* Controls */}
-                      <div className="settings-enroll-actions">
-                        {!isRecordingSample ? (
-                          <button
-                            type="button"
-                            className="settings-btn-action-primary"
-                            onClick={handleStartSampleRecording}
-                          >
-                            <Mic2 size={14} />
-                            <span>{recordedSamples.length > 0 ? 'Grabar Otra Muestra' : 'Iniciar Grabación (4s)'}</span>
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            className="settings-btn-action-danger"
-                            onClick={handleStopSampleRecording}
-                          >
-                            <X size={14} />
-                            <span>Detener Grabación</span>
-                          </button>
-                        )}
-
-                        {recordedSamples.length > 0 && (
-                          <button
-                            type="button"
-                            className="settings-btn-action-success"
-                            onClick={handleCompleteEnrollment}
-                          >
-                            <CheckCircle2 size={14} />
-                            <span>Guardar Perfil Biométrico</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Method B: Audio File Upload */}
-                    <div className="settings-enroll-card">
-                      <div className="settings-enroll-card-header">
-                        <FileAudio size={18} color="#38bdf8" />
-                        <div>
-                          <h3 className="settings-enroll-card-title">Opción B: Subir Archivo de Audio</h3>
-                          <p className="settings-enroll-card-subtitle">Sube una grabación de tu voz (.wav, .mp3, .ogg, .flac, .m4a).</p>
-                        </div>
-                      </div>
-
-                      <div
-                        className="settings-dropzone"
-                        onClick={() => voiceFileInputRef.current?.click()}
-                      >
-                        <Upload size={26} color="#94a3b8" />
-                        <span className="settings-dropzone-text">Haz clic o arrastra un archivo de audio aquí</span>
-                        <span className="settings-dropzone-sub">Formatos WAV, MP3, OGG de 3 a 30 segundos</span>
-                        <input
-                          ref={voiceFileInputRef}
-                          type="file"
-                          accept="audio/*"
-                          style={{ display: 'none' }}
-                          onChange={handleAudioFileUpload}
-                        />
-                      </div>
-
-                      {isProcessingAudio && (
-                        <p className="settings-processing-indicator">Procesando vectores Log-Mel...</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {enrollError && (
-                    <div className="settings-error-banner" style={{ marginTop: '12px' }}>
-                      <AlertCircle size={14} />
-                      <span>{enrollError}</span>
-                    </div>
-                  )}
-
-                  {/* Threshold Sliders */}
-                  <div className="settings-biometrics-card" style={{ marginTop: '16px' }}>
-                    <h3 className="settings-thresholds-title">Sensibilidad y Calibración Fina</h3>
-                    <div className="settings-thresholds-grid">
-                      <div>
-                        <div className="settings-field-label-row">
-                          <span className="settings-threshold-label">Umbral de Aceptación: {Math.round(matchThreshold * 100)}%</span>
-                        </div>
-                        <input
-                          type="range"
-                          min="0.5"
-                          max="0.95"
-                          step="0.01"
-                          value={matchThreshold}
-                          className="settings-range-slider"
-                          onChange={(e) => {
-                            const val = parseFloat(e.target.value);
-                            setMatchThreshold(val);
-                            speakerRecognitionService.matchThreshold = val;
-                            speakerRecognitionService.saveProfile();
-                          }}
-                        />
-                        <p className="settings-field-hint">Porcentaje mínimo de similitud requerido para aceptar tu voz.</p>
-                      </div>
-                      <div>
-                        <div className="settings-field-label-row">
-                          <span className="settings-threshold-label">Umbral de Rechazo: {Math.round(rejectThreshold * 100)}%</span>
-                        </div>
-                        <input
-                          type="range"
-                          min="0.3"
-                          max="0.8"
-                          step="0.01"
-                          value={rejectThreshold}
-                          className="settings-range-slider"
-                          onChange={(e) => {
-                            const val = parseFloat(e.target.value);
-                            setRejectThreshold(val);
-                            speakerRecognitionService.rejectThreshold = val;
-                            speakerRecognitionService.saveProfile();
-                          }}
-                        />
-                        <p className="settings-field-hint">Voces por debajo de este valor se silencian de inmediato.</p>
-                      </div>
-                    </div>
-                  </div>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="1.2"
+                    step="0.05"
+                    value={temperature}
+                    onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                    className="w-full accent-zinc-200 cursor-pointer"
+                  />
                 </div>
-              )}
-
-              {/* SUBTAB 3: PROBADOR EN VIVO */}
-              {voiceSubTab === 'tester' && (
-                <div className="settings-tester-suite" style={{ marginTop: '16px' }}>
-                  <div className="settings-biometrics-card">
-                    <div className="settings-enroll-card-header">
-                      <Activity size={18} color="#a855f7" />
-                      <div>
-                        <h3 className="settings-enroll-card-title">Probador de Huella Vocal en Tiempo Real</h3>
-                        <p className="settings-enroll-card-subtitle">Habla por el micrófono para comprobar si Cristi reconoce tu identidad en tiempo real.</p>
-                      </div>
-                    </div>
-
-                    {/* Test VU Meter */}
-                    <div className="settings-vu-container" style={{ marginTop: '12px' }}>
-                      <div className="settings-vu-label">
-                        <span>Nivel de Audio:</span>
-                        <span>{isTestingVoice ? 'Analizando en vivo...' : 'Inactivo'}</span>
-                      </div>
-                      <div className="settings-vu-bar-bg">
-                        <div ref={testVolumeBarRef} className="settings-vu-bar-fill live-test" />
-                      </div>
-                    </div>
-
-                    {/* Live Match Result Badge */}
-                    {testResult && (
-                      <div className={`settings-test-result-card ${testResult.isMatch ? 'match' : 'mismatch'}`}>
-                        <div className="settings-test-result-header">
-                          {testResult.isMatch ? <CheckCircle2 size={18} color="#10b981" /> : <AlertCircle size={18} color="#f43f5e" />}
-                          <span className="settings-test-result-title">
-                            {testResult.isMatch
-                              ? `✓ Identidad Verificada: "${testResult.speakerName || voiceOwnerName}"`
-                              : '❌ Voz No Reconocida (Desconocido o Ruido)'}
-                          </span>
-                        </div>
-                        <div className="settings-test-result-metrics">
-                          <span>Similitud Coseno: <strong>{Math.round(testResult.similarity * 100)}%</strong></span>
-                          <span>Umbral Requerido: <strong>{Math.round(matchThreshold * 100)}%</strong></span>
-                          <span>Estado: <strong>{testResult.action === 'accept' ? 'PERMITIDO' : 'BLOQUEADO'}</strong></span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Start/Stop Test Buttons */}
-                    <div className="settings-enroll-actions" style={{ marginTop: '14px' }}>
-                      {!isTestingVoice ? (
-                        <button
-                          type="button"
-                          className="settings-btn-action-primary"
-                          onClick={handleStartLiveVoiceTest}
-                        >
-                          <Activity size={14} />
-                          <span>Iniciar Prueba en Vivo</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="settings-btn-action-danger"
-                          onClick={handleStopLiveVoiceTest}
-                        >
-                          <X size={14} />
-                          <span>Detener Prueba</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 5: PERSONALIDAD & PROMPTS */}
-          {activeTab === 'persona' && (
-            <div className="settings-tab-section">
-              <div className="settings-section-header">
-                <h2 className="settings-section-title">Personalidad &amp; Instrucción Maestra</h2>
-                <p className="settings-section-desc">Define el comportamiento, tono afectivo y conocimientos de Cristi. Puedes elegir presets instantáneos o editar el texto libremente.</p>
               </div>
 
-              {/* Persona Presets */}
-              <div className="settings-field-group">
-                <label className="settings-field-label">
-                  <Sparkles size={14} color="#a855f7" />
-                  <span>Presets Rápidos de Personalidad</span>
-                </label>
-                <div className="settings-preset-chips-row">
-                  {PERSONA_PRESETS.map((preset) => {
-                    const Icon = preset.icon;
+              {/* Presets de Personalidad Originales en 3 Columnas */}
+              <div className="flex flex-col flex-1 min-h-0 gap-2.5 border border-zinc-800 bg-zinc-900/40 p-3.5 rounded-sm">
+                <div className="flex items-center justify-between shrink-0">
+                  <label className="text-xs font-mono font-medium text-zinc-200">
+                    Plantillas Originales de Personalidad
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundFxService.playClick();
+                      setSystemPrompt(SYSTEM_PERSONA_PROMPT);
+                    }}
+                    className="flex items-center gap-1 text-[11px] font-mono text-zinc-400 hover:text-zinc-200"
+                    title="Restaurar prompt predeterminado"
+                  >
+                    <RotateCcw size={11} />
+                    <span>Restablecer Original</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 shrink-0">
+                  {ORIGINAL_PERSONA_PRESETS.map((p) => {
+                    const Icon = p.icon;
+                    const isCurrent = systemPrompt.trim() === p.prompt.trim();
                     return (
                       <button
-                        key={preset.id}
+                        key={p.id}
                         type="button"
-                        className="settings-preset-chip"
                         onClick={() => {
                           soundFxService.playClick();
-                          setSystemPrompt(preset.prompt);
-                          broadcastConfig({ systemPrompt: preset.prompt });
-                          toastService.info(`Preset "${preset.name}" activado.`);
+                          setSystemPrompt(p.prompt);
                         }}
+                        className={`p-2.5 text-left border rounded-sm transition-colors ${
+                          isCurrent
+                            ? 'bg-zinc-800 border-zinc-600 text-white font-medium'
+                            : 'border-zinc-800 hover:border-zinc-700 bg-zinc-950/70 text-zinc-300'
+                        }`}
                       >
-                        <Icon size={14} color={preset.color} />
-                        <span>{preset.name}</span>
-                        <span className="settings-preset-subtag">{preset.tag}</span>
+                        <div className="flex items-center gap-2 text-xs font-mono font-medium">
+                          <Icon size={12} className="text-zinc-400 shrink-0" />
+                          <span className="truncate">{p.name}</span>
+                        </div>
                       </button>
                     );
                   })}
                 </div>
-              </div>
 
-              {/* Custom Prompt Textarea */}
-              <div className="settings-field-group" style={{ marginTop: '20px' }}>
-                <div className="settings-field-label-row">
-                  <label className="settings-field-label">
-                    <Terminal size={14} color="#10b981" />
-                    <span>Instrucción del Sistema (System Instruction)</span>
+                <div className="flex flex-col flex-1 min-h-0 pt-1">
+                  <label className="text-[11px] font-mono text-zinc-400 block mb-1 shrink-0">
+                    Instrucción del Sistema en tiempo real (System Prompt):
                   </label>
-                  <button
-                    type="button"
-                    className="settings-reset-prompt-btn"
-                    onClick={() => {
-                      soundFxService.playClick();
-                      setSystemPrompt(SYSTEM_PERSONA_PROMPT);
-                      broadcastConfig({ systemPrompt: SYSTEM_PERSONA_PROMPT });
-                      toastService.info('Prompt por defecto restaurado.');
-                    }}
-                  >
-                    <RotateCcw size={12} />
-                    <span>Restablecer por Defecto</span>
-                  </button>
+                  <textarea
+                    value={systemPrompt}
+                    onChange={(e) => setSystemPrompt(e.target.value)}
+                    className="flex-1 min-h-0 w-full px-3 py-2 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm focus:outline-none focus:border-zinc-500 leading-relaxed resize-none"
+                  />
                 </div>
-                <textarea
-                  ref={textareaRef}
-                  value={systemPrompt}
-                  onChange={(e) => {
-                    setSystemPrompt(e.target.value);
-                    broadcastConfig({ systemPrompt: e.target.value });
-                  }}
-                  className="settings-prompt-textarea"
-                  placeholder="Escribe la personalidad o directrices de Cristi..."
-                />
               </div>
             </div>
           )}
 
-          {/* TAB 6: ACTUALIZACIONES & BACKUPS */}
-          {activeTab === 'updates' && (
-            <div className="settings-tab-section">
-              <div className="settings-section-header">
-                <h2 className="settings-section-title">Actualizaciones, Respaldos &amp; Sistema</h2>
-                <p className="settings-section-desc">Gestiona las actualizaciones de software de Cristi AI Companion y crea copias de seguridad de tu configuración.</p>
+          {/* ── 2. VOZ & AUDIO (CON VISTAS PREVIAS DE AUDIO Y DESCRIPCIONES OFICIALES) ── */}
+          {activeTab === 'voice' && (
+            <div className="flex-1 overflow-y-auto space-y-5">
+              <div>
+                <h2 className="text-sm font-semibold font-mono uppercase tracking-wider text-zinc-100">
+                  Voces Oficiales Verificadas (Free Tier)
+                </h2>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Escucha y selecciona entre las voces nativas de Google Gemini compatibles con tu cuenta.
+                </p>
               </div>
 
-              {/* Updates Card */}
-              <div className="settings-update-card">
-                <div className="settings-update-info">
-                  <div className="settings-update-badge">
-                    <RefreshCw size={20} color="#a855f7" />
-                  </div>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span className="settings-update-version">v{appVersion}</span>
-                      <span className="settings-update-channel">Canal Oficial de Producción</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {GEMINI_STANDARD_VOICES.map((v) => {
+                  const isSelected = voiceName === v.name;
+                  const isPlaying = playingVoice === v.name;
+                  return (
+                    <div
+                      key={v.name}
+                      onClick={() => {
+                        soundFxService.playClick();
+                        setVoiceName(v.name);
+                      }}
+                      className={`p-3.5 border rounded-sm cursor-pointer transition-colors flex items-start justify-between gap-4 ${
+                        isSelected
+                          ? 'bg-zinc-900 border-zinc-500 text-white shadow-sm'
+                          : 'bg-zinc-900/30 border-zinc-800/80 text-zinc-300 hover:bg-zinc-900/50 hover:border-zinc-700'
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-semibold text-zinc-100">{v.name}</span>
+                          {isSelected && (
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 bg-zinc-800 text-emerald-300 rounded-none border border-emerald-800">
+                              Activa
+                            </span>
+                          )}
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded-none border border-zinc-700/60">
+                            {v.gender}
+                          </span>
+                          <span className="text-[11px] font-mono text-zinc-400">
+                            • {v.trait}
+                          </span>
+                        </div>
+                        <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed">
+                          {v.description}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0 pt-0.5">
+                        {/* Botón de Reproducción de Muestra */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlayVoicePreview(v);
+                          }}
+                          className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono rounded-sm border transition-colors ${
+                            isPlaying
+                              ? 'bg-zinc-100 text-zinc-950 font-semibold border-white'
+                              : 'bg-zinc-900 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white'
+                          }`}
+                          title="Reproducir muestra de voz con la personalidad de Cristi"
+                        >
+                          {isPlaying ? <Square size={11} className="fill-current" /> : <Play size={11} />}
+                          <span>{isPlaying ? 'Detener' : 'Escuchar Muestra'}</span>
+                        </button>
+                      </div>
                     </div>
-                    <p className="settings-update-status-msg">{updateState.message}</p>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── 3. PERSONAJES LIVE2D (CON PREVISUALIZADOR INTEGRADO) ────────── */}
+          {activeTab === 'models' && (
+            <div className="flex-1 overflow-y-auto space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold font-mono uppercase tracking-wider text-zinc-100">
+                    Catálogo de Avatares Live2D
+                  </h2>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Inspecciona la cinemática, expresiones y apariencia de cada avatar Live2D oficial antes de activarlo.
+                  </p>
+                </div>
+              </div>
+
+              {/* Grid de 2 Columnas: Lista a la izquierda (7 cols), Previsualizador a la derecha (5 cols) */}
+              <div className="grid grid-cols-12 gap-5 pt-1">
+                {/* Columna Izquierda: Lista de Avatares */}
+                <div className="col-span-7 space-y-2 max-h-[580px] overflow-y-auto pr-1">
+                  {/* Selector de Encuadre */}
+                  <div className="flex items-center justify-between p-2.5 bg-zinc-900/40 border border-zinc-800 rounded-sm text-xs font-mono">
+                    <span className="text-zinc-300">Encuadre de Cámara:</span>
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setViewMode('torso')}
+                        className={`px-2.5 py-1 text-[11px] border rounded-sm transition-colors ${
+                          viewMode === 'torso'
+                            ? 'bg-zinc-800 border-zinc-600 text-white font-medium'
+                            : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                        }`}
+                      >
+                        Torso (Medio)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setViewMode('full')}
+                        className={`px-2.5 py-1 text-[11px] border rounded-sm transition-colors ${
+                          viewMode === 'full'
+                            ? 'bg-zinc-800 border-zinc-600 text-white font-medium'
+                            : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                        }`}
+                      >
+                        Cuerpo Completo
+                      </button>
+                    </div>
+                  </div>
+
+                  {live2dModels.map((m) => {
+                    const isActive = live2dModelId === m.id;
+                    return (
+                      <div
+                        key={m.id}
+                        onClick={() => {
+                          soundFxService.playClick();
+                          setLive2dModelId(m.id);
+                          setInspectedLive2DId(m.id);
+                        }}
+                        className={`p-3 border rounded-sm cursor-pointer transition-colors flex items-center justify-between ${
+                          isActive
+                            ? 'bg-zinc-900 border-zinc-500 text-white shadow-sm'
+                            : 'bg-zinc-900/30 border-zinc-800/80 text-zinc-300 hover:bg-zinc-900/50 hover:border-zinc-700'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono font-semibold">{m.name}</span>
+                            {isActive && (
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 bg-zinc-800 text-emerald-300 rounded-none border border-emerald-800">
+                                Activo
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-zinc-400 block mt-0.5">
+                            ID: {m.id} • {m.theme || 'Cubism 4.2'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Columna Derecha: Previsualizador del Avatar */}
+                <div className="col-span-5 border border-zinc-800 bg-zinc-900/40 p-4 rounded-sm flex flex-col justify-between space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                      <span className="text-xs font-mono uppercase text-zinc-400">Inspección de Avatar</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 bg-zinc-800 text-zinc-300 rounded-none">
+                        Cubism 4.2 WebGL2
+                      </span>
+                    </div>
+
+                    {inspectedLive2D && (
+                      <div className="space-y-3 pt-3">
+                        <div className="aspect-[3/4] bg-zinc-950 border border-zinc-800 rounded-sm overflow-hidden relative group">
+                          <ModelPreviewCanvas
+                            modelId={inspectedLive2DId}
+                            className="w-full h-full"
+                          />
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-zinc-950/90 via-zinc-950/40 to-transparent px-2.5 pb-2 pt-6 pointer-events-none">
+                            <div className="text-xs font-mono font-semibold text-zinc-100">{inspectedLive2D.name}</div>
+                            {inspectedLive2D.badge && (
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 bg-zinc-800 text-zinc-300 border border-zinc-700 rounded-none mt-0.5 inline-block">{inspectedLive2D.badge}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="space-y-1 text-xs font-mono">
+                          <div className="flex justify-between text-zinc-400">
+                            <span>Tema Visual:</span>
+                            <span className="text-zinc-200">{inspectedLive2D.theme || 'Anime Live2D'}</span>
+                          </div>
+                          <div className="flex justify-between text-zinc-400">
+                            <span>Expresiones:</span>
+                            <span className="text-zinc-200">{inspectedLive2D.expressions?.length || inspectedLive2D.capabilities?.customExpressions?.length || 0}</span>
+                          </div>
+                          <div className="flex justify-between text-zinc-400">
+                            <span>Física Cinética:</span>
+                            <span className="text-emerald-400">Physics 2.0</span>
+                          </div>
+                          <div className="flex justify-between text-zinc-400">
+                            <span>Seguimiento Visual:</span>
+                            <span className="text-emerald-400">Interactivo</span>
+                          </div>
+                        </div>
+                        <p className="text-xs text-zinc-400 pt-2 border-t border-zinc-800/60 leading-relaxed">
+                          {inspectedLive2D.description || 'Avatar Live2D oficial de alta fidelidad con cinemática procedural y microexpresiones.'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── 4. FONDO & ESCENA (CON PREVISUALIZADOR DE ESCENAS) ────────── */}
+          {activeTab === 'scene' && (
+            <div className="flex-1 overflow-y-auto space-y-4">
+              <div>
+                <h2 className="text-sm font-semibold font-mono uppercase tracking-wider text-zinc-100">
+                  Fondo & Atmósfera Visual
+                </h2>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Elige entre un fondo transparente para interactuar sobre tu escritorio o escenas ambientales completas.
+                </p>
+              </div>
+
+              {/* Grid 12 columnas: Lista 7 cols, Previsualizador 5 cols */}
+              <div className="grid grid-cols-12 gap-5 pt-1">
+                {/* Columna Izquierda: Escenas disponibles */}
+                <div className="col-span-7 space-y-2">
+                  {availableScenes.map((s) => {
+                    const isActive = sceneId === s.id;
+                    return (
+                      <div
+                        key={s.id}
+                        onClick={() => {
+                          soundFxService.playClick();
+                          setSceneId(s.id);
+                          setInspectedSceneId(s.id);
+                          sceneManager.setScene(s.id);
+                        }}
+                        className={`p-3 border rounded-sm cursor-pointer transition-colors flex items-center justify-between ${
+                          isActive
+                            ? 'bg-zinc-900 border-zinc-500 text-white shadow-sm'
+                            : 'bg-zinc-900/30 border-zinc-800/80 text-zinc-300 hover:bg-zinc-900/50 hover:border-zinc-700'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono font-semibold">{s.name}</span>
+                            {isActive && (
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 bg-zinc-800 text-emerald-300 rounded-none border border-emerald-800">
+                                Activa
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-zinc-400 block mt-0.5">
+                            {s.description || 'Escena visual'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Columna Derecha: Previsualizador de Escena */}
+                <div className="col-span-5 border border-zinc-800 bg-zinc-900/40 p-4 rounded-sm flex flex-col gap-4">
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                    <span className="text-xs font-mono uppercase text-zinc-400">Muestra de Entorno</span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 bg-zinc-800 text-zinc-300 rounded-none">
+                      {inspectedScene.id === 'transparent' ? 'Escritorio Libre' : 'Render 2D/3D'}
+                    </span>
+                  </div>
+
+                  {/* Preview visual de la escena */}
+                  {inspectedScene.id === 'transparent' ? (
+                    <div className="aspect-[4/3] bg-zinc-950 border border-zinc-800 rounded-sm flex items-center justify-center text-center relative overflow-hidden">
+                      <div className="absolute inset-0 opacity-30"
+                        style={{ backgroundImage: 'repeating-conic-gradient(#52525b 0% 25%, transparent 0% 50%)', backgroundSize: '20px 20px' }}
+                      />
+                      <div className="relative z-10 text-center">
+                        <Monitor size={28} className="text-zinc-300 mx-auto mb-2" />
+                        <div className="text-xs font-mono font-semibold text-zinc-100">Fondo Transparente</div>
+                        <div className="text-[11px] font-mono text-zinc-400 mt-0.5">Ventana flotante sobre escritorio</div>
+                      </div>
+                    </div>
+                  ) : inspectedScene.id === 'cyber_loft' ? (
+                    <div className="aspect-[4/3] border border-zinc-800 rounded-sm overflow-hidden relative"
+                      style={{ background: 'linear-gradient(135deg, #0a0a1a 0%, #0d1b2a 40%, #1a0a2e 100%)' }}>
+                      <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(rgba(100,0,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(100,0,255,0.08) 1px, transparent 1px)', backgroundSize: '30px 30px' }} />
+                      <div className="absolute bottom-2 left-3 right-3 bg-zinc-950/80 px-2 py-1.5 rounded-sm">
+                        <div className="text-xs font-mono font-semibold text-zinc-100">{inspectedScene.name}</div>
+                        <div className="text-[10px] font-mono text-violet-400 mt-0.5">Cyber Loft / Neon Urbano</div>
+                      </div>
+                    </div>
+                  ) : inspectedScene.id === 'neon_grid' ? (
+                    <div className="aspect-[4/3] border border-zinc-800 rounded-sm overflow-hidden relative"
+                      style={{ background: 'linear-gradient(180deg, #0d0018 0%, #1a0033 40%, #300050 100%)' }}>
+                      <div className="absolute bottom-0 left-0 right-0 h-1/2" style={{ background: 'linear-gradient(0deg, rgba(255,0,255,0.15) 0%, transparent 100%)', backgroundImage: 'linear-gradient(rgba(255,0,200,0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(255,0,200,0.2) 1px, transparent 1px)', backgroundSize: '25px 25px' }} />
+                      <div className="absolute top-4 left-1/2 -translate-x-1/2 w-16 h-8 rounded-full" style={{ background: 'radial-gradient(ellipse, rgba(255,100,0,0.8), rgba(255,50,0,0.4), transparent)' }} />
+                      <div className="absolute bottom-2 left-3 right-3 bg-zinc-950/80 px-2 py-1.5 rounded-sm">
+                        <div className="text-xs font-mono font-semibold text-zinc-100">{inspectedScene.name}</div>
+                        <div className="text-[10px] font-mono text-pink-400 mt-0.5">Synthwave / Retro Grid</div>
+                      </div>
+                    </div>
+                  ) : inspectedScene.id === 'deep_nebula' ? (
+                    <div className="aspect-[4/3] border border-zinc-800 rounded-sm overflow-hidden relative"
+                      style={{ background: 'radial-gradient(ellipse at 30% 40%, rgba(60,0,120,0.9) 0%, rgba(0,0,30,1) 70%)' }}>
+                      <div className="absolute inset-0 opacity-50" style={{ background: 'radial-gradient(circle at 70% 60%, rgba(0,80,160,0.5), transparent 60%)' }} />
+                      <div className="absolute bottom-2 left-3 right-3 bg-zinc-950/80 px-2 py-1.5 rounded-sm">
+                        <div className="text-xs font-mono font-semibold text-zinc-100">{inspectedScene.name}</div>
+                        <div className="text-[10px] font-mono text-indigo-400 mt-0.5">Nebulosa Cósmica / Deep Space</div>
+                      </div>
+                    </div>
+                  ) : inspectedScene.id === 'zen_temple' ? (
+                    <div className="aspect-[4/3] border border-zinc-800 rounded-sm overflow-hidden relative"
+                      style={{ background: 'linear-gradient(180deg, #1a0a1a 0%, #2d1b2d 50%, #1a1a2e 100%)' }}>
+                      <div className="absolute top-3 right-4 w-8 h-8 rounded-full opacity-60" style={{ background: 'radial-gradient(circle, rgba(255,220,180,0.8), rgba(255,180,80,0.3), transparent)' }} />
+                      <div className="absolute bottom-2 left-3 right-3 bg-zinc-950/80 px-2 py-1.5 rounded-sm">
+                        <div className="text-xs font-mono font-semibold text-zinc-100">{inspectedScene.name}</div>
+                        <div className="text-[10px] font-mono text-pink-300 mt-0.5">Zen Cyberpunk / Sakura</div>
+                      </div>
+                    </div>
+                  ) : inspectedScene.id === 'matrix_rain' ? (
+                    <div className="aspect-[4/3] border border-zinc-800 rounded-sm overflow-hidden relative bg-black">
+                      <div className="absolute inset-0 flex flex-wrap content-start gap-px p-1 opacity-60">
+                        {Array.from({ length: 60 }).map((_, i) => (
+                          <span key={i} className="text-green-400 font-mono text-[8px] leading-none" style={{ opacity: Math.random() * 0.8 + 0.2 }}>
+                            {String.fromCharCode(0x30A0 + Math.floor(Math.random() * 96))}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="absolute bottom-2 left-3 right-3 bg-black/90 px-2 py-1.5 rounded-sm border border-green-900/50">
+                        <div className="text-xs font-mono font-semibold text-green-400">{inspectedScene.name}</div>
+                        <div className="text-[10px] font-mono text-green-600 mt-0.5">Digital Rain / Matrix</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="aspect-[4/3] bg-zinc-950 border border-zinc-800 rounded-sm flex items-center justify-center text-center p-4">
+                      <div>
+                        <ImageIcon size={32} className="text-zinc-500 mx-auto mb-2" />
+                        <div className="text-xs font-mono font-semibold text-zinc-200">{inspectedScene.name}</div>
+                        <div className="text-[11px] font-mono text-zinc-500 mt-0.5">{inspectedScene.description}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Metadata */}
+                  <div className="space-y-1 text-xs font-mono">
+                    <div className="flex justify-between text-zinc-400">
+                      <span>Identificador:</span>
+                      <span className="text-zinc-200">{inspectedScene.id}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── SPOTIFY & MÚSICA ────────────────────────────────────────── */}
+          {activeTab === 'spotify' && (
+            <div className="flex-1 overflow-y-auto space-y-5">
+              <div>
+                <h2 className="text-sm font-semibold font-mono uppercase tracking-wider text-zinc-100 flex items-center gap-2">
+                  <Music className="text-emerald-400" size={16} /> Control de Spotify & Música
+                </h2>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Reproduce música para Ariel en la aplicación Spotify Desktop o a través del reproductor web con Playwright.
+                </p>
+              </div>
+
+              {/* Estado en Vivo de Spotify */}
+              <div className="border border-zinc-800 bg-zinc-900/40 p-4 rounded-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono font-medium text-zinc-200">
+                    Estado de la Aplicación
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded-none ${
+                      spotifyStatus.isRunning
+                        ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                        : 'bg-zinc-800 text-zinc-400'
+                    }`}>
+                      {spotifyStatus.isRunning ? (spotifyStatus.isPlaying ? 'REPRODUCIENDO' : 'ACTIVO / PAUSADO') : 'DESKTOP CERRADO'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        soundFxService.playClick();
+                        const st = await spotifyService.getStatus();
+                        setSpotifyStatus(st);
+                      }}
+                      className="p-1 hover:bg-zinc-800 rounded-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+                      title="Refrescar estado"
+                    >
+                      <RefreshCw size={12} />
+                    </button>
                   </div>
                 </div>
 
-                {updateState.status === 'downloading' && (
-                  <div className="settings-progress-bar-bg">
-                    <div className="settings-progress-bar-fill" style={{ width: `${updateState.progress}%` }} />
+                {spotifyStatus.track && (
+                  <div className="p-3 bg-zinc-950 border border-zinc-800 rounded-sm">
+                    <div className="text-[11px] font-mono text-zinc-400">Pista actual:</div>
+                    <div className="text-xs font-bold text-emerald-400 truncate">{spotifyStatus.track}</div>
+                    {spotifyStatus.artist && (
+                      <div className="text-[11px] text-zinc-300 truncate">Artista: {spotifyStatus.artist}</div>
+                    )}
                   </div>
                 )}
 
-                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                {/* Botones de Control Rápido */}
+                <div className="flex items-center gap-2 pt-1 flex-wrap">
                   <button
                     type="button"
-                    className="settings-btn-action-primary"
-                    onClick={handleCheckUpdates}
-                    disabled={updateState.status === 'checking' || updateState.status === 'downloading'}
+                    onClick={async () => {
+                      soundFxService.playClick();
+                      await spotifyService.previous();
+                      const st = await spotifyService.getStatus();
+                      setSpotifyStatus(st);
+                    }}
+                    className="px-3 py-1.5 text-xs font-mono bg-zinc-800 hover:bg-zinc-700 text-white rounded-sm border border-zinc-700 transition-colors"
                   >
-                    <RefreshCw size={14} className={updateState.status === 'checking' ? 'hud-spin-icon' : ''} />
-                    <span>{updateState.status === 'checking' ? 'Comprobando...' : 'Buscar Actualizaciones'}</span>
+                    ⏮ Anterior
                   </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      soundFxService.playClick();
+                      await spotifyService.play();
+                      const st = await spotifyService.getStatus();
+                      setSpotifyStatus(st);
+                    }}
+                    className="px-3 py-1.5 text-xs font-mono bg-emerald-700 hover:bg-emerald-600 text-white rounded-sm border border-emerald-600 transition-colors font-semibold"
+                  >
+                    ⏯ Play / Pausa
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      soundFxService.playClick();
+                      await spotifyService.next();
+                      const st = await spotifyService.getStatus();
+                      setSpotifyStatus(st);
+                    }}
+                    className="px-3 py-1.5 text-xs font-mono bg-zinc-800 hover:bg-zinc-700 text-white rounded-sm border border-zinc-700 transition-colors"
+                  >
+                    ⏭ Siguiente
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      soundFxService.playClick();
+                      await spotifyService.setVolume({ direction: 'up' });
+                    }}
+                    className="px-2.5 py-1.5 text-xs font-mono bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-sm border border-zinc-700 transition-colors"
+                  >
+                    🔊 Vol +
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      soundFxService.playClick();
+                      await spotifyService.setVolume({ direction: 'down' });
+                    }}
+                    className="px-2.5 py-1.5 text-xs font-mono bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-sm border border-zinc-700 transition-colors"
+                  >
+                    🔉 Vol -
+                  </button>
+                </div>
+              </div>
 
-                  {updateState.status === 'downloaded' && (
+              {/* Prueba de Búsqueda y Reproducción */}
+              <div className="border border-zinc-800 bg-zinc-900/40 p-4 rounded-sm space-y-3">
+                <span className="text-xs font-mono font-medium text-zinc-200 block">
+                  Probar Búsqueda y Reproducción
+                </span>
+                <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+                  <input
+                    type="text"
+                    value={spotifyTestQuery}
+                    onChange={(e) => setSpotifyTestQuery(e.target.value)}
+                    placeholder="Canción o playlist (ej: Lofi beats)..."
+                    className="flex-1 px-3 py-1.5 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!spotifyTestQuery.trim()) return;
+                      soundFxService.playClick();
+                      await spotifyService.play({ query: spotifyTestQuery.trim() });
+                      toastService.success('Spotify', `Reproduciendo "${spotifyTestQuery.trim()}"`);
+                      setTimeout(() => spotifyService.getStatus().then((st) => setSpotifyStatus(st)), 1500);
+                    }}
+                    className="px-3 py-1.5 text-xs font-mono bg-zinc-800 hover:bg-zinc-700 text-white rounded-sm border border-zinc-700 transition-colors whitespace-nowrap"
+                  >
+                    Reproducir en Spotify
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!spotifyTestQuery.trim()) return;
+                      soundFxService.playClick();
+                      await spotifyService.play({ query: spotifyTestQuery.trim(), useWeb: true });
+                      toastService.success('Spotify Web', 'Abriendo en Spotify Web vía Playwright');
+                    }}
+                    className="px-3 py-1.5 text-xs font-mono bg-purple-950 hover:bg-purple-900 text-purple-200 rounded-sm border border-purple-800 transition-colors whitespace-nowrap"
+                  >
+                    Abrir Web (Playwright)
+                  </button>
+                </div>
+              </div>
+
+              {/* Credenciales Opcionales de Spotify Developer API */}
+              <div className="border border-zinc-800 bg-zinc-900/40 p-4 rounded-sm space-y-3">
+                <div>
+                  <span className="text-xs font-mono font-medium text-zinc-200 block">
+                    Spotify Web API (Opcional - Para búsqueda avanzada con metadatos)
+                  </span>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                    Si no dispones de credenciales, Cristi controlará directamente tu aplicación de escritorio y la web automáticamente.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-mono text-zinc-400 block mb-1">Client ID:</label>
+                    <input
+                      type="text"
+                      value={spotifyClientId}
+                      onChange={(e) => {
+                        setSpotifyClientId(e.target.value);
+                        spotifyService.configure({ clientId: e.target.value, clientSecret: spotifyClientSecret });
+                      }}
+                      placeholder="Tu Client ID de Spotify..."
+                      className="w-full px-3 py-1.5 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-mono text-zinc-400 block mb-1">Client Secret:</label>
+                    <input
+                      type="password"
+                      value={spotifyClientSecret}
+                      onChange={(e) => {
+                        setSpotifyClientSecret(e.target.value);
+                        spotifyService.configure({ clientId: spotifyClientId, clientSecret: e.target.value });
+                      }}
+                      placeholder="Tu Client Secret..."
+                      className="w-full px-3 py-1.5 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── 5. MEMORIA A LARGO PLAZO ───────────────────────────────── */}
+          {activeTab === 'memory' && (
+            <div className="flex-1 overflow-y-auto space-y-5">
+              <div>
+                <h2 className="text-sm font-semibold font-mono uppercase tracking-wider text-zinc-100">
+                  Memoria Contextual a Largo Plazo
+                </h2>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Hechos, gustos y rutinas que Cristi recuerda automáticamente.
+                </p>
+              </div>
+
+              <input
+                type="text"
+                value={memSearch}
+                onChange={(e) => setMemSearch(e.target.value)}
+                placeholder="Buscar recuerdos almacenados..."
+                className="w-full px-3 py-1.5 text-xs font-mono bg-zinc-950 border border-zinc-800 text-zinc-200 rounded-sm focus:outline-none focus:border-zinc-600"
+              />
+
+              {/* Agregar Memoria */}
+              <div className="border border-zinc-800 bg-zinc-900/40 p-3.5 space-y-2 rounded-sm">
+                <span className="text-xs font-mono font-medium text-zinc-200 block">
+                  Añadir Recuerdo Manual
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={newMemKey}
+                    onChange={(e) => setNewMemKey(e.target.value)}
+                    placeholder="Clave (ej. comida_favorita)..."
+                    className="px-3 py-1.5 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm"
+                  />
+                  <select
+                    value={newMemCategory}
+                    onChange={(e) => setNewMemCategory(e.target.value)}
+                    className="px-3 py-1.5 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm"
+                  >
+                    {Object.values(MEMORY_CATEGORIES).map((c) => (
+                      <option key={c} value={c}>{c.toUpperCase()}</option>
+                    ))}
+                  </select>
+                </div>
+                <input
+                  type="text"
+                  value={newMemContent}
+                  onChange={(e) => setNewMemContent(e.target.value)}
+                  placeholder="Descripción del recuerdo..."
+                  className="w-full px-3 py-1.5 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm"
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!newMemKey.trim() || !newMemContent.trim()) return;
+                    soundFxService.playClick();
+                    await memoryService.remember({
+                      key: newMemKey.trim(),
+                      content: newMemContent.trim(),
+                      category: newMemCategory
+                    });
+                    setMemories(memoryService.getAllMemories());
+                    setNewMemKey('');
+                    setNewMemContent('');
+                    toastService.success('Recuerdo añadido', `Se guardó "${newMemKey.trim()}" en la memoria de Cristi.`);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono bg-zinc-800 hover:bg-zinc-700 text-white rounded-sm border border-zinc-700 transition-colors"
+                >
+                  <Plus size={12} /> Guardar Recuerdo
+                </button>
+              </div>
+
+              {/* Lista de Recuerdos */}
+              <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                {memories
+                  .filter((m) => !memSearch || m.key.includes(memSearch) || m.content.includes(memSearch))
+                  .map((m) => (
+                    <div
+                      key={m.key}
+                      className="flex items-center justify-between p-2.5 bg-zinc-900/40 border border-zinc-800 rounded-sm text-xs font-mono"
+                    >
+                      <div className="min-w-0 flex-1 mr-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-zinc-200">{m.key}</span>
+                          <span className="text-[10px] px-1 bg-zinc-800 text-zinc-400 rounded-none">
+                            {m.category}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-zinc-400 mt-0.5 truncate">{m.content}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          soundFxService.playClick();
+                          await memoryService.forget(m.key);
+                          setMemories(memoryService.getAllMemories());
+                        }}
+                        className="p-1 text-zinc-500 hover:text-rose-400 transition-colors"
+                        title="Eliminar recuerdo"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                {memories.length === 0 && (
+                  <p className="text-xs text-zinc-500 font-mono italic text-center py-4">
+                    No hay recuerdos almacenados aún.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── 6. MINECRAFT & DISCORD COMPANIONS ──────────────────────── */}
+          {activeTab === 'games' && (
+            <div className="flex-1 overflow-y-auto space-y-5">
+              <div>
+                <h2 className="text-sm font-semibold font-mono uppercase tracking-wider text-zinc-100">
+                  Compañera en Videojuegos & Discord
+                </h2>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Conexión autónoma para acompañarte jugando Minecraft y participar en servidores de Discord.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* Minecraft */}
+                <div className="border border-zinc-800 bg-zinc-900/40 p-3.5 space-y-3 rounded-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono font-medium text-zinc-200 flex items-center gap-1.5">
+                    <Gamepad2 size={13} className="text-zinc-400" />
+                    Minecraft Companion (Mineflayer)
+                  </span>
+                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-none ${
+                    mcStatus === 'connected' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-zinc-800 text-zinc-400'
+                  }`}>
+                    {mcStatus.toUpperCase()}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[10px] font-mono text-zinc-400 block mb-1">Host:</label>
+                    <input
+                      type="text"
+                      value={mcConfig.host || 'localhost'}
+                      onChange={(e) => setMcConfig({ ...mcConfig, host: e.target.value })}
+                      className="w-full px-2.5 py-1 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-mono text-zinc-400 block mb-1">Puerto:</label>
+                    <input
+                      type="number"
+                      value={mcConfig.port || 25565}
+                      onChange={(e) => setMcConfig({ ...mcConfig, port: Number(e.target.value) })}
+                      className="w-full px-2.5 py-1 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-mono text-zinc-400 block mb-1">Bot Username:</label>
+                    <input
+                      type="text"
+                      value={mcConfig.username || 'Cristi_AI'}
+                      onChange={(e) => setMcConfig({ ...mcConfig, username: e.target.value })}
+                      className="w-full px-2.5 py-1 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      soundFxService.playClick();
+                      try {
+                        await minecraftCompanion.connect(mcConfig);
+                        setMcStatus(minecraftCompanion.status);
+                      } catch (_) {}
+                    }}
+                    className="px-3 py-1.5 text-xs font-mono bg-zinc-800 hover:bg-zinc-700 text-white rounded-sm border border-zinc-700 transition-colors"
+                  >
+                    Conectar a Minecraft
+                  </button>
+                  {mcStatus === 'connected' && (
                     <button
                       type="button"
-                      className="settings-btn-action-success"
-                      onClick={() => electronBridge.installUpdate()}
+                      onClick={async () => {
+                        soundFxService.playClick();
+                        await minecraftCompanion.disconnect();
+                        setMcStatus('disconnected');
+                      }}
+                      className="px-3 py-1.5 text-xs font-mono bg-rose-950/60 hover:bg-rose-900/60 text-rose-200 rounded-sm border border-rose-800 transition-colors"
                     >
-                      <CheckCircle2 size={14} />
-                      <span>Instalar y Reiniciar Ahora</span>
+                      Desconectar
                     </button>
                   )}
                 </div>
               </div>
 
-              {/* Backup & Restore Card */}
-              <div className="settings-biometrics-card" style={{ marginTop: '16px' }}>
-                <h3 className="settings-thresholds-title">Copias de Seguridad (Backup &amp; Restore)</h3>
-                <p className="settings-section-desc" style={{ marginBottom: '12px' }}>
-                  Exporta todas tus configuraciones, prompt de personalidad, modelo favorito y parámetros en un archivo JSON o restáuralos en cualquier equipo.
-                </p>
+              {/* Discord */}
+              <div className="border border-zinc-800 bg-zinc-900/40 p-3.5 space-y-3 rounded-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono font-medium text-zinc-200">
+                    Discord Companion Bot
+                  </span>
+                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-none ${
+                    discordStatus === 'ready' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-zinc-800 text-zinc-400'
+                  }`}>
+                    {discordStatus.toUpperCase()}
+                  </span>
+                </div>
 
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button type="button" className="settings-btn-secondary" onClick={handleExportConfig}>
-                    <Download size={14} />
-                    <span>Exportar Configuración (.json)</span>
-                  </button>
-                  <button type="button" className="settings-btn-secondary" onClick={() => fileInputRef.current?.click()}>
-                    <Upload size={14} />
-                    <span>Importar Configuración (.json)</span>
-                  </button>
+                <div>
+                  <label className="text-[10px] font-mono text-zinc-400 block mb-1">Bot Token:</label>
                   <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".json,application/json"
-                    style={{ display: 'none' }}
-                    onChange={handleImportFileChange}
+                    type="password"
+                    value={discordToken}
+                    onChange={(e) => setDiscordToken(e.target.value)}
+                    placeholder="MTAy..."
+                    className="w-full px-2.5 py-1 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm"
                   />
                 </div>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    soundFxService.playClick();
+                    try {
+                      await discordCompanion.connect(discordToken);
+                      setDiscordStatus(discordCompanion.status);
+                    } catch (_) {}
+                  }}
+                  className="px-3 py-1.5 text-xs font-mono bg-zinc-800 hover:bg-zinc-700 text-white rounded-sm border border-zinc-700 transition-colors"
+                >
+                  Conectar Bot de Discord
+                </button>
+              </div>
+            </div>
+          </div>
+          )}
+
+          {/* ── 7. SERVIDORES MCP ──────────────────────────────────────── */}
+          {activeTab === 'mcp' && (
+            <div className="flex-1 overflow-y-auto space-y-5">
+              <div>
+                <h2 className="text-sm font-semibold font-mono uppercase tracking-wider text-zinc-100">
+                  Servidores Model Context Protocol (MCP)
+                </h2>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Conecta herramientas externas estándar por protocolo MCP.
+                </p>
+              </div>
+
+              {/* Control de Navegador Playwright MCP */}
+              <div className="border border-purple-900/40 bg-purple-950/10 p-4 rounded-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Globe className="text-purple-400" size={16} />
+                    <span className="text-xs font-mono font-medium text-zinc-100">
+                      Playwright MCP Browser Controller (Brave Browser)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded-none ${
+                      playwrightStatus.isRunning
+                        ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                        : 'bg-zinc-800 text-zinc-400'
+                    }`}>
+                      {playwrightStatus.isRunning ? 'NAVEGADOR ACTIVO' : 'EN ESPERA'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        soundFxService.playClick();
+                        const st = await playwrightService.getStatus();
+                        setPlaywrightStatus(st);
+                      }}
+                      className="p-1 hover:bg-zinc-800 rounded-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+                      title="Refrescar estado de Playwright"
+                    >
+                      <RefreshCw size={12} />
+                    </button>
+                  </div>
+                </div>
+
+                {playwrightStatus.url && (
+                  <div className="p-2.5 bg-zinc-950 border border-zinc-800 rounded-sm text-xs font-mono">
+                    <div className="text-[10px] text-zinc-400">Página actual:</div>
+                    <div className="text-purple-300 truncate font-semibold">{playwrightStatus.title || 'Sin título'}</div>
+                    <div className="text-[11px] text-zinc-500 truncate">{playwrightStatus.url}</div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+                  <input
+                    type="text"
+                    value={playwrightTestUrl}
+                    onChange={(e) => setPlaywrightTestUrl(e.target.value)}
+                    placeholder="URL a probar (ej: https://open.spotify.com)..."
+                    className="flex-1 px-3 py-1.5 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm"
+                  />
+                  <button
+                    type="button"
+                    disabled={playwrightLoading}
+                    onClick={async () => {
+                      if (!playwrightTestUrl.trim()) return;
+                      soundFxService.playClick();
+                      setPlaywrightLoading(true);
+                      try {
+                        const res = await playwrightService.navigate(playwrightTestUrl.trim());
+                        if (res.success) {
+                          toastService.success('Playwright MCP', `Navegado a ${res.url}`);
+                          const st = await playwrightService.getStatus();
+                          setPlaywrightStatus(st);
+                        } else {
+                          toastService.error('Error Playwright', res.error || 'Error al navegar.');
+                        }
+                      } finally {
+                        setPlaywrightLoading(false);
+                      }
+                    }}
+                    className="px-3 py-1.5 text-xs font-mono bg-purple-600 hover:bg-purple-500 text-white rounded-sm font-semibold transition-colors whitespace-nowrap"
+                  >
+                    {playwrightLoading ? 'Navegando...' : 'Navegar con Playwright'}
+                  </button>
+                  {playwrightStatus.isRunning && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        soundFxService.playClick();
+                        await playwrightService.close();
+                        const st = await playwrightService.getStatus();
+                        setPlaywrightStatus(st);
+                        toastService.info('Playwright', 'Navegador cerrado.');
+                      }}
+                      className="px-3 py-1.5 text-xs font-mono bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-sm border border-zinc-700 transition-colors whitespace-nowrap"
+                    >
+                      Cerrar Navegador
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="border border-zinc-800 bg-zinc-900/40 p-3.5 space-y-2 rounded-sm">
+                <span className="text-xs font-mono font-medium text-zinc-200 block">
+                  Registrar Servidor MCP (stdio)
+                </span>
+                <div className="grid grid-cols-3 gap-2">
+                  <input
+                    type="text"
+                    value={newMcpName}
+                    onChange={(e) => setNewMcpName(e.target.value)}
+                    placeholder="Nombre (ej. filesystem)..."
+                    className="px-2.5 py-1 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm"
+                  />
+                  <input
+                    type="text"
+                    value={newMcpCommand}
+                    onChange={(e) => setNewMcpCommand(e.target.value)}
+                    placeholder="Comando (ej. pnpm)..."
+                    className="px-2.5 py-1 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm"
+                  />
+                  <input
+                    type="text"
+                    value={newMcpArgs}
+                    onChange={(e) => setNewMcpArgs(e.target.value)}
+                    placeholder="Argumentos..."
+                    className="px-2.5 py-1 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!newMcpName.trim() || !newMcpCommand.trim()) return;
+                    soundFxService.playClick();
+                    try {
+                      await mcpClientManager.registerServer({
+                        name: newMcpName.trim(),
+                        type: 'stdio',
+                        command: newMcpCommand.trim(),
+                        args: newMcpArgs.split(' ').filter(Boolean),
+                        enabled: true
+                      });
+                      setMcpServers(mcpClientManager.getServers());
+                      setNewMcpName('');
+                    } catch (_) {}
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono bg-zinc-800 hover:bg-zinc-700 text-white rounded-sm border border-zinc-700 transition-colors"
+                >
+                  <Plus size={12} /> Registrar Servidor MCP
+                </button>
+              </div>
+
+              <div className="space-y-1.5">
+                {mcpServers.map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex items-center justify-between p-2.5 bg-zinc-900/40 border border-zinc-800 rounded-sm text-xs font-mono"
+                  >
+                    <div>
+                      <span className="font-semibold text-zinc-200">{s.name}</span>
+                      <span className="text-[11px] text-zinc-400 block mt-0.5">
+                        {s.command} {Array.isArray(s.args) ? s.args.join(' ') : ''}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        soundFxService.playClick();
+                        await mcpClientManager.removeServer(s.id);
+                        setMcpServers(mcpClientManager.getServers());
+                      }}
+                      className="p-1 text-zinc-500 hover:text-rose-400 transition-colors"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+                {mcpServers.length === 0 && (
+                  <p className="text-xs text-zinc-500 font-mono italic text-center py-4">
+                    No hay servidores MCP configurados.
+                  </p>
+                )}
               </div>
             </div>
           )}
         </main>
       </div>
-
-      {/* ── Sticky Bottom Bar ── */}
-      <footer className="settings-bottom-bar">
-        <div className="settings-footer-note">
-          <span>Pulsa <strong>Escape</strong> para cerrar el panel y volver al escritorio con Cristi.</span>
-        </div>
-
-        <div className="settings-bottom-buttons">
-          <button type="button" className="settings-btn-secondary" onClick={handleCloseWindow}>
-            Cerrar
-          </button>
-          <button type="button" className="settings-btn-action-primary" onClick={handleSaveAndApply}>
-            <Check size={14} />
-            <span>Guardar y Aplicar</span>
-          </button>
-        </div>
-      </footer>
     </div>
   );
 }

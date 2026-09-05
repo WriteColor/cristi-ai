@@ -5,12 +5,12 @@
 
 export const BACKGROUND_SCENES = [
   {
-    id: 'transparent',
-    name: 'Transparente (Desktop Mate)',
-    category: 'desktop',
-    type: 'transparent',
-    previewColor: 'rgba(0,0,0,0.1)',
-    description: 'Ventana flotante 100% transparente para integrarse con el escritorio.'
+    id: 'deep_nebula',
+    name: 'Nebulosa Cósmica & Estrellas',
+    category: 'atmospheric',
+    type: 'procedural',
+    previewColor: '#030712',
+    description: 'Espacio profundo con polvo estelar brillante y estrellas parpadeantes.'
   },
   {
     id: 'cyber_loft',
@@ -27,14 +27,6 @@ export const BACKGROUND_SCENES = [
     type: 'procedural',
     previewColor: '#120024',
     description: 'Cuadrícula en perspectiva 3D con horizonte de luz y partículas digitales.'
-  },
-  {
-    id: 'deep_nebula',
-    name: 'Nebulosa Cósmica & Estrellas',
-    category: 'atmospheric',
-    type: 'procedural',
-    previewColor: '#030712',
-    description: 'Espacio profundo con polvo estelar brillante y estrellas parpadeantes.'
   },
   {
     id: 'zen_temple',
@@ -62,4 +54,4 @@ export const BACKGROUND_SCENES = [
   }
 ];
 
-export const DEFAULT_SCENE_ID = 'transparent';
+export const DEFAULT_SCENE_ID = 'deep_nebula';

@@ -560,7 +560,7 @@ export class VisionDetectionService {
         faces: processedFaces,
         objects: objectDetections,
         pose: poseKeypoints,
-        phoneInHand,
+        phoneInHand: isPhoneInHand,
         closestDistance: closestDistance === Infinity ? null : Math.round(closestDistance),
         phoneUsageSeconds: Math.round(this.phoneUsageDurationSeconds),
         activePhone,

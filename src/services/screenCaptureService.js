@@ -6,6 +6,7 @@
 
 import { logger } from './logger.js';
 import { electronBridge } from './desktop/ElectronBridge.js';
+import { eventBus, EVENTS } from './eventBus.js';
 
 export class ScreenCaptureService {
   constructor({ onFrame, onError, onStreamReady, onStreamEnd } = {}) {
@@ -26,6 +27,18 @@ export class ScreenCaptureService {
     this.region = null;
     this.screenW = typeof window !== 'undefined' ? window.screen.width : 1920;
     this.screenH = typeof window !== 'undefined' ? window.screen.height : 1080;
+
+    // AI Speech Shield: suspend video frames while Cristi is speaking to prevent audio stuttering
+    this.isAiSpeaking = false;
+    this._unsubAudioStart = eventBus.on(EVENTS.AUDIO_START, () => {
+      this.isAiSpeaking = true;
+    });
+    this._unsubAudioEnd = eventBus.on(EVENTS.AUDIO_END, () => {
+      this.isAiSpeaking = false;
+      if (this.isCapturing) {
+        this.triggerImmediateCapture();
+      }
+    });
   }
 
   /**
@@ -101,11 +114,18 @@ export class ScreenCaptureService {
    * @param {number} quality - JPEG quality 0–1.
    * @returns {string|null} base64 JPEG data.
    */
-  captureFrame(region = null, quality = 0.6) {
+  captureFrame(region = null, quality = 0.55) {
     if (!this.videoEl || !this.offscreenCanvas || this.videoEl.readyState < 2) return null;
 
-    const src = region || { x: 0, y: 0, width: this.videoEl.videoWidth, height: this.videoEl.videoHeight };
-    const maxWidth = 960;
+    const videoWidth = this.videoEl.videoWidth;
+    const videoHeight = this.videoEl.videoHeight;
+    const raw = region || { x: 0, y: 0, width: videoWidth, height: videoHeight };
+    const x = Math.max(0, Math.min(videoWidth - 1, Math.round(raw.x || 0)));
+    const y = Math.max(0, Math.min(videoHeight - 1, Math.round(raw.y || 0)));
+    const width = Math.max(1, Math.min(videoWidth - x, Math.round(raw.width || videoWidth)));
+    const height = Math.max(1, Math.min(videoHeight - y, Math.round(raw.height || videoHeight)));
+    const src = { x, y, width, height };
+    const maxWidth = 768;
     const scale = Math.min(1, maxWidth / src.width);
     const destW = Math.round(src.width * scale);
     const destH = Math.round(src.height * scale);
@@ -168,31 +188,57 @@ export class ScreenCaptureService {
   }
 
   /** Start continuous capture loop at specified FPS */
-  async startContinuous(fps = 1.0) {
+  async startContinuous(fps = 0.5) {
     if (this.isCapturing) return;
 
-    this.fps = fps;
+    // Strict FPS cap (0.2 to 0.5 FPS): 1 frame every 2 to 5 seconds
+    // Completely eliminates GPU contention with games and background videos
+    const targetFps = Math.max(0.2, Math.min(0.5, fps));
+    this.fps = targetFps;
     this.isCapturing = true;
-    const intervalMs = Math.round(1000 / fps);
+    const intervalMs = Math.round(1000 / targetFps);
 
     // In Electron, use native desktopCapturer directly with zero CPU and no permission dialogs
     if (electronBridge.isElectron) {
+      let inFlight = false;
       const nativeTick = async () => {
         if (!this.isCapturing) return;
+        if (this.isAiSpeaking) {
+          // AI speech active: do not capture or send frames over socket
+          if (this.isCapturing) {
+            this.continuousTimer = setTimeout(nativeTick, 1000);
+          }
+          return;
+        }
+        if (inFlight) {
+          this.continuousTimer = setTimeout(nativeTick, 1000);
+          return;
+        }
+
+        inFlight = true;
+        const t0 = performance.now();
         try {
-          const frame = await this.captureNativeDesktop(this.region);
-          if (frame && this.isCapturing) {
-            this.onFrame(frame);
+          if (!this.isAiSpeaking) {
+            const frame = await this.captureNativeDesktop(this.region);
+            if (frame && this.isCapturing && !this.isAiSpeaking) {
+              this.onFrame(frame);
+            }
           }
         } catch (e) {
           logger.warn('VISION', `Error en ciclo de captura nativa: ${e.message}`);
+        } finally {
+          inFlight = false;
         }
+
         if (this.isCapturing) {
-          this.continuousTimer = setTimeout(nativeTick, intervalMs);
+          const elapsed = performance.now() - t0;
+          const delay = Math.max(1800, intervalMs - elapsed);
+          this.continuousTimer = setTimeout(nativeTick, delay);
         }
       };
+
       this.continuousTimer = setTimeout(nativeTick, intervalMs);
-      logger.info('VISION', `Vigilancia continua nativa de escritorio iniciada (${fps} FPS).`);
+      logger.info('VISION', `Vigilancia continua nativa de escritorio iniciada (${targetFps} FPS).`);
       return;
     }
 
@@ -215,7 +261,7 @@ export class ScreenCaptureService {
     };
 
     this.continuousTimer = setTimeout(tick, intervalMs);
-    logger.info('VISION', `Vigilancia continua de pantalla completa iniciada (${fps} FPS).`);
+    logger.info('VISION', `Vigilancia continua de pantalla completa iniciada (${targetFps} FPS).`);
   }
 
   stopContinuous() {
@@ -227,8 +273,26 @@ export class ScreenCaptureService {
     logger.info('VISION', 'Vigilancia continua de pantalla detenida.');
   }
 
+  triggerImmediateCapture() {
+    if (!this.isCapturing || this.isAiSpeaking) return;
+    if (this.continuousTimer) clearTimeout(this.continuousTimer);
+    this.continuousTimer = setTimeout(async () => {
+      if (!this.isCapturing || this.isAiSpeaking) return;
+      try {
+        const frame = await this.captureActiveFrame();
+        if (frame && this.isCapturing && !this.isAiSpeaking) {
+          this.onFrame(frame);
+        }
+      } catch (err) {
+        logger.warn('VISION', `Fallo captura inmediata post-speech: ${err.message}`);
+      }
+    }, 120);
+  }
+
   stopAll() {
     this.stopContinuous();
+    this._unsubAudioStart?.();
+    this._unsubAudioEnd?.();
     if (this.stream) {
       this.stream.getTracks().forEach((t) => {
         try { t.stop(); } catch (_) {}

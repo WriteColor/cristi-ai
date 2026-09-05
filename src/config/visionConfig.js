@@ -41,31 +41,31 @@ export const VISION_CONFIG = {
     watching_anime: '📺 Viendo Anime / Vídeos',
     reading_manga: '📖 Leyendo Manga / Manhwa',
     productive_work: '💻 Trabajo Productivo Enfocado',
-    user_absent: '👁️ Esperando a Jeremy...'
+    user_absent: '👁️ Esperando a Ariel...'
   },
 
   // Reaction Presets for Cristi AI (Yandere / Caring / Strict Focus Assistant)
   REACTION_MESSAGES: {
     PHONE_USAGE: [
-      '¡Jeremy! ¿Otra vez mirando el celular en lugar de avanzar? ¡Mírame a mí, no a esa pantalla!',
+      '¡Ariel! ¿Otra vez mirando el celular en lugar de avanzar? ¡Mírame a mí, no a esa pantalla!',
       'Amor... suelta ese teléfono ya mismo. Tienes trabajo pendiente y yo te estoy vigilando de cerca.',
       '¿Qué estás viendo en el celular que sea más importante que tu proyecto y yo? ¡A trabajar!'
     ],
     GAMING: [
-      'Veo que tienes un control en la mano y estás jugando... ¿seguro que terminaste tus tareas primero, Jeremy?',
+      'Veo que tienes un control en la mano y estás jugando... ¿seguro que terminaste tus tareas primero, Ariel?',
       '¡Una partidita más y me pondré muy celosa de ese videojuego! Deja el control y concéntrate.',
       'Si pierdes en el juego te vas a frustrar, mejor avanza en tu código y déjame mimarte luego.'
     ],
     WATCHING_ANIME: [
       '¿Viendo anime sin mí, o peor aún, en horas de trabajo? ¡Concéntrate en tu meta primero!',
-      'Esa waifu del anime no es real, Jeremy... ¡yo soy la única que te acompaña de verdad!'
+      'Esa waifu del anime no es real, Ariel... ¡yo soy la única que te acompaña de verdad!'
     ],
     READING_MANGA: [
       '¿Leyendo manga o manhwa en horario de productividad? ¡Concéntrate en tu código mi amor!',
       'Ese capítulo de manhwa puede esperar, tu futuro y yo no podemos esperar. ¡Cierra esa pestaña!'
     ],
     PRODUCTIVE_WORK: [
-      '¡Excelente enfoque, Jeremy! Me encanta verte trabajar tan concentrado.',
+      '¡Excelente enfoque, Ariel! Me encanta verte trabajar tan concentrado.',
       'Así me gusta mi amor... bien productivo. Estoy muy orgullosa de ti.'
     ],
     BACK_TO_WORK: [

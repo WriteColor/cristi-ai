@@ -98,10 +98,10 @@ assert(settingsSrc.includes('Tab'), 'SettingsModal gestiona navegación con Tab 
 assert(settingsSrc.includes('PERSONA_PRESETS'), 'SettingsModal contiene 6 presets de personalidad.');
 assert(settingsSrc.includes('stopPropagation'), 'SettingsModal detiene propagación de Escape.');
 
-const voiceEnrollSrc = fs.readFileSync('src/components/VoiceEnrollmentModal.jsx', 'utf8');
-assert(voiceEnrollSrc.includes('Escape'), 'VoiceEnrollmentModal escucha tecla Escape.');
-assert(voiceEnrollSrc.includes('soundFxService'), 'VoiceEnrollmentModal integrado con soundFxService.');
-assert(voiceEnrollSrc.includes('stopPropagation'), 'VoiceEnrollmentModal detiene propagación de Escape.');
+const settingsAppSrc = fs.readFileSync('src/settings/SettingsApp.jsx', 'utf8');
+assert(settingsAppSrc.includes('Escape'), 'SettingsApp escucha tecla Escape.');
+assert(settingsAppSrc.includes('soundFxService'), 'SettingsApp integrado con soundFxService.');
+assert(settingsAppSrc.includes('closeSettingsWindow'), 'SettingsApp cierra ventana en Escape.');
 
 const contextMenuSrc = fs.readFileSync('src/components/ContextMenu.jsx', 'utf8');
 assert(contextMenuSrc.includes('Escape'), 'ContextMenu escucha tecla Escape.');

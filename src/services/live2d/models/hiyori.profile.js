@@ -10,7 +10,7 @@ export const hiyoriProfile = {
   character: 'Hiyori',
   theme: 'Anime Schoolgirl / Official Live2D',
   badge: 'Oficial Live2D',
-  recommendedVoice: 'Fenrir',
+  recommendedVoice: 'Aoede',
   description: 'Modelo oficial de referencia Live2D Cubism con movimientos corporales fluidos, física y múltiples animaciones de interacción.',
   path: '/models/live2d/hiyori/hiyori_free_t08.model3.json',
 

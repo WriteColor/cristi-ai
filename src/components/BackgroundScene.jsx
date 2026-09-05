@@ -94,11 +94,11 @@ export const BackgroundScene = React.memo(function BackgroundScene() {
     const isWeb = /\.(html|htm)/i.test(customUrl) || sceneState.sceneType === 'web';
 
     return (
-      <div className="scene-viewport custom-scene-active">
+      <div className="fixed inset-0 pointer-events-none z-0 w-full h-full overflow-hidden select-none">
         {/* Dynamic Ambient Aura Backdrop */}
         {!isWeb && (
           <div
-            className="scene-ambient-backdrop"
+            className="absolute inset-0 w-full h-full scale-105 blur-md opacity-50"
             style={{
               backgroundImage: `url("${customUrl}")`,
               backgroundSize: 'cover',
@@ -107,7 +107,7 @@ export const BackgroundScene = React.memo(function BackgroundScene() {
           />
         )}
 
-        {/* Main Media - Perfectly fitted to screen aspect ratio without stretching or distortion */}
+        {/* Main Media */}
         {isVideo ? (
           <video
             key={customUrl}
@@ -123,13 +123,13 @@ export const BackgroundScene = React.memo(function BackgroundScene() {
                 el.play().catch(() => {});
               }
             }}
-            className="scene-media-element scene-media-contain"
+            className="absolute inset-0 w-full h-full object-cover"
           />
         ) : isWeb ? (
           <iframe
             key={customUrl}
             src={customUrl}
-            className="scene-iframe-element"
+            className="absolute inset-0 w-full h-full border-0"
             sandbox="allow-scripts allow-same-origin"
             title="Custom Web Scene"
           />
@@ -138,10 +138,10 @@ export const BackgroundScene = React.memo(function BackgroundScene() {
             key={customUrl}
             src={customUrl}
             alt="Custom Scene"
-            className="scene-media-element scene-media-contain scene-image-element"
+            className="absolute inset-0 w-full h-full object-cover"
           />
         )}
-        <div className="scene-ambient-overlay" />
+        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/60 via-transparent to-zinc-950/30" />
       </div>
     );
   }
@@ -149,57 +149,52 @@ export const BackgroundScene = React.memo(function BackgroundScene() {
   // ── Matrix Rain Canvas ───────────────────────────────────────────────────
   if (sceneId === 'matrix_rain') {
     return (
-      <div className="scene-viewport scene-matrix-viewport">
-        <canvas ref={canvasRef} className="scene-matrix-canvas" />
-        <div className="scene-ambient-overlay" />
+      <div className="fixed inset-0 pointer-events-none z-0 w-full h-full overflow-hidden select-none bg-black">
+        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/70 via-transparent to-zinc-950/40" />
       </div>
     );
   }
 
   // ── Procedural Built-In Shaders / CSS Scenes ──────────────────────────────
   return (
-    <div className={`scene-viewport scene-${sceneId}`}>
+    <div className="fixed inset-0 pointer-events-none z-0 w-full h-full overflow-hidden select-none">
       {/* Cyber Loft Room */}
       {sceneId === 'cyber_loft' && (
-        <div className="scene-layer scene-cyber-loft">
-          <div className="scene-window-grid" />
-          <div className="scene-rain-drops" />
-          <div className="scene-neon-sign">CRISTI // 2077</div>
-          <div className="scene-hologram-glow" />
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-zinc-950 to-purple-950">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-900/30 via-transparent to-black" />
+          <div className="absolute bottom-10 left-10 text-[10px] font-mono tracking-widest text-purple-400/40 uppercase">CRISTI // 2077 // CYBER LOFT</div>
         </div>
       )}
 
       {/* Neon Grid / Synthwave */}
       {sceneId === 'neon_grid' && (
-        <div className="scene-layer scene-neon-grid">
-          <div className="scene-sun" />
-          <div className="scene-horizon-grid" />
-          <div className="scene-grid-lines" />
+        <div className="absolute inset-0 bg-gradient-to-b from-purple-950 via-zinc-950 to-black">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,_rgba(236,72,153,0.25),_transparent_60%)]" />
+          <div className="absolute bottom-0 inset-x-0 h-1/2 bg-[linear-gradient(to_right,#38bdf815_1px,transparent_1px),linear-gradient(to_bottom,#38bdf815_1px,transparent_1px)] bg-[size:4rem_2rem] [transform:perspective(500px)_rotateX(60deg)] [transform-origin:bottom]" />
         </div>
       )}
 
       {/* Deep Nebula Space */}
       {sceneId === 'deep_nebula' && (
-        <div className="scene-layer scene-deep-nebula">
-          <div className="scene-starfield-1" />
-          <div className="scene-starfield-2" />
-          <div className="scene-nebula-clouds" />
+        <div className="absolute inset-0 bg-zinc-950">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/30 via-purple-950/20 to-black" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,_rgba(168,85,247,0.2),_transparent_40%)]" />
         </div>
       )}
 
       {/* Zen Cyber Temple */}
       {sceneId === 'zen_temple' && (
-        <div className="scene-layer scene-zen-temple">
-          <div className="scene-sakura-petals" />
-          <div className="scene-moon-glow" />
-          <div className="scene-torii-silhouette" />
+        <div className="absolute inset-0 bg-gradient-to-t from-rose-950/40 via-zinc-950 to-black">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,_rgba(244,63,94,0.2),_transparent_50%)]" />
         </div>
       )}
 
-      {/* Ambient Vignette & Scanline Overlay */}
-      <div className="scene-ambient-overlay" />
+      {/* Ambient Vignette Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/30" />
     </div>
   );
 });
 
 export default BackgroundScene;
+

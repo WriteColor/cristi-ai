@@ -10,7 +10,7 @@ export const tokiProfile = {
   character: 'Toki',
   theme: 'Cyber Maid / Blue Archive',
   badge: 'Blue Archive',
-  recommendedVoice: 'Puck',
+  recommendedVoice: 'Aoede',
   description: 'Doncella táctica de Blue Archive con mirada serena, respiración suave y estética cibernética.',
   path: '/models/live2d/toki/20220227toki.model3.json',
 

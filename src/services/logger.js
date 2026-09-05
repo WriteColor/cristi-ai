@@ -131,7 +131,7 @@ class LoggerService {
 
   async sendToTerminal(entry) {
     try {
-      if (typeof window !== 'undefined' && window.fetch) {
+      if (import.meta.env?.DEV && typeof window !== 'undefined' && window.fetch) {
         fetch('/__log', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

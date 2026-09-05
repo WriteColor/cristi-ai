@@ -53,6 +53,7 @@ export class Live2DController {
     this.speechHeadBob = 0;
     this.speechBodySway = 0;
     this.speechEnergyAccumulator = 0;
+    this.lastAudioAnalysisTime = 0;
 
     // Saccades (Natural Micro-Jitter)
     this.saccadeOffset = { x: 0, y: 0 };
@@ -247,6 +248,7 @@ export class Live2DController {
 
   onAudioAnalysis(metrics) {
     if (!this.adapter) return;
+    this.lastAudioAnalysisTime = performance.now();
 
     // 1. High-precision spectral multi-band Lip-Sync
     this.adapter.setMouth(metrics.mouthOpen, metrics.mouthForm);
@@ -411,6 +413,22 @@ export class Live2DController {
         this.adapter.setDirectParamTarget(paramId, value);
       }
     );
+
+    // ── 6.5. Speech & Lip-Sync Movement Assurance ───────────────────────────
+    const nowTime = performance.now();
+    if (this.isSpeaking) {
+      if (nowTime - this.lastAudioAnalysisTime > 150) {
+        // Natural procedural speech cadence oscillation if FFT stream is temporarily silent/paused
+        const t = nowTime * 0.014;
+        const proceduralOpen = Math.max(0.08, Math.min(0.85, Math.sin(t) * 0.45 + Math.sin(t * 2.3) * 0.2 + 0.25));
+        const proceduralForm = Math.sin(t * 0.7) * 0.3;
+        this.adapter.setMouth(proceduralOpen, proceduralForm);
+      }
+    } else {
+      if (nowTime - this.lastAudioAnalysisTime > 120) {
+        this.adapter.setMouth(0, 0);
+      }
+    }
 
     // ── 7. Push all smoothed targets into Cubism Core ──────────────────────
     if (this._expressionLockExpiry > 0 && performance.now() > this._expressionLockExpiry) {

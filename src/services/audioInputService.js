@@ -7,7 +7,6 @@
  * - 80 Hz High-Pass Filter (HPF) to eliminate pops, plosives, and sub-bass electrical hum
  * - Adaptive Noise Gate to attenuate background noise floor
  * - Transparent fallback to ScriptProcessorNode if AudioWorklet is unavailable
- * - Rolling PCM buffer for Speaker Biometrics and Diagnostics
  */
 
 import { logger } from './logger.js';
@@ -16,7 +15,7 @@ const WORKLET_PROCESSOR_CODE = `
 class CristiPcmProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.bufferSize = 2048;
+    this.bufferSize = Math.round(sampleRate * 0.02);
     this.buffer = new Float32Array(this.bufferSize);
     this.bufferIndex = 0;
     this.noiseGateThreshold = 0.008; // -42dB noise floor
@@ -80,6 +79,8 @@ export class AudioInputService {
     this.rollingBuffer = new Float32Array(this.rollingBufferSize);
     this.rollingBufferIndex = 0;
     this._processedChunksCount = 0;
+    this._generation = 0;
+    this._startPromise = null;
   }
 
   getTelemetry() {
@@ -126,9 +127,20 @@ export class AudioInputService {
 
   async start() {
     if (this.isRecording) return;
+    if (this._startPromise) {
+      await this._startPromise;
+      if (!this.isRecording) return this.start();
+      return;
+    }
+    const generation = this._generation;
+    this._startPromise = this._start(generation);
+    try { await this._startPromise; }
+    finally { this._startPromise = null; }
+  }
 
+  async _start(generation) {
     try {
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
           echoCancellation: true,
@@ -136,6 +148,11 @@ export class AudioInputService {
           autoGainControl: true
         }
       });
+      if (generation !== this._generation) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      this.mediaStream = stream;
 
       const AudioContextClass = typeof window !== 'undefined'
         ? (window.AudioContext || window.webkitAudioContext)
@@ -143,10 +160,11 @@ export class AudioInputService {
 
       if (!AudioContextClass) throw new Error('AudioContext no soportado en este entorno');
 
-      this.audioContext = new AudioContextClass();
+      this.audioContext = new AudioContextClass({ sampleRate: this.targetSampleRate, latencyHint: 'interactive' });
       if (this.audioContext.state === 'suspended' || this.audioContext.state === 'interrupted') {
         await this.audioContext.resume();
       }
+      if (generation !== this._generation) return;
 
       const inputSampleRate = this.audioContext.sampleRate;
       logger.info('AUDIO', `Micrófono activo (Entrada: ${inputSampleRate} Hz => Salida: 16000 Hz PCM)`);
@@ -175,8 +193,9 @@ export class AudioInputService {
         try {
           const blob = new Blob([WORKLET_PROCESSOR_CODE], { type: 'application/javascript' });
           const workletUrl = URL.createObjectURL(blob);
-          await this.audioContext.audioWorklet.addModule(workletUrl);
-          URL.revokeObjectURL(workletUrl);
+          try { await this.audioContext.audioWorklet.addModule(workletUrl); }
+          finally { URL.revokeObjectURL(workletUrl); }
+          if (generation !== this._generation) return;
 
           this.workletNode = new AudioWorkletNode(this.audioContext, 'cristi-pcm-processor');
           this.workletNode.port.onmessage = (event) => {
@@ -186,9 +205,15 @@ export class AudioInputService {
           };
 
           this.gainNode.connect(this.workletNode);
+          // Keep the processor in the rendered graph without monitoring the mic.
+          this.muteNode = this.audioContext.createGain();
+          this.muteNode.gain.value = 0;
+          this.workletNode.connect(this.muteNode);
+          this.muteNode.connect(this.audioContext.destination);
           workletSuccess = true;
           logger.info('AUDIO', 'AudioWorklet DSP inicializado en hilo secundario de audio.');
         } catch (workletErr) {
+          if (generation !== this._generation) return;
           logger.warn('AUDIO', `Fallo al registrar AudioWorklet, usando fallback ScriptProcessor: ${workletErr.message}`);
           workletSuccess = false;
         }
@@ -214,6 +239,7 @@ export class AudioInputService {
 
       this.isRecording = true;
     } catch (err) {
+      if (generation !== this._generation) return;
       this.onError(err);
       this.stop();
       throw err;
@@ -258,11 +284,13 @@ export class AudioInputService {
   }
 
   stop() {
+    this._generation++;
     this.isRecording = false;
 
     if (this.workletNode) {
       try {
         this.workletNode.port.onmessage = null;
+        this.workletNode.port.close?.();
         this.workletNode.disconnect();
       } catch (_) {}
       this.workletNode = null;
@@ -320,39 +348,12 @@ export class AudioInputService {
 
     if (this.audioContext && this.audioContext.state !== 'closed') {
       try {
-        this.audioContext.close();
+        this.audioContext.close()?.catch(() => {});
       } catch (_) {}
       this.audioContext = null;
     }
 
     this.onVolumeChange(0);
-  }
-
-  /**
-   * Silences audio transmission to Gemini Live
-   */
-  mute() {
-    this.isMuted = true;
-    this.onVolumeChange(0);
-    logger.info('AUDIO', 'Micrófono silenciado con éxito.');
-  }
-
-  /**
-   * Re-enables audio transmission to Gemini Live
-   */
-  unmute() {
-    this.isMuted = false;
-    logger.info('AUDIO', 'Micrófono activado con éxito.');
-  }
-
-  /**
-   * Toggles mute state and returns current state
-   */
-  toggleMute() {
-    this.isMuted = !this.isMuted;
-    if (this.isMuted) this.onVolumeChange(0);
-    logger.info('AUDIO', `Estado de mute alternado: ${this.isMuted ? 'SILENCIADO' : 'ACTIVO'}`);
-    return this.isMuted;
   }
 
   /**
@@ -409,14 +410,5 @@ export class AudioInputService {
   /**
    * Retrieve continuous Float32Array PCM samples from recent rolling buffer (e.g. past 1500ms)
    */
-  getRecentAudioSamples(durationMs = 1500) {
-    const numSamples = Math.min(Math.floor((durationMs / 1000) * this.targetSampleRate), this.rollingBufferSize);
-    const result = new Float32Array(numSamples);
-    const startIdx = (this.rollingBufferIndex - numSamples + this.rollingBufferSize) % this.rollingBufferSize;
-
-    for (let i = 0; i < numSamples; i++) {
-      result[i] = this.rollingBuffer[(startIdx + i) % this.rollingBufferSize];
-    }
-    return result;
-  }
 }
+

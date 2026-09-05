@@ -304,7 +304,7 @@ export class Live2DAdapter {
 
     const coreModel = this.model.internalModel.coreModel;
 
-    // Enforce profile hidden parts (e.g. Part17 watermark layer in Ellen)
+    // Enforce profile hidden parts (e.g. Part17, Part78, Part8 watermark layers in Ellen)
     if (this.profile?.hiddenParts && Array.isArray(this.profile.hiddenParts) && coreModel._partIds) {
       for (const partId of this.profile.hiddenParts) {
         const idx = coreModel._partIds.indexOf(partId);
@@ -315,6 +315,15 @@ export class Live2DAdapter {
           if (coreModel._partOpacities) {
             coreModel._partOpacities[idx] = 0;
           }
+        }
+      }
+    }
+
+    // Enforce profile locked parameters (e.g. Paramheadxy = 0, ParambodyXY2 = 0)
+    if (this.profile?.lockedParameters && typeof this.profile.lockedParameters === 'object') {
+      for (const [lockParam, lockVal] of Object.entries(this.profile.lockedParameters)) {
+        if (typeof coreModel.setParameterValueById === 'function') {
+          coreModel.setParameterValueById(lockParam, lockVal);
         }
       }
     }

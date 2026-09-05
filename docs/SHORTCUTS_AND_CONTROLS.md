@@ -66,7 +66,7 @@ El menú contextual categorizado ofrece control rápido sobre todas las capacida
 
 ### 3. 🧠 Categoría: Inteligencia Artificial
 * **Selector de Modelo Gemini**: Conmuta entre `Gemini 2.5 Flash`, `Gemini 2.0 Flash`, `Gemini 2.0 Pro Experimental` y `Gemini 1.5 Pro`.
-* **Selector de Voces Neuronales**: Conmuta entre las 30 voces oficiales (`Aoede`, `Zephyr`, `Kore`, `Puck`, `Charon`, `Fenrir`, etc.).
+* **Selector de Voces Neuronales**: Conmuta entre las 16 voces oficiales (Aoede, Zephyr, Kore, Leda, Lyra, etc.).
 
 ### 4. 🛠️ Categoría: Herramientas Tácticas
 * **Capturar Región**: Abre el selector de coordenadas para que Cristi analice visualmente un área específica de tu pantalla.

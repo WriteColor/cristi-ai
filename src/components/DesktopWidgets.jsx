@@ -8,6 +8,7 @@ import {
   X
 } from 'lucide-react';
 import { eventBus, EVENTS } from '../services/eventBus.js';
+import { proactiveScheduler } from '../services/proactiveScheduler.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';
 
 const STORAGE_KEY_CRISTI_WIDGETS = 'cristi_ai_active_widgets';
@@ -74,17 +75,25 @@ export function DesktopWidgets({ isVisible = true }) {
   const { interactiveProps } = useClickThrough();
 
   const handleDismiss = (id) => {
+    const targetId = String(id);
     setWidgets((prev) => {
-      const updated = prev.filter((w) => w.id !== id);
-      localStorage.setItem(STORAGE_KEY_CRISTI_WIDGETS, JSON.stringify(updated));
+      const updated = prev.filter((w) => String(w.id) !== targetId);
+      try {
+        localStorage.setItem(STORAGE_KEY_CRISTI_WIDGETS, JSON.stringify(updated));
+      } catch (_) {}
       return updated;
     });
+    eventBus.emit(EVENTS.WIDGET_DISMISSED, { id: targetId });
+    proactiveScheduler.cancelTask(targetId);
   };
 
   const handleToggleDone = (id) => {
+    const targetId = String(id);
     setWidgets((prev) => {
-      const updated = prev.map((w) => (w.id === id ? { ...w, done: !w.done } : w));
-      localStorage.setItem(STORAGE_KEY_CRISTI_WIDGETS, JSON.stringify(updated));
+      const updated = prev.map((w) => (String(w.id) === targetId ? { ...w, done: !w.done } : w));
+      try {
+        localStorage.setItem(STORAGE_KEY_CRISTI_WIDGETS, JSON.stringify(updated));
+      } catch (_) {}
       return updated;
     });
   };
@@ -93,7 +102,7 @@ export function DesktopWidgets({ isVisible = true }) {
   if (!isVisible || widgets.length === 0) return null;
 
   return (
-    <div ref={containerRef} className="cristi-widgets-viewport zen-fadeable-ui" {...interactiveProps}>
+    <div ref={containerRef} className="cristi-widgets-viewport zen-fadeable-ui pointer-events-auto" {...interactiveProps}>
       {widgets.map((widget) => {
         let Icon = Sparkles;
         let iconColor = '#c084fc';
@@ -111,13 +120,13 @@ export function DesktopWidgets({ isVisible = true }) {
         return (
           <div
             key={widget.id}
-            className={`cristi-widget-card ${widget.done ? 'done' : ''}`}
+            className={`cristi-widget-card pointer-events-auto ${widget.done ? 'done' : ''}`}
           >
             {/* Tech Corner Crosshairs */}
-            <span className="hud-corner hud-corner-tl" />
-            <span className="hud-corner hud-corner-tr" />
-            <span className="hud-corner hud-corner-bl" />
-            <span className="hud-corner hud-corner-br" />
+            <span className="hidden" />
+            <span className="hidden" />
+            <span className="hidden" />
+            <span className="hidden" />
 
             <div className="cristi-widget-icon-box" style={{ color: iconColor }}>
               <Icon size={12} />
@@ -145,20 +154,32 @@ export function DesktopWidgets({ isVisible = true }) {
                 <button
                   type="button"
                   className="cristi-widget-action-btn check"
-                  onClick={() => handleToggleDone(widget.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    handleToggleDone(widget.id);
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
                   title={widget.done ? 'Pendiente' : 'Completado'}
+                  aria-label="Completar"
                 >
-                  <CheckCircle2 size={11} className={widget.done ? 'checked' : ''} />
+                  <CheckCircle2 size={13} className={widget.done ? 'checked text-emerald-400' : ''} />
                 </button>
               )}
 
               <button
                 type="button"
                 className="cristi-widget-action-btn dismiss"
-                onClick={() => handleDismiss(widget.id)}
-                title="Cerrar widget"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  handleDismiss(widget.id);
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                title="Descartar alarma o recordatorio"
+                aria-label="Cerrar widget"
               >
-                <X size={11} />
+                <X size={13} />
               </button>
             </div>
 

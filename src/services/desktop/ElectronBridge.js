@@ -27,7 +27,18 @@ export const electronBridge = {
   releaseInteractionLock() {
     if (this._interactionLockCount > 0) {
       this._interactionLockCount--;
+      if (this._interactionLockCount === 0) {
+        // Restore click-through passthrough when no more overlays hold the lock
+        this.setIgnoreMouseEvents(true, { forward: true });
+      }
     }
+  },
+
+  resetInteractionLock() {
+    this._interactionLockCount = 0;
+    this._lastIgnore = null;
+    this._lastForward = null;
+    this.setIgnoreMouseEvents(true, { forward: true });
   },
 
   /**
@@ -47,7 +58,15 @@ export const electronBridge = {
     }
     this._lastIgnore = ignore;
     this._lastForward = forward;
-    getApi()?.setIgnoreMouseEvents(ignore, options);
+    // On Windows, passing forward: true installs a global low-level WH_MOUSE_LL hook.
+    // Under GPU or screen capture load, that hook stalls the OS mouse queue by 3-6 seconds.
+    // We enforce forward: false at IPC level to use native WS_EX_TRANSPARENT without OS hooks,
+    // while registered hitboxes provide 0ms instant hover detection.
+    getApi()?.setIgnoreMouseEvents(ignore, { ...options, forward: false });
+  },
+
+  syncHitboxes(hitboxes) {
+    getApi()?.syncHitboxes?.(hitboxes);
   },
 
   /**
@@ -99,6 +118,24 @@ export const electronBridge = {
   /** Quit the entire Electron app */
   quitApp() {
     getApi()?.quitApp?.();
+  },
+
+  /** Relaunch / Restart the entire Electron app process */
+  async relaunchApp() {
+    const api = getApi();
+    if (api?.relaunchApp) {
+      return await api.relaunchApp();
+    }
+    window.location.reload();
+  },
+
+  /** Reload the current window / webContents */
+  async reloadWindow() {
+    const api = getApi();
+    if (api?.reloadWindow) {
+      return await api.reloadWindow();
+    }
+    window.location.reload();
   },
 
   /** Show the window */
@@ -203,6 +240,71 @@ export const electronBridge = {
       return await api.importCustomSceneFile();
     }
     return { canceled: true, error: 'Electron unavailable' };
+  },
+
+
+
+  // ── Minecraft Companion API ────────────────────────────────────────────────
+  async minecraftConnect(opts) {
+    const api = getApi();
+    if (api?.minecraftConnect) {
+      return await api.minecraftConnect(opts);
+    }
+    return { success: false, error: 'Electron bridge unavailable' };
+  },
+  async minecraftDisconnect() {
+    return await getApi()?.minecraftDisconnect?.();
+  },
+  async minecraftChat(msg) {
+    return await getApi()?.minecraftChat?.(msg);
+  },
+  async minecraftGetStatus() {
+    return await getApi()?.minecraftGetStatus?.();
+  },
+  async minecraftMoveTo(coords) {
+    return await getApi()?.minecraftMoveTo?.(coords);
+  },
+  async minecraftFollow(player) {
+    return await getApi()?.minecraftFollow?.(player);
+  },
+  async minecraftStop() {
+    return await getApi()?.minecraftStop?.();
+  },
+  async minecraftMineBlock(coords) {
+    return await getApi()?.minecraftMineBlock?.(coords);
+  },
+  async minecraftPlaceBlock(payload) {
+    return await getApi()?.minecraftPlaceBlock?.(payload);
+  },
+  async minecraftAttack(payload) {
+    return await getApi()?.minecraftAttack?.(payload);
+  },
+  onMinecraftChat(callback) {
+    return getApi()?.onMinecraftChat?.(callback) || (() => {});
+  },
+
+  // ── Discord Companion API ──────────────────────────────────────────────────
+  async discordConnect(opts) {
+    const api = getApi();
+    if (api?.discordConnect) {
+      return await api.discordConnect(opts);
+    }
+    return { success: false, error: 'Electron bridge unavailable' };
+  },
+  async discordDisconnect() {
+    return await getApi()?.discordDisconnect?.();
+  },
+  async discordSendMessage(payload) {
+    return await getApi()?.discordSendMessage?.(payload);
+  },
+  async discordGetMessages(payload) {
+    return await getApi()?.discordGetMessages?.(payload);
+  },
+  async discordSetStatus(opts) {
+    return await getApi()?.discordSetStatus?.(opts);
+  },
+  onDiscordMessage(callback) {
+    return getApi()?.onDiscordMessage?.(callback) || (() => {});
   },
 
   /** Query granular memory telemetry across all Electron processes */
@@ -347,6 +449,12 @@ export const electronBridge = {
     }
     return { success: false, error: 'Unavailable' };
   },
+  async sendConfigUpdated(config) {
+    return await this.saveAppConfig(config);
+  },
+  async saveConfig(config) {
+    return await this.saveAppConfig(config);
+  },
   async getAppConfig() {
     const api = getApi();
     if (api?.getAppConfig) {
@@ -383,6 +491,114 @@ export const electronBridge = {
       return api.onCompanionResume(callback);
     }
     return () => {};
+  },
+  onSettingsWindowState(callback) {
+    const api = getApi();
+    if (api?.onSettingsWindowState) {
+      return api.onSettingsWindowState(callback);
+    }
+    return () => {};
+  },
+  async openCameraWindow() {
+    const api = getApi();
+    if (api?.openCameraWindow) {
+      return await api.openCameraWindow();
+    }
+    return { success: false, error: 'Unavailable' };
+  },
+  async closeCameraWindow() {
+    const api = getApi();
+    if (api?.closeCameraWindow) {
+      return await api.closeCameraWindow();
+    }
+    return { success: false, error: 'Unavailable' };
+  },
+  async isCameraWindowOpen() {
+    const api = getApi();
+    if (api?.isCameraWindowOpen) {
+      return await api.isCameraWindowOpen();
+    }
+    return false;
+  },
+  onCameraWindowState(callback) {
+    const api = getApi();
+    if (api?.onCameraWindowState) {
+      return api.onCameraWindowState(callback);
+    }
+    return () => {};
+  },
+
+  // ── Playwright Native Automation Bridge ───────────────────────────────────
+  async playwrightExecute(action, params = {}) {
+    const api = getApi();
+    if (api?.playwrightExecute) {
+      return await api.playwrightExecute(action, params);
+    }
+    return { success: false, error: 'Playwright no disponible fuera de Electron desktop.' };
+  },
+
+  // ── Spotify Native & Media Control Bridge ─────────────────────────────────
+  async spotifyControl(action, params = {}) {
+    const api = getApi();
+    if (api?.spotifyControl) {
+      return await api.spotifyControl(action, params);
+    }
+    // Node.js direct environment fallback
+    if (typeof process !== 'undefined' && process.versions?.node) {
+      try {
+        const { execSync } = await import(/* @vite-ignore */ 'child_process');
+        if (action === 'check_desktop_installed') {
+          const fs = await import(/* @vite-ignore */ 'fs');
+          const path = await import(/* @vite-ignore */ 'path');
+          const appData = process.env.APPDATA || '';
+          const progFiles = process.env['ProgramFiles'] || '';
+          const candidates = [
+            path.join(appData, 'Spotify/Spotify.exe'),
+            path.join(progFiles, 'Spotify/Spotify.exe')
+          ];
+          const found = candidates.find((p) => fs.existsSync(p));
+          return { installed: Boolean(found), exePath: found || null };
+        }
+        if (action === 'open_uri' && params.uri) {
+          execSync(`powershell.exe -Command "Start-Process '${params.uri}'"`, { timeout: 4000 });
+          return { status: 'success', action: 'open_uri', uri: params.uri };
+        }
+        if (action === 'play_pause') {
+          execSync('powershell.exe -Command "(New-Object -ComObject Wscript.Shell).SendKeys([char]179)"', { timeout: 3000 });
+          return { status: 'success', action: 'play_pause' };
+        }
+        if (action === 'next') {
+          execSync('powershell.exe -Command "(New-Object -ComObject Wscript.Shell).SendKeys([char]176)"', { timeout: 3000 });
+          return { status: 'success', action: 'next' };
+        }
+        if (action === 'previous') {
+          execSync('powershell.exe -Command "(New-Object -ComObject Wscript.Shell).SendKeys([char]177)"', { timeout: 3000 });
+          return { status: 'success', action: 'previous' };
+        }
+        if (action === 'volume_up') {
+          execSync('powershell.exe -Command "(New-Object -ComObject Wscript.Shell).SendKeys([char]175)"', { timeout: 3000 });
+          return { status: 'success', action: 'volume_up' };
+        }
+        if (action === 'volume_down') {
+          execSync('powershell.exe -Command "(New-Object -ComObject Wscript.Shell).SendKeys([char]174)"', { timeout: 3000 });
+          return { status: 'success', action: 'volume_down' };
+        }
+        if (action === 'get_status') {
+          try {
+            const out = execSync('powershell.exe -Command "Get-Process -Name Spotify -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle } | Select-Object -ExpandProperty MainWindowTitle -First 1"', { timeout: 3000, encoding: 'utf-8' }).trim();
+            if (out) {
+              return { status: 'success', isPlaying: true, title: out };
+            }
+            return { status: 'success', isPlaying: false, title: 'Spotify en segundo plano' };
+          } catch (_) {
+            return { status: 'idle', isPlaying: false };
+          }
+        }
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
+    }
+    return { success: false, error: 'Control nativo de Spotify no disponible fuera de Electron desktop.' };
   },
 };
 

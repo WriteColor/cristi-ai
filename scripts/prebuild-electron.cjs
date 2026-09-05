@@ -48,8 +48,10 @@ function prepareWinCodeSignCache() {
   }
 }
 
+
 try {
   prepareWinCodeSignCache();
+  // Vite copies public assets once, after clearing dist.
 } catch (e) {
   // Non-fatal prebuild check
 }

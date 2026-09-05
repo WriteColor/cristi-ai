@@ -28,6 +28,7 @@ check(proactiveService.isRunning === false, 'El motor inicia detenido');
 check(proactiveService.activeTriggers.has('routine_time_of_day'), 'Rutina de franja horaria registrada');
 check(proactiveService.activeTriggers.has('routine_hydration_stretch'), 'Rutina de hidratación y postura registrada');
 check(proactiveService.activeTriggers.has('routine_inactivity_monitor'), 'Rutina de inactividad registrada');
+check(proactiveService.activeTriggers.has('routine_inquisitive_silence_breaker'), 'Rutina de indagación y conversación proactiva registrada');
 
 // 2. Custom Dynamic Trigger Registration & Execution
 console.log('\n[2/6] Verificando registro y disparo de triggers personalizados...');
@@ -44,6 +45,7 @@ proactiveService.registerTrigger({
 
 proactiveService.tick();
 check(customFired === true, 'Trigger personalizado ejecutado en tick');
+proactiveService.unregisterTrigger('test_custom_trigger');
 
 // 3. Focus & Pomodoro Work/Break Cycle
 console.log('\n[3/6] Verificando ciclo de concentración Pomodoro (Work -> Break)...');

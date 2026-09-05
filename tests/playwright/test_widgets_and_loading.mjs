@@ -59,7 +59,7 @@ console.log(`  Recordatorios Iniciales: ${widgetStats.remindersCount}`);
 await page.screenshot({ path: 'C:/Users/jerem/.gemini/antigravity-ide/brain/428cbd8d-9fd9-4bb5-b96a-e16db84be0cb/widgets_01_live.png' });
 
 console.log('\n======================================================');
-console.log('🎙️ 3. TEST CATÁLOGO DE 30 VOCES EN AJUSTES Y MENÚ');
+console.log('🎙️ 3. TEST CATÁLOGO DE 16 VOCES EN AJUSTES Y MENÚ');
 console.log('======================================================');
 
 await page.evaluate(() => window.__cristiApp?.openSettings());
@@ -90,7 +90,7 @@ await page.evaluate(() => window.__cristiApp?.closeSettings());
 await page.waitForTimeout(600);
 
 console.log('\n======================================================');
-console.log('🎯 4. TEST MENÚ CONTEXTUAL CON TOGGLE DE WIDGETS & 30 VOCES');
+console.log('🎯 4. TEST MENÚ CONTEXTUAL CON TOGGLE DE WIDGETS & 16 VOCES');
 console.log('======================================================');
 
 await page.mouse.click(640, 360, { button: 'right' });

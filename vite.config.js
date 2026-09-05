@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
 function terminalLoggerPlugin() {
@@ -47,7 +48,7 @@ function terminalLoggerPlugin() {
 }
 
 export default defineConfig({
-  plugins: [react(), terminalLoggerPlugin()],
+  plugins: [react(), tailwindcss(), terminalLoggerPlugin()],
   base: './',
   server: {
     port: 5173,
@@ -63,8 +64,9 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       input: {
-        main: path.resolve(import.meta.dirname || __dirname, 'index.html'),
-        settings: path.resolve(import.meta.dirname || __dirname, 'settings.html')
+        main: path.resolve(import.meta.dirname, 'index.html'),
+        settings: path.resolve(import.meta.dirname, 'settings.html'),
+        camera: path.resolve(import.meta.dirname, 'camera.html')
       }
     }
   }
