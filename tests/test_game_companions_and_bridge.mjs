@@ -98,6 +98,13 @@ async function runCompanionTests() {
   assert(toolNames.includes('discord_voice_leave'), 'Herramienta "discord_voice_leave" expuesta a Gemini Live.');
   assert(toolNames.includes('discord_voice_status'), 'Herramienta "discord_voice_status" expuesta a Gemini Live.');
 
+  // MCP lifecycle tools let Gemini extend its own tool catalog at runtime.
+  assert(toolNames.includes('mcp_add_server'), 'Herramienta "mcp_add_server" permite crear servidores MCP desde una llamada Live.');
+  assert(toolNames.includes('mcp_list_servers'), 'Herramienta "mcp_list_servers" expone el estado MCP al modelo.');
+  assert(toolNames.includes('mcp_remove_server'), 'Herramienta "mcp_remove_server" limpia servidores MCP desde el modelo.');
+  assert(toolNames.includes('mcp_reconnect_server'), 'Herramienta "mcp_reconnect_server" recupera transportes MCP caídos.');
+  assert(toolNames.includes('mcp_call_tool'), 'Herramienta "mcp_call_tool" ejecuta servidores MCP recién creados durante una llamada activa.');
+
   // Hybrid Model Switching
   assert(toolNames.includes('switch_avatar_model'), 'Herramienta "switch_avatar_model" expuesta a Gemini Live.');
 

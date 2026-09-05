@@ -62,12 +62,15 @@ if (!declaration?.parameters?.properties?.text) throw new Error('El esquema MCP 
 
 const result = await manager.executeMCPTool(namespaced, { text: 'hola' });
 if (result?.content?.[0]?.text !== 'hola') throw new Error('La respuesta de tools/call no fue devuelta.');
+const directResult = await manager.callServerTool(server.id, 'echo-with/slash', { text: 'directo' });
+if (directResult?.content?.[0]?.text !== 'directo') throw new Error('La llamada MCP directa por servidor no fue devuelta.');
 await manager.disconnectServer(server.id);
 
 const connectCall = calls.find((entry) => entry.type === 'connect');
 const toolCall = calls.find((entry) => entry.type === 'call');
 if (connectCall?.config?.id !== server.id) throw new Error('mcp-connect no recibió el id del servidor.');
 if (toolCall?.payload?.name !== 'echo-with/slash') throw new Error('mcp-call-tool no restauró el nombre original.');
+if (!calls.some((entry) => entry.type === 'call' && entry.payload?.arguments?.text === 'directo')) throw new Error('mcp-call-tool directo no llegó al transporte.');
 if (!calls.some((entry) => entry.type === 'disconnect')) throw new Error('mcp-disconnect no fue invocado.');
 
 console.log('✅ MCP Electron bridge: conexión, descubrimiento namespaceado, ejecución y desconexión verificados.');
