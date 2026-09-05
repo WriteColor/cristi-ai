@@ -30,6 +30,9 @@ export { MemoryService, memoryService, MEMORY_CATEGORIES } from './memory/Memory
 export { MCPClientManager, mcpClientManager } from './mcp/MCPClientManager.js';
 export { BrowserAutomationService, browserAutomationService } from './browser/BrowserAutomationService.js';
 export { MinecraftCompanionService, minecraftCompanion } from './gameIntegration/MinecraftCompanionService.js';
+export { GameAdapter } from './gameIntegration/GameAdapter.js';
+export { AudioRoutingService, audioRoutingService } from './translation/AudioRoutingService.js';
+export { TranslationService, translationService } from './translation/TranslationService.js';
 export { DiscordCompanionService, discordCompanion } from './discord/DiscordCompanionService.js';
 export { VisionStreamManager, visionStreamManager } from './vision/VisionStreamManager.js';
 export { VisionFrameDispatcher, visionFrameDispatcher } from './vision/VisionFrameDispatcher.js';

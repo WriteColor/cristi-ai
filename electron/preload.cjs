@@ -47,6 +47,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   execCommand: (command, options) => ipcRenderer.invoke('exec-command', command, options),
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
   writeFile: (filePath, data) => ipcRenderer.invoke('write-file', filePath, data),
+  setSecureSecret: (key, value) => ipcRenderer.invoke('secure-set-secret', key, value),
+  getSecureSecret: (key) => ipcRenderer.invoke('secure-get-secret', key),
+  deleteSecureSecret: (key) => ipcRenderer.invoke('secure-delete-secret', key),
   appendFile: (filePath, data) => ipcRenderer.invoke('append-file', filePath, data),
   readDirectory: (dirPath) => ipcRenderer.invoke('read-directory', dirPath),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
@@ -85,6 +88,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       try { ipcRenderer.removeListener('minecraft-chat', listener); } catch (_) {}
     };
   },
+  onMinecraftEvent: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (event, data) => callback(data);
+    ipcRenderer.on('minecraft-event', listener);
+    return () => {
+      try { ipcRenderer.removeListener('minecraft-event', listener); } catch (_) {}
+    };
+  },
 
   // ── Discord Companion API ──────────────────────────────────────────────────
   discordConnect: (opts) => ipcRenderer.invoke('discord-connect', opts),
@@ -98,6 +109,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('discord-message', listener);
     return () => {
       try { ipcRenderer.removeListener('discord-message', listener); } catch (_) {}
+    };
+  },
+  onDiscordEvent: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (event, data) => callback(data);
+    ipcRenderer.on('discord-event', listener);
+    return () => {
+      try { ipcRenderer.removeListener('discord-event', listener); } catch (_) {}
     };
   },
 

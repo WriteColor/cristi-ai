@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell, clipboard, Notification, globalShortcut, desktopCapturer, dialog, protocol, net } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell, clipboard, Notification, globalShortcut, desktopCapturer, dialog, protocol, net, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { exec } = require('child_process');
@@ -827,6 +827,35 @@ ipcMain.handle('capture-screen-native', async (event, region = null) => {
   return capturePromise;
 });
 
+const SECRETS_FILE_PATH = path.join(app.getPath('userData'), 'cristi-secrets.json');
+function readSecrets() {
+  try { return fs.existsSync(SECRETS_FILE_PATH) ? JSON.parse(fs.readFileSync(SECRETS_FILE_PATH, 'utf8')) || {} : {}; } catch (_) { return {}; }
+}
+function writeSecrets(secrets) {
+  fs.mkdirSync(path.dirname(SECRETS_FILE_PATH), { recursive: true });
+  fs.writeFileSync(SECRETS_FILE_PATH, JSON.stringify(secrets, null, 2), 'utf8');
+}
+ipcMain.handle('secure-set-secret', (event, key, value) => {
+  if (!key || typeof value !== 'string') return { success: false, error: 'Secret inválido.' };
+  if (!safeStorage.isEncryptionAvailable()) return { success: false, error: 'Cifrado seguro no disponible en este sistema.' };
+  const secrets = readSecrets();
+  secrets[String(key)] = safeStorage.encryptString(value).toString('base64');
+  writeSecrets(secrets);
+  return { success: true };
+});
+ipcMain.handle('secure-get-secret', (event, key) => {
+  if (!key || !safeStorage.isEncryptionAvailable()) return null;
+  const encoded = readSecrets()[String(key)];
+  if (!encoded) return null;
+  try { return safeStorage.decryptString(Buffer.from(encoded, 'base64')); } catch (_) { return null; }
+});
+ipcMain.handle('secure-delete-secret', (event, key) => {
+  const secrets = readSecrets();
+  delete secrets[String(key)];
+  writeSecrets(secrets);
+  return { success: true };
+});
+
 // ── Custom Wallpaper & Scene Native Importer ────────────────────────────────
 ipcMain.handle('import-custom-scene-file', async () => {
   try {
@@ -1243,6 +1272,15 @@ ipcMain.handle('minecraft-connect', async (event, opts = {}) => {
         }
       });
 
+      const notifyMinecraftEvent = (type, payload = {}) => {
+        if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('minecraft-event', { type, ...payload });
+        }
+      };
+      mcBot.on('kicked', (reason) => notifyMinecraftEvent('kicked', { reason: String(reason || '') }));
+      mcBot.on('end', (reason) => notifyMinecraftEvent('end', { reason: String(reason || '') }));
+      mcBot.on('error', (err) => notifyMinecraftEvent('error', { message: err?.message || String(err) }));
+
       mcBot.once('error', (err) => {
         if (!resolved) {
           resolved = true;
@@ -1399,6 +1437,15 @@ ipcMain.handle('discord-connect', async (event, { token, statusMessage, activity
           });
         }
       });
+      const notifyDiscordEvent = (type, payload = {}) => {
+        if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('discord-event', { type, ...payload });
+        }
+      };
+      discordClient.on('error', (err) => notifyDiscordEvent('error', { message: err?.message || String(err) }));
+      discordClient.on('shardDisconnect', (closeEvent, shardId) => notifyDiscordEvent('disconnect', { shardId, code: closeEvent?.code }));
+      discordClient.on('shardReconnecting', (shardId) => notifyDiscordEvent('reconnecting', { shardId }));
+      discordClient.on('shardReady', (shardId) => notifyDiscordEvent('ready', { shardId }));
 
       discordClient.login(token).catch((err) => {
         if (!resolved) {

@@ -13,6 +13,7 @@ import { contextualEmotionOrchestrator } from './live2d/ContextualEmotionOrchest
 import { memoryService } from './memory/MemoryService.js';
 import { mcpClientManager } from './mcp/MCPClientManager.js';
 import { proactiveScheduler } from './proactiveScheduler.js';
+import { eventBus, EVENTS } from './eventBus.js';
 
 export class GeminiLiveSocket {
   constructor({
@@ -34,6 +35,7 @@ export class GeminiLiveSocket {
     onToolCall,
     onReconnecting,
     maxReconnectAttempts = 5,
+    sessionId = null,
   }) {
     this.apiKey = apiKey;
     this.modelId = modelId;
@@ -41,6 +43,7 @@ export class GeminiLiveSocket {
     this.systemPrompt = systemPrompt;
     this.thinkingConfig = thinkingConfig;
     this.temperature = temperature;
+    this.sessionId = sessionId || `live_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
     this.onOpen = onOpen || (() => {});
     this.onClose = onClose || (() => {});
@@ -137,6 +140,7 @@ export class GeminiLiveSocket {
 
         if (this.isExplicitDisconnect) {
           logger.info('GEMINI', 'Sesión cerrada explícitamente por el usuario.');
+          void memoryService.endSession({ source: 'gemini_live' });
           this.onClose(event);
           return;
         }
@@ -162,6 +166,7 @@ export class GeminiLiveSocket {
         }
 
         const detail = reason || (code === 1008 ? 'Autenticación rechazada o API Key inválida.' : 'Conexión terminada por el servidor.');
+        void memoryService.endSession({ source: 'gemini_live' });
         this.onError(new Error(`Llamada terminada (${code}): ${detail}`));
         this.onClose(event);
       };
@@ -443,6 +448,11 @@ export class GeminiLiveSocket {
         this.reconnectAttempts = 0;
         this.startKeepAlive();
         this.onOpen();
+        if (!memoryService.currentSessionId) {
+          memoryService.startSession(this.sessionId, {
+            source: 'gemini_live', modelId: this.modelId, voiceName: this.voiceName
+          });
+        }
       }
 
       // 1. Session Resumption Handle Update (newHandle or handle)
@@ -522,6 +532,18 @@ export class GeminiLiveSocket {
         }
 
         if (turnComplete) {
+          if (this._inputTranscript) {
+            memoryService.recordTurn({ role: 'user', text: this._inputTranscript, source: 'gemini_live' });
+            eventBus.emitDomain(EVENTS.VOICE_TRANSCRIBED, { role: 'user', text: this._inputTranscript }, {
+              source: 'microphone', sessionId: this.sessionId, privacy: 'private'
+            });
+          }
+          if (this._outputTranscript) {
+            memoryService.recordTurn({ role: 'model', text: this._outputTranscript, source: 'gemini_live' });
+            eventBus.emitDomain(EVENTS.VOICE_TRANSCRIBED, { role: 'model', text: this._outputTranscript }, {
+              source: 'gemini_live', sessionId: this.sessionId, privacy: 'internal'
+            });
+          }
           this._newInputTurn = true;
           this._newOutputTurn = true;
           this.onTurnComplete();
@@ -550,7 +572,7 @@ export class GeminiLiveSocket {
     }
   }
 
-  disconnect() {
+  disconnect({ endSession = true } = {}) {
     this.isExplicitDisconnect = true;
     this.stopKeepAlive();
     clearTimeout(this._setupTimer);
@@ -560,6 +582,7 @@ export class GeminiLiveSocket {
     this.websocket = null;
     this.isConnected = false;
     this.isConnecting = false;
+    if (endSession) void memoryService.endSession({ source: 'gemini_live' });
     if (ws) {
       ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
       try { ws.close(1000, 'Desconexión solicitada por el usuario'); } catch (_) {}
@@ -568,7 +591,7 @@ export class GeminiLiveSocket {
 
   _restartSession() {
     const active = !this.isExplicitDisconnect && (this.isConnected || this.isConnecting || this.reconnectTimer);
-    this.disconnect();
+    this.disconnect({ endSession: false });
     this.sessionResumptionHandle = null;
     this._newInputTurn = this._newOutputTurn = true;
     if (!active) return;

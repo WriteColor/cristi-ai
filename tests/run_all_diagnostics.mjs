@@ -85,7 +85,7 @@ runSuite('Spark Profiler & Subsystems (SYS 1-6)', 'node tests/test_spark_profile
 
 // 10. Suite de Ciclo de Vida de Memoria y Resistencia a Fugas (5,000 ciclos)
 console.log('\n[10/12] Ejecutando suite de Memory Lifecycle & Zero-Leak Stability...');
-runSuite('Memory Lifecycle & Zero-Leak (5k)', 'node tests/test_memory_lifecycle_and_leaks.mjs', '5,000 create/destroy cycles, delta < 5MB');
+runSuite('Memory Lifecycle & Zero-Leak (5k)', 'node --expose-gc tests/test_memory_lifecycle_and_leaks.mjs', '5,000 create/destroy cycles, delta < 5MB');
 
 // 11. Suite Adversarial de Integridad, Regresiones y Resistencia (Agente 9)
 console.log('\n[11/12] Ejecutando suite Adversarial de Integridad, Regresiones y Resistencia...');
@@ -102,6 +102,7 @@ runSuite('Live2D Avatar Studio & Kinetics', 'node tests/test_live2d_avatar_studi
 // 14. Suite de Memoria Contextual a Largo Plazo
 console.log('\n[14/17] Ejecutando suite de Memoria Contextual a Largo Plazo...');
 runSuite('Long-Term Memory Service', 'node tests/test_memory_service.mjs', 'CRUD, Spanish accents recall & Gemini context');
+runSuite('Event Contracts & Translation Boundaries', 'node --test tests/test_architecture_core.mjs', 'Traceable domain events, session memory, source-isolated translation');
 
 // 15. Suite de Protocolo Universal MCP
 console.log('\n[15/17] Ejecutando suite de Universal MCP Protocol Manager...');

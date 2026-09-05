@@ -21,6 +21,7 @@ const HIGH_FREQUENCY_STREAM_EVENTS = new Set([
 export class EventBus {
   constructor() {
     this.listeners = new Map();
+    this.anyListeners = new Set();
     this.historyBuffer = [];
     this.maxHistory = 100;
   }
@@ -132,6 +133,17 @@ export class EventBus {
     return set ? Array.from(set) : [];
   }
 
+  onAny(callback) {
+    if (typeof callback !== 'function') return () => {};
+    this.anyListeners.add(callback);
+    let active = true;
+    return () => {
+      if (!active) return;
+      active = false;
+      this.anyListeners.delete(callback);
+    };
+  }
+
   /**
    * Emit an event to all subscribers with data
    * @param {string} event 
@@ -146,6 +158,15 @@ export class EventBus {
       this.historyBuffer.push({ event, data, timestamp });
       if (this.historyBuffer.length > this.maxHistory) {
         this.historyBuffer.shift();
+      }
+    }
+
+    const anyHandlers = Array.from(this.anyListeners);
+    for (let i = 0; i < anyHandlers.length; i++) {
+      try {
+        anyHandlers[i](event, data, timestamp);
+      } catch (err) {
+        console.error(`[EventBus] Error in wildcard handler for event "${event}":`, err);
       }
     }
 
@@ -168,6 +189,7 @@ export class EventBus {
    */
   clear() {
     this.listeners.clear();
+    this.anyListeners.clear();
     this.historyBuffer = [];
   }
 
@@ -179,6 +201,23 @@ export class EventBus {
   getHistory(count = 20) {
     return this.historyBuffer.slice(-count);
   }
+
+  emitDomain(type, payload = {}, metadata = {}) {
+    if (!type) return null;
+    const envelope = {
+      type,
+      source: metadata.source || 'system',
+      sessionId: metadata.sessionId || null,
+      correlationId: metadata.correlationId || `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      timestamp: metadata.timestamp || Date.now(),
+      priority: metadata.priority || 'normal',
+      privacy: metadata.privacy || 'internal',
+      payload: payload && typeof payload === 'object' ? payload : { value: payload }
+    };
+    this.emit(EVENTS.DOMAIN_EVENT, envelope);
+    this.emit(type, envelope);
+    return envelope;
+  }
 }
 
 // Global Singleton Instance
@@ -186,6 +225,11 @@ export const eventBus = new EventBus();
 
 // Standard System Event Names Constants
 export const EVENTS = {
+  DOMAIN_EVENT: 'domain_event',
+  CONFIG_CHANGED: 'config_changed',
+  SESSION_STARTED: 'session_started',
+  SESSION_ENDED: 'session_ended',
+
   // Audio & Voice Lifecycle
   AUDIO_START: 'audio_start',
   AUDIO_CHUNK: 'audio_chunk',
@@ -196,6 +240,8 @@ export const EVENTS = {
   USER_SPEAKING: 'user_speaking',
   USER_STOPPED_SPEAKING: 'user_stopped_speaking',
   BARGE_IN_TRIGGERED: 'barge_in_triggered',
+  VOICE_DETECTED: 'voice_detected',
+  VOICE_TRANSCRIBED: 'voice_transcribed',
 
   // Live2D Avatar & Dynamics
   MODEL_LOADING: 'model_loading',
@@ -232,6 +278,22 @@ export const EVENTS = {
   GAME_EVENT: 'game_event',
   GAME_STATE_CHANGED: 'game_state_changed',
   GAME_ACTION_REQUESTED: 'game_action_requested',
+  GAME_CONNECTED: 'game_connected',
+  GAME_DISCONNECTED: 'game_disconnected',
+
+  // External channels
+  DISCORD_MESSAGE: 'discord_message',
+  DISCORD_CONNECTED: 'discord_connected',
+  DISCORD_DISCONNECTED: 'discord_disconnected',
+  TRANSLATION_REQUESTED: 'translation_requested',
+  TRANSLATION_COMPLETED: 'translation_completed',
+
+  // Memory lifecycle and proactive opportunities
+  MEMORY_RETRIEVED: 'memory_retrieved',
+  MEMORY_CREATED: 'memory_created',
+  MEMORY_UPDATED: 'memory_updated',
+  MEMORY_INVALIDATED: 'memory_invalidated',
+  USER_SILENCE: 'user_silence',
 
   // Futuristic HUD Toast Notifications
   TOAST_TRIGGERED: 'toast_triggered',

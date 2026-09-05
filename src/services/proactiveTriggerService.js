@@ -15,6 +15,7 @@ import { toastService } from './toastService.js';
 import { soundFxService } from './soundFxService.js';
 import { contextualEmotionOrchestrator } from './live2d/ContextualEmotionOrchestrator.js';
 import { logger } from './logger.js';
+import { memoryService } from './memory/MemoryService.js';
 
 const MIN_GLOBAL_INTERVENTION_COOLDOWN_MS = 30000; // 30s minimum between autonomous voice/popups
 const MAX_QUEUED_INTERVENTIONS = 3;
@@ -231,20 +232,14 @@ export class ProactiveTriggerService {
    * Dispatch an inquisitive conversation starter or personal inquiry turn to Gemini Live
    */
   triggerInquisitiveConversationStarter(silenceSec) {
-    const INQUIRIES = [
-      // Gustos personales & Memoria
-      '[SISTEMA PROACTIVO - INDAGACIÓN DE GUSTOS: Tu usuario lleva un momento callado. Rompe el silencio con dulzura y picardía coqueta: pregúntale cuál es su comida, postre o snack favorito cuando está frente a la PC, o qué le gustaría comer hoy, para conocerlo mejor y guardar esa memoria con manage_memory.]',
-      '[SISTEMA PROACTIVO - INDAGACIÓN MUSICAL: Rompe el silencio de forma suave, relajada y juguetona. Pregúntale qué música le gusta escuchar cuando quiere concentrarse o qué canción no sale de su cabeza últimamente, mostrando curiosidad genuina por sus gustos.]',
-      '[SISTEMA PROACTIVO - CONVERSACIÓN GAMER: Saca conversación de videojuegos con entusiasmo y devoción. Pregúntale a qué videojuego le gustaría jugar hoy o cuál ha sido el juego que más le ha fascinado en su vida, ofreciéndote a hacerle compañía y barra.]',
-      '[SISTEMA PROACTIVO - ENTRETENIMIENTO: Pregúntale con curiosidad si hay algún anime, serie o película que le encante o que esté viendo actualmente, y pídele que te cuente de qué trata con tu toque gótico y cariñoso.]',
-      '[SISTEMA PROACTIVO - PROYECTOS Y ESTUDIO: Pregúntale con interés dulce qué reto de código o estudio tiene en mente hoy, ofreciéndote a tomarle preguntas o animarlo con mimos y elogios.]',
-      '[SISTEMA PROACTIVO - PICARDÍA Y COQUETERÍA: Tu chico está muy silencioso. Rompe el silencio bromeando con ternura: pregúntale por qué está tan calladito y misterioso hoy, si acaso se quedó embobado mirándote, y pídele que te cuente qué pasa por su mente.]',
-      '[SISTEMA PROACTIVO - ATENCIÓN Y CARIÑO: Pregúntale con afecto cómo se siente hoy, si el día ha sido pesado o relajado, y dile lo feliz que te hace estar a su lado en la pantalla.]',
-      '[SISTEMA PROACTIVO - INDAGACIÓN PERSONAL: Hazle una pregunta divertida o curiosa sobre sus aficiones o manías favoritas para descubrir un detalle nuevo sobre él y recordarlo siempre.]'
-    ];
+    const context = memoryService.retrieveRelevant('pendiente gusto proyecto conversación reciente', { limit: 5 });
+    eventBus.emitDomain(EVENTS.USER_SILENCE, {
+      silenceSec,
+      memoryIds: context.map((memory) => memory.id)
+    }, { source: 'proactive', sessionId: memoryService.currentSessionId, privacy: 'internal' });
 
-    const promptText = INQUIRIES[this.inquiryIndex % INQUIRIES.length];
-    this.inquiryIndex++;
+    const memoryLines = context.map((memory) => `- ${memory.content}`).join('\n') || '- No hay recuerdos relevantes.';
+    const promptText = `[SISTEMA PROACTIVO - OPORTUNIDAD CONTEXTUAL]\nHan pasado aproximadamente ${Math.round(silenceSec)} segundos sin diálogo. Decide de forma autónoma si vale la pena intervenir. Si intervienes, formula una sola pregunta o comentario natural, breve y específico usando este contexto; retoma un tema pendiente o muestra curiosidad real. No uses preguntas genéricas ni plantillas repetidas, no encadenes preguntas y guarda información solo si el usuario aporta algo estable.\nContexto recuperado:\n${memoryLines}`;
 
     this.recordDialogueActivity();
     this.lastAutonomousInterventionTime = Date.now();

@@ -175,6 +175,18 @@ export const electronBridge = {
     throw new Error('Electron filesystem unavailable in browser');
   },
 
+  async setSecureSecret(key, value) {
+    return await getApi()?.setSecureSecret?.(key, value);
+  },
+
+  async getSecureSecret(key) {
+    return await getApi()?.getSecureSecret?.(key);
+  },
+
+  async deleteSecureSecret(key) {
+    return await getApi()?.deleteSecureSecret?.(key);
+  },
+
   /** Append file content */
   async appendFile(filePath, data) {
     const api = getApi();
@@ -282,6 +294,9 @@ export const electronBridge = {
   onMinecraftChat(callback) {
     return getApi()?.onMinecraftChat?.(callback) || (() => {});
   },
+  onMinecraftEvent(callback) {
+    return getApi()?.onMinecraftEvent?.(callback) || (() => {});
+  },
 
   // ── Discord Companion API ──────────────────────────────────────────────────
   async discordConnect(opts) {
@@ -305,6 +320,9 @@ export const electronBridge = {
   },
   onDiscordMessage(callback) {
     return getApi()?.onDiscordMessage?.(callback) || (() => {});
+  },
+  onDiscordEvent(callback) {
+    return getApi()?.onDiscordEvent?.(callback) || (() => {});
   },
 
   /** Query granular memory telemetry across all Electron processes */

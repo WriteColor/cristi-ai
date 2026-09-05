@@ -22,6 +22,23 @@ export class DiscordCompanionService {
     this.status = 'disconnected'; // 'disconnected' | 'connecting' | 'connected' | 'error'
     this.botInfo = null;
     this.recentMessages = [];
+    this.maxRecentMessages = 200;
+    this.unsubscribeMessage = electronBridge?.onDiscordMessage?.((message) => {
+      const item = { ...message, receivedAt: Date.now() };
+      this.recentMessages.push(item);
+      if (this.recentMessages.length > this.maxRecentMessages) this.recentMessages.shift();
+      eventBus.emitDomain(EVENTS.DISCORD_MESSAGE, item, {
+        source: 'discord',
+        privacy: 'external',
+        sessionId: `discord_${message.channelId || 'unknown'}`
+      });
+    });
+    this.unsubscribeEvent = electronBridge?.onDiscordEvent?.((event) => {
+      eventBus.emitDomain(`discord.${event?.type || 'event'}`, event || {}, {
+        source: 'discord', privacy: 'internal'
+      });
+      if (event?.type === 'disconnect' || event?.type === 'error') this.status = 'error';
+    });
 
     this.loadConfig();
   }
@@ -41,12 +58,13 @@ export class DiscordCompanionService {
 
   saveConfig(newConfig = {}) {
     this.config = { ...this.config, ...newConfig };
+    const { botToken, ...safeConfig } = this.config;
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem(this.storageKey, JSON.stringify(this.config));
+        localStorage.setItem(this.storageKey, JSON.stringify(safeConfig));
       }
       if (electronBridge?.isElectron) {
-        electronBridge.saveDiscordConfig?.(this.config);
+        electronBridge.saveDiscordConfig?.(safeConfig);
       }
     } catch (e) {
       console.warn('[Discord] Error saving config:', e);
@@ -54,13 +72,19 @@ export class DiscordCompanionService {
   }
 
   async connect(token = null) {
-    const activeToken = token || this.config.botToken;
+    let activeToken = token || this.config.botToken;
+    if (!activeToken && electronBridge?.isElectron) {
+      activeToken = await electronBridge.getSecureSecret('discord.botToken');
+    }
     if (!activeToken) {
       return { status: 'error', message: 'Por favor ingresa un Bot Token de Discord válido en la configuración.' };
     }
 
     this.status = 'connecting';
     logger.info('DISCORD', 'Iniciando conexión con Discord Gateway...');
+    if (electronBridge?.isElectron) {
+      await electronBridge.setSecureSecret('discord.botToken', activeToken);
+    }
 
     try {
       if (electronBridge?.isElectron) {
@@ -73,6 +97,9 @@ export class DiscordCompanionService {
         if (res && res.success) {
           this.status = 'connected';
           this.botInfo = res.botInfo;
+          eventBus.emitDomain(EVENTS.DISCORD_CONNECTED, { bot: res.botInfo }, {
+            source: 'discord', privacy: 'internal'
+          });
           logger.info('DISCORD', `✓ Conectado exitosamente como ${res.botInfo?.tag || 'Cristi Bot'}`);
           return { status: 'success', bot: res.botInfo, message: `Conectado como ${res.botInfo?.tag}` };
         } else {
@@ -99,6 +126,7 @@ export class DiscordCompanionService {
       if (electronBridge?.isElectron) {
         await electronBridge.discordDisconnect();
       }
+      eventBus.emitDomain(EVENTS.DISCORD_DISCONNECTED, {}, { source: 'discord', privacy: 'internal' });
       return { status: 'success', message: 'Bot de Discord desconectado.' };
     } catch (err) {
       return { status: 'error', message: err.message };
@@ -145,6 +173,20 @@ export class DiscordCompanionService {
     } catch (err) {
       return { status: 'error', message: err.message };
     }
+  }
+
+  getRecentLocalMessages({ channelId = null, limit = 20 } = {}) {
+    const filtered = channelId
+      ? this.recentMessages.filter((message) => message.channelId === channelId)
+      : this.recentMessages;
+    return filtered.slice(-Math.min(100, Math.max(1, limit)));
+  }
+
+  destroy() {
+    this.unsubscribeMessage?.();
+    this.unsubscribeMessage = null;
+    this.unsubscribeEvent?.();
+    this.unsubscribeEvent = null;
   }
 }
 

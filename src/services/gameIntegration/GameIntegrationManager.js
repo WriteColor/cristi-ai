@@ -22,6 +22,31 @@ export class GameIntegrationManager {
     this.supportedGames = [
       { id: 'minecraft', name: 'Minecraft (Java / Bedrock)', defaultPort: 25565 }
     ];
+    this.adapters = new Map();
+    this.registerAdapter({ id: 'minecraft', name: 'Minecraft (Java / Bedrock)' });
+  }
+
+  registerAdapter(adapter) {
+    if (!adapter?.id) return false;
+    this.adapters.set(adapter.id, adapter);
+    return true;
+  }
+
+  unregisterAdapter(gameId) {
+    return this.adapters.delete(gameId);
+  }
+
+  getAdapter(gameId = this.activeGame) {
+    return this.adapters.get(gameId) || null;
+  }
+
+  setActiveGame(gameId) {
+    if (!this.adapters.has(gameId) && !this.supportedGames.some((game) => game.id === gameId)) return false;
+    this.activeGame = gameId;
+    eventBus.emitDomain(EVENTS.GAME_STATE_CHANGED, { game: gameId, active: true }, {
+      source: 'game_manager', privacy: 'internal'
+    });
+    return true;
   }
 
   /**
@@ -34,6 +59,9 @@ export class GameIntegrationManager {
 
     logger.info('GAME-EVENT', `Evento de juego [${this.activeGame}]: "${eventType}"`, payload);
     eventBus.emit(EVENTS.GAME_EVENT, { game: this.activeGame, eventType, payload });
+    eventBus.emitDomain('game.event', { game: this.activeGame, eventType, payload }, {
+      source: this.activeGame, privacy: 'external'
+    });
 
     // Automatic companion reaction triggers
     switch (eventType) {
