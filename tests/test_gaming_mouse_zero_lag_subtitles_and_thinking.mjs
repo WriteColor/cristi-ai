@@ -50,8 +50,11 @@ assert(subtitleSrc.includes('userTranscript'), 'SubtitleOverlay soporta userTran
 assert(subtitleSrc.includes('modelTranscript'), 'SubtitleOverlay soporta modelTranscript (CRISTI)');
 assert(subtitleSrc.includes('activeDecision'), 'SubtitleOverlay soporta activeDecision (Toast de decisiones)');
 assert(subtitleSrc.includes('pointer-events-none'), 'SubtitleOverlay es completamente pointer-events-none');
+assert((subtitleSrc.match(/max-h-56/g) || []).length >= 2, 'Subtítulos de Ariel y Cristi comparten el mismo límite de altura ampliado.');
 assert(appSrc.includes('<SubtitleOverlay'), 'App.jsx renderiza SubtitleOverlay');
 assert(appSrc.includes('activeDecision={activeDecision}'), 'App.jsx pasa activeDecision a SubtitleOverlay');
+assert(appSrc.includes('userSubtitleTimeoutRef.current = setTimeout(() => setUserTranscript(\'\'), 30000)'), 'La transcripción del usuario permanece visible durante turnos largos.');
+assert(appSrc.includes('modelTextTurnRef.current = \'\';') && appSrc.includes('hasModelTextTurnRef.current = false;'), 'Interrumpir una respuesta limpia el texto parcial de Cristi.');
 console.log('  ✅ Subtítulos duales y micro-toast de decisiones verificados.');
 
 // 6. Verificación de aceleración y throttling de listeners de mousemove

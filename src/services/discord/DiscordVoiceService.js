@@ -21,13 +21,14 @@ export class DiscordVoiceService {
     });
     this.unsubscribeTranslation = bus?.on?.(EVENTS.TRANSLATION_COMPLETED, (envelope) => {
       const result = envelope?.payload || envelope;
-      if (!result?.sourceId?.startsWith('discord_voice:') || !result.audio?.data || this.status !== 'connected') return;
+      if (result?.outputRoute !== 'discord_voice' || !result?.sourceId?.startsWith('discord_voice:') || !result.audio?.data || this.status !== 'connected') return;
       const [, eventGuildId] = String(result.sourceId).split(':');
       if (this.session?.guildId && eventGuildId && String(this.session.guildId) !== eventGuildId) return;
+      if (this.session?.channelId && result.channelId && String(this.session.channelId) !== String(result.channelId)) return;
       const data = Number(result.audio.sampleRate) === 16000
         ? result.audio.data
         : resamplePcm16Base64(result.audio.data, Number(result.audio.sampleRate) || 24000, 16000);
-      void this.sendAudio({ data, frameId: `translation_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` });
+      void this.sendAudio({ data, frameId: `translation_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` }).catch(() => {});
     });
   }
 

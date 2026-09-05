@@ -64,7 +64,7 @@ export function SubtitleOverlay({
           <span className="px-1.5 py-0.5 bg-zinc-900 border border-zinc-700 text-zinc-400 text-[10px] font-semibold rounded shrink-0">
             TÚ
           </span>
-          <span className="min-w-0 whitespace-pre-wrap break-words text-zinc-100 font-sans leading-relaxed text-base max-h-40 overflow-y-auto">
+          <span className="min-w-0 whitespace-pre-wrap break-words text-zinc-100 font-sans leading-relaxed text-base max-h-56 overflow-y-auto">
             {cleanUser}
           </span>
         </div>

@@ -982,10 +982,7 @@ export function App() {
           }
           modelTextTurnRef.current = '';
           hasModelTextTurnRef.current = false;
-          if (externalResponseRef.current) {
-            void interactionOrchestrator.deliverExternalResponse(externalResponseRef.current).catch(() => {});
-            externalResponseRef.current = '';
-          }
+          externalResponseRef.current = '';
           turnAudioReceivedRef.current = false;
         },
         onTextPart: (cleanText) => {
@@ -1036,7 +1033,10 @@ export function App() {
           if (cleanText) {
             setUserTranscript(cleanText);
             if (userSubtitleTimeoutRef.current) clearTimeout(userSubtitleTimeoutRef.current);
-            userSubtitleTimeoutRef.current = setTimeout(() => setUserTranscript(''), 7000);
+            // Keep the complete utterance visible while Gemini is still
+            // producing input deltas. The next turn replaces it atomically;
+            // a long timeout only removes an abandoned transcript.
+            userSubtitleTimeoutRef.current = setTimeout(() => setUserTranscript(''), 30000);
 
           }
         },
@@ -1044,6 +1044,8 @@ export function App() {
           ttsFallbackService.stop();
           pendingTextRef.current = '';
           externalResponseRef.current = '';
+          modelTextTurnRef.current = '';
+          hasModelTextTurnRef.current = false;
           turnAudioReceivedRef.current = false;
           if (audioOutRef.current) {
             audioOutRef.current.stopImmediate();

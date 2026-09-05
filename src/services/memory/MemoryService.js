@@ -24,8 +24,11 @@ export class MemoryService {
     this.storageKey = this.repository.storageKey || 'cristi_ai_memories_v2';
     this.memories = [];
     this.isLoaded = false;
+    // Sessions are independent working sets. `currentSessionId` remains a
+    // compatibility pointer for callers that do not yet pass an explicit id.
     this.currentSessionId = null;
     this.sessionTurns = [];
+    this.sessions = new Map();
     this.maxSessionTurns = 120;
     this.memoryIndex = new Map();
     this.semanticIndex = index || new MemoryIndex();
@@ -49,19 +52,56 @@ export class MemoryService {
   }
 
   startSession(sessionId = null, metadata = {}) {
-    this.currentSessionId = sessionId || `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    this.sessionTurns = [];
-    eventBus.emitDomain(EVENTS.SESSION_STARTED, { ...metadata }, {
-      source: metadata.source || 'conversation',
-      sessionId: this.currentSessionId,
-      privacy: 'internal'
-    });
-    return this.currentSessionId;
+    const id = sessionId || `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    this._createSession(id, metadata);
+    this.currentSessionId = id;
+    this.sessionTurns = this.sessions.get(id).turns;
+    return id;
   }
 
-  recordTurn({ role, text, source = 'live', speakerId = null, timestamp = Date.now() } = {}) {
+  _createSession(id, metadata = {}) {
+    if (this.sessions.has(id)) return this.sessions.get(id);
+    const session = { id, metadata: { ...metadata }, turns: [], startedAt: Date.now() };
+    this.sessions.set(id, session);
+    eventBus.emitDomain(EVENTS.SESSION_STARTED, { ...metadata }, {
+      source: metadata.source || 'conversation',
+      sessionId: id,
+      privacy: 'internal'
+    });
+    return session;
+  }
+
+  ensureSession(sessionId, metadata = {}) {
+    if (!sessionId) return this.startSession(null, metadata);
+    return this._createSession(sessionId, metadata).id;
+  }
+
+  hasSession(sessionId) {
+    return Boolean(sessionId && this.sessions.has(sessionId));
+  }
+
+  getSession(sessionId = this.currentSessionId) {
+    const session = sessionId ? this.sessions.get(sessionId) : null;
+    return session ? { ...session, metadata: { ...session.metadata }, turns: [...session.turns] } : null;
+  }
+
+  _activateSession(sessionId) {
+    if (sessionId) return this._createSession(sessionId, { source: 'conversation' });
+    const id = this.currentSessionId || this.startSession();
+    if (!this.sessions.has(id)) this.startSession(id);
+    this.sessionTurns = this.sessions.get(id).turns;
+    return this.sessions.get(id);
+  }
+
+  _selectCompatibilitySession() {
+    const newest = [...this.sessions.values()].sort((a, b) => b.startedAt - a.startedAt)[0] || null;
+    this.currentSessionId = newest?.id || null;
+    this.sessionTurns = newest?.turns || [];
+  }
+
+  recordTurn({ role, text, source = 'live', speakerId = null, timestamp = Date.now(), sessionId = null } = {}) {
     if (!text || typeof text !== 'string') return null;
-    if (!this.currentSessionId) this.startSession();
+    const session = this._activateSession(sessionId);
     const turn = {
       role: role || 'user',
       text: text.trim(),
@@ -69,15 +109,20 @@ export class MemoryService {
       speakerId,
       timestamp
     };
-    this.sessionTurns.push(turn);
-    if (this.sessionTurns.length > this.maxSessionTurns) this.sessionTurns.shift();
+    session.turns.push(turn);
+    if (session.turns.length > this.maxSessionTurns) session.turns.shift();
+    if (this.currentSessionId === session.id) this.sessionTurns = session.turns;
     return turn;
   }
 
-  async endSession({ summary = null, source = 'conversation' } = {}) {
-    if (!this.currentSessionId) return null;
-    const sessionId = this.currentSessionId;
-    const turns = this.sessionTurns.slice();
+  async endSession({ sessionId = this.currentSessionId, summary = null, source = 'conversation' } = {}) {
+    const session = sessionId ? this.sessions.get(sessionId) : null;
+    if (!session) return null;
+    const turns = session.turns.slice();
+    // Remove before awaiting persistence. A new session can now safely use the
+    // same compatibility pointer while this summary is being saved.
+    this.sessions.delete(sessionId);
+    if (this.currentSessionId === sessionId) this._selectCompatibilitySession();
     let stored = null;
     if (!summary && turns.length > 1) {
       const userTurns = turns.filter((turn) => turn.role === 'user').slice(-3).map((turn) => turn.text);
@@ -102,8 +147,6 @@ export class MemoryService {
       sessionId,
       privacy: 'internal'
     });
-    this.currentSessionId = null;
-    this.sessionTurns = [];
     return stored;
   }
 

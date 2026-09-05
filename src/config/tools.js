@@ -727,7 +727,12 @@ export const COMPANION_FUNCTION_DECLARATIONS = [
         guild_id: { type: 'STRING', description: 'ID del servidor de Discord.' },
         channel_id: { type: 'STRING', description: 'ID del canal de voz o stage.' },
         translate: { type: 'BOOLEAN', description: 'Activa traducción por lotes de participantes.' },
-        target_language: { type: 'STRING', description: 'Idioma destino ISO (por ejemplo es, en, ja).' }
+        target_language: { type: 'STRING', description: 'Idioma destino ISO (por ejemplo es, en, ja).' },
+        output_route: {
+          type: 'STRING',
+          enum: ['local', 'discord_voice'],
+          description: 'Ruta de salida de la traducción: local reproduce en el equipo; discord_voice devuelve el audio al canal.'
+        }
       },
       required: ['guild_id', 'channel_id']
     }

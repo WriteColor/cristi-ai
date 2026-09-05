@@ -814,7 +814,10 @@ export class ToolExecutor {
           translationService.attachEventSource('discord.voice_audio', {
             targetLanguage: typeof args.target_language === 'string' ? args.target_language : 'es',
             aggregateMs: 400,
-            relevanceGate: true
+            relevanceGate: true,
+            outputRoute: args.output_route === 'discord_voice' ? 'discord_voice' : 'local',
+            guildId: args.guild_id,
+            channelId: args.channel_id
           });
         }
         return result;

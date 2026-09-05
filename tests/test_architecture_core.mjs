@@ -45,6 +45,43 @@ test('memory sessions persist summaries and supersede contradictions', async () 
   assert.match(summary.content, /Minecraft/);
 });
 
+test('concurrent memory sessions keep turns isolated and closing one cannot erase a replacement', async () => {
+  let releaseSave;
+  const saveGate = new Promise(resolve => { releaseSave = resolve; });
+  const saved = [];
+  const repository = {
+    storageKey: 'isolated-session-test',
+    load: async () => [],
+    save: async (memories) => { await saveGate; saved.push([...memories]); }
+  };
+  const memory = new MemoryService({ repository });
+  await memory.initialize();
+  // Let initialization's empty save finish before testing the close race.
+  releaseSave();
+  await Promise.resolve();
+  memory.startSession('live_1', { source: 'gemini_live' });
+  memory.recordTurn({ sessionId: 'live_1', role: 'user', text: 'Mensaje de la llamada.' });
+  memory.ensureSession('discord_c1', { source: 'discord' });
+  memory.recordTurn({ sessionId: 'discord_c1', role: 'user', text: 'Mensaje privado de Discord.' });
+  assert.deepEqual(memory.getSession('live_1').turns.map(turn => turn.text), ['Mensaje de la llamada.']);
+  assert.deepEqual(memory.getSession('discord_c1').turns.map(turn => turn.text), ['Mensaje privado de Discord.']);
+
+  let releaseClosingSave;
+  repository.save = async (memories) => {
+    await new Promise(resolve => { releaseClosingSave = resolve; });
+    saved.push([...memories]);
+  };
+  memory.recordTurn({ sessionId: 'live_1', role: 'model', text: 'Respuesta antigua.' });
+  const closing = memory.endSession({ sessionId: 'live_1', source: 'gemini_live' });
+  memory.ensureSession('live_1', { source: 'gemini_live' });
+  memory.recordTurn({ sessionId: 'live_1', role: 'user', text: 'Mensaje de la llamada nueva.' });
+  releaseClosingSave();
+  await closing;
+  assert.deepEqual(memory.getSession('live_1').turns.map(turn => turn.text), ['Mensaje de la llamada nueva.']);
+  assert.equal(memory.getSession('discord_c1').turns.length, 1);
+  assert.ok(memory.getAllMemories().some(item => item.content.includes('Respuesta antigua.')));
+});
+
 test('translation routing rejects generated audio and preserves source boundaries', async () => {
   const routing = new AudioRoutingService();
   routing.registerSource('game_loopback');
@@ -164,10 +201,19 @@ test('discord voice adapter isolates participant sources and handles lifecycle w
     audio: { data: 'AQIDBA==', sampleRate: 24000 }
   });
   await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(sentAudio.length, 0);
+  bus.emitDomain(EVENTS.TRANSLATION_COMPLETED, {
+    sourceId: routed.sourceId,
+    outputRoute: 'discord_voice',
+    channelId: 'c1',
+    audio: { data: 'AQIDBA==', sampleRate: 24000 }
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(sentAudio.length, 1);
   assert.notEqual(sentAudio[0].data, 'AQIDBA==');
   bus.emitDomain(EVENTS.TRANSLATION_COMPLETED, {
     sourceId: 'discord_voice:other-guild:u1',
+    outputRoute: 'discord_voice',
     audio: { data: 'AQIDBA==', sampleRate: 16000 }
   });
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -277,5 +323,32 @@ test('translation aggregation keeps Discord speakers in independent queues', asy
   await new Promise((resolve) => setTimeout(resolve, 35));
   assert.equal(batches.length, 2);
   assert.deepEqual(batches.map((item) => item.sourceId).sort(), ['discord_voice:g:u1', 'discord_voice:g:u2']);
+  service.destroy();
+});
+
+test('detaching a translation source suppresses delayed results before translation or audio output', async () => {
+  let handler = null;
+  let resolveTranscription;
+  let translations = 0;
+  const completed = [];
+  const unsubscribe = eventBus.on(EVENTS.TRANSLATION_COMPLETED, envelope => completed.push(envelope.payload));
+  const service = new TranslationService({ provider: {
+    isVoiceActivity: () => true,
+    transcribe: () => new Promise(resolve => { resolveTranscription = resolve; }),
+    detectLanguage: async () => ({ language: 'en' }),
+    translate: async () => { translations++; return { text: 'hola' }; },
+    synthesize: async () => ({ data: 'AQI=', sampleRate: 16000 })
+  }});
+  const source = { sourceId: 'stale_source', setFrameHandler(next) { handler = next; } };
+  service.attachSource(source);
+  handler({ frameId: 'delayed', sourceId: 'stale_source', data: 'AQI=' });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  service.detachSource(source);
+  resolveTranscription({ text: 'hello' });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(translations, 0);
+  assert.equal(completed.some(result => result.sourceId === 'stale_source'), false);
+  assert.ok(service.getMetrics().stale >= 1);
+  unsubscribe();
   service.destroy();
 });

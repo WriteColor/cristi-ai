@@ -18,7 +18,8 @@ export class InteractionOrchestrator {
       discordCooldownMs: 4000,
       gameCooldownMs: 2500,
       maxContextMemories: 5,
-      allowExternalAutoReply: false
+      allowExternalAutoReply: false,
+      externalReplyTtlMs: 120000
     };
   }
 
@@ -43,7 +44,11 @@ export class InteractionOrchestrator {
       if (!this.running || LOW_SIGNAL_EVENTS.has(eventName)) return;
       const envelope = eventName === EVENTS.DOMAIN_EVENT ? data : null;
       if (!envelope?.type) return;
-      void this.handle(envelope);
+      void this.handle(envelope).catch((error) => {
+        this.bus.emitDomain('interaction.error', { eventType: envelope.type, message: error.message }, {
+          source: 'interaction_orchestrator', sessionId: envelope.sessionId, privacy: 'internal'
+        });
+      });
     });
   }
 
@@ -62,16 +67,16 @@ export class InteractionOrchestrator {
       : event.type === 'game.event' || event.type === EVENTS.GAME_EVENT
         ? this.policy.gameCooldownMs
         : 0;
-    if (cooldown && now - (this.lastByKey.get(key) || 0) < cooldown) return null;
-    this.lastByKey.set(key, now);
-
     if (event.type === EVENTS.DISCORD_MESSAGE) {
       const message = event.payload;
       const discordSessionId = `discord_${message.channelId || 'unknown'}`;
-      if (this.memory.currentSessionId !== discordSessionId) {
-        this.memory.startSession(discordSessionId, { source: 'discord' });
+      if (!this.memory.hasSession?.(discordSessionId)) {
+        if (typeof this.memory.ensureSession === 'function') this.memory.ensureSession(discordSessionId, { source: 'discord' });
+        else if (this.memory.currentSessionId !== discordSessionId) this.memory.startSession(discordSessionId, { source: 'discord' });
       }
-      this.memory.recordTurn({ role: 'user', text: message.content, source: 'discord', speakerId: message.authorId });
+      this.memory.recordTurn({ role: 'user', text: message.content, source: 'discord', speakerId: message.authorId, sessionId: discordSessionId });
+      if (cooldown && now - (this.lastByKey.get(key) || 0) < cooldown) return { accepted: true, throttled: true };
+      this.lastByKey.set(key, now);
       const memories = this.memory.retrieveRelevant(message.content, { limit: this.policy.maxContextMemories });
       this.bus.emitDomain('interaction.context_ready', {
         channelId: message.channelId,
@@ -79,14 +84,24 @@ export class InteractionOrchestrator {
         text: message.content,
         memories: memories.map((memory) => ({ id: memory.id, content: memory.content, category: memory.category }))
       }, { source: 'interaction_orchestrator', sessionId: event.sessionId, privacy: 'external' });
-      if (this.policy.allowExternalAutoReply && this.geminiSocket?.isConnected) {
+      if (this.policy.allowExternalAutoReply && event.correlationId) {
         this.pendingExternalReplies.set(event.correlationId, {
           correlationId: event.correlationId,
           channelId: message.channelId,
           source: 'discord',
           createdAt: now
         });
-        this.geminiSocket.sendTextMessage(`[CONTEXTO DISCORD] ${message.authorName || 'Usuario'} dijo: ${message.content}. Responde solo si es relevante y de forma breve.`);
+        // A shared Live turn has no reply correlation. Publishing a request lets
+        // a dedicated responder produce a tagged answer without leaking the
+        // next spoken answer from the primary call into Discord.
+        this.bus.emitDomain('interaction.external_reply_requested', {
+          correlationId: event.correlationId,
+          channelId: message.channelId,
+          source: 'discord',
+          authorId: message.authorId,
+          text: message.content,
+          memories: memories.map((memory) => ({ id: memory.id, content: memory.content, category: memory.category }))
+        }, { source: 'interaction_orchestrator', sessionId: discordSessionId, privacy: 'external' });
       }
       return { accepted: true, memories };
     }
@@ -94,7 +109,9 @@ export class InteractionOrchestrator {
     if (event.type === 'game.event' || event.type === EVENTS.GAME_EVENT || event.type === EVENTS.GAME_STATE_CHANGED) {
       const payload = event.payload || {};
       const text = payload.payload?.message || payload.message || `${payload.eventType || 'evento'} en ${payload.game || 'juego'}`;
-      this.memory.recordTurn({ role: 'system', text, source: payload.game || 'game' });
+      const gameSessionId = event.sessionId || `game_${payload.game || 'unknown'}`;
+      this.memory.ensureSession?.(gameSessionId, { source: payload.game || 'game' });
+      this.memory.recordTurn({ role: 'system', text, source: payload.game || 'game', sessionId: gameSessionId });
       this.bus.emitDomain('interaction.game_context_ready', {
         game: payload.game || 'unknown', eventType: payload.eventType || 'state_changed', text
       }, { source: 'interaction_orchestrator', privacy: 'external' });
@@ -105,11 +122,18 @@ export class InteractionOrchestrator {
 
   async deliverExternalResponse(text, correlationId = null) {
     if (!text) return { success: false, error: 'Respuesta vacía.' };
-    const pending = correlationId ? this.pendingExternalReplies.get(correlationId) : this.pendingExternalReplies.values().next().value;
+    if (!correlationId) return { success: false, error: 'La respuesta externa requiere correlationId.' };
+    const pending = this.pendingExternalReplies.get(correlationId);
     if (!pending) return { success: false, error: 'No existe una respuesta externa pendiente.' };
-    this.pendingExternalReplies.delete(correlationId || pending.correlationId);
+    const ttl = Math.max(1000, Number(this.policy.externalReplyTtlMs) || 120000);
+    if (Date.now() - pending.createdAt > ttl) {
+      this.pendingExternalReplies.delete(correlationId);
+      return { success: false, error: 'La respuesta externa pendiente expiró.' };
+    }
     const sender = this.senders[pending.source];
-    if (sender) await sender(pending.channelId, text);
+    if (!sender) return { success: false, error: `No existe emisor para ${pending.source}.` };
+    await sender(pending.channelId, text);
+    this.pendingExternalReplies.delete(correlationId);
     this.bus.emitDomain('interaction.external_response', {
       channelId: pending.channelId, text, source: pending.source
     }, { source: 'interaction_orchestrator', privacy: 'external' });

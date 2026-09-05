@@ -144,7 +144,7 @@ export class GeminiLiveSocket {
 
         if (this.isExplicitDisconnect) {
           logger.info('GEMINI', 'Sesión cerrada explícitamente por el usuario.');
-          void memoryService.endSession({ source: 'gemini_live' });
+          void memoryService.endSession({ sessionId: this.sessionId, source: 'gemini_live' });
           this.onClose(event);
           return;
         }
@@ -170,7 +170,7 @@ export class GeminiLiveSocket {
         }
 
         const detail = reason || (code === 1008 ? 'Autenticación rechazada o API Key inválida.' : 'Conexión terminada por el servidor.');
-        void memoryService.endSession({ source: 'gemini_live' });
+        void memoryService.endSession({ sessionId: this.sessionId, source: 'gemini_live' });
         this.onError(new Error(`Llamada terminada (${code}): ${detail}`));
         this.onClose(event);
       };
@@ -457,7 +457,7 @@ export class GeminiLiveSocket {
         this.reconnectAttempts = 0;
         this.startKeepAlive();
         this.onOpen();
-        if (!memoryService.currentSessionId) {
+        if (!memoryService.hasSession?.(this.sessionId)) {
           memoryService.startSession(this.sessionId, {
             source: 'gemini_live', modelId: this.modelId, voiceName: this.voiceName
           });
@@ -542,13 +542,13 @@ export class GeminiLiveSocket {
 
         if (turnComplete) {
           if (this._inputTranscript) {
-            memoryService.recordTurn({ role: 'user', text: this._inputTranscript, source: 'gemini_live' });
+            memoryService.recordTurn({ role: 'user', text: this._inputTranscript, source: 'gemini_live', sessionId: this.sessionId });
             eventBus.emitDomain(EVENTS.VOICE_TRANSCRIBED, { role: 'user', text: this._inputTranscript }, {
               source: 'microphone', sessionId: this.sessionId, privacy: 'private'
             });
           }
           if (this._outputTranscript) {
-            memoryService.recordTurn({ role: 'model', text: this._outputTranscript, source: 'gemini_live' });
+            memoryService.recordTurn({ role: 'model', text: this._outputTranscript, source: 'gemini_live', sessionId: this.sessionId });
             eventBus.emitDomain(EVENTS.VOICE_TRANSCRIBED, { role: 'model', text: this._outputTranscript }, {
               source: 'gemini_live', sessionId: this.sessionId, privacy: 'internal'
             });
@@ -591,7 +591,7 @@ export class GeminiLiveSocket {
     this.websocket = null;
     this.isConnected = false;
     this.isConnecting = false;
-    if (endSession) void memoryService.endSession({ source: 'gemini_live' });
+    if (endSession) void memoryService.endSession({ sessionId: this.sessionId, source: 'gemini_live' });
     if (ws) {
       ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
       try { ws.close(1000, 'Desconexión solicitada por el usuario'); } catch (_) {}

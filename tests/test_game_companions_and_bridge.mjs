@@ -72,6 +72,8 @@ async function runCompanionTests() {
   assert(toolNames.includes('discord_send_message'), 'Herramienta "discord_send_message" expuesta a Gemini Live.');
   assert(toolNames.includes('discord_set_status'), 'Herramienta "discord_set_status" expuesta a Gemini Live.');
   assert(toolNames.includes('discord_voice_join'), 'Herramienta "discord_voice_join" expuesta a Gemini Live.');
+  const discordVoiceJoin = COMPANION_FUNCTION_DECLARATIONS.find(t => t.name === 'discord_voice_join');
+  assert(discordVoiceJoin.parameters.properties.output_route.enum.includes('discord_voice'), 'discord_voice_join permite devolver la traducción al canal de voz.');
   assert(toolNames.includes('discord_voice_leave'), 'Herramienta "discord_voice_leave" expuesta a Gemini Live.');
   assert(toolNames.includes('discord_voice_status'), 'Herramienta "discord_voice_status" expuesta a Gemini Live.');
 
