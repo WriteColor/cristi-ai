@@ -47,6 +47,8 @@ try {
     globalThis.__visionFixture = fixture;
     await fixture.loadURL('data:text/html,<html><body>Preparing visual test</body></html>');
     fixture.setBounds(bounds);
+    fixture.setAlwaysOnTop(true, 'floating');
+    fixture.focus();
     return bounds;
   });
   globalThis.window = { screen: bounds, electronAPI: { isElectron: true,
