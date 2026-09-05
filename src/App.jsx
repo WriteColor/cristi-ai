@@ -975,11 +975,17 @@ export function App() {
           if (screenCaptureRef.current?.isCapturing && !isSpeakingRef.current && !audioOutRef.current?.isPlaying) {
             screenCaptureRef.current.triggerImmediateCapture();
           }
+          // Commit one complete response after generation. Gemini can stream
+          // output transcription ahead of the PCM audio, so rendering each
+          // delta would show text Cristi has not pronounced yet.
+          const completedModelText = modelTextTurnRef.current || externalResponseRef.current;
+          if (completedModelText) {
+            setModelTranscript(completedModelText);
+            if (modelSubtitleTimeoutRef.current) clearTimeout(modelSubtitleTimeoutRef.current);
+            modelSubtitleTimeoutRef.current = setTimeout(() => setModelTranscript(''), 30000);
+          }
           // Reset turn text and state cleanly (never execute robotic speech synthesis)
           pendingTextRef.current = '';
-          if (!hasModelTextTurnRef.current && externalResponseRef.current) {
-            setModelTranscript(externalResponseRef.current);
-          }
           modelTextTurnRef.current = '';
           hasModelTextTurnRef.current = false;
           externalResponseRef.current = '';
@@ -1019,11 +1025,8 @@ export function App() {
             pendingTextRef.current = cleanText;
             externalResponseRef.current = cleanText;
             // Gemini's output transcription can lead the audio and arrives in
-            // deltas. Keep it as a fallback for delivery, while model text
-            // parts drive the visible complete subtitle when available.
-            if (!hasModelTextTurnRef.current) {
-              setModelTranscript(cleanText);
-            }
+            // deltas. Keep it buffered for delivery; the complete subtitle is
+            // committed at turnComplete so it never races ahead of speech.
 
           }
         },

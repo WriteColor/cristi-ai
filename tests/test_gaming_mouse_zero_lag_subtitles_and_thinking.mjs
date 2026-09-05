@@ -55,6 +55,7 @@ assert(appSrc.includes('<SubtitleOverlay'), 'App.jsx renderiza SubtitleOverlay')
 assert(appSrc.includes('activeDecision={activeDecision}'), 'App.jsx pasa activeDecision a SubtitleOverlay');
 assert(appSrc.includes('userSubtitleTimeoutRef.current = setTimeout(() => setUserTranscript(\'\'), 30000)'), 'La transcripción del usuario permanece visible durante turnos largos.');
 assert(appSrc.includes('modelTextTurnRef.current = \'\';') && appSrc.includes('hasModelTextTurnRef.current = false;'), 'Interrumpir una respuesta limpia el texto parcial de Cristi.');
+assert(appSrc.includes('const completedModelText = modelTextTurnRef.current || externalResponseRef.current;'), 'Cristi consolida una sola respuesta completa al cerrar el turno de voz.');
 console.log('  ✅ Subtítulos duales y micro-toast de decisiones verificados.');
 
 // 6. Verificación de aceleración y throttling de listeners de mousemove
