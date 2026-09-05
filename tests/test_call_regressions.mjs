@@ -25,6 +25,16 @@ test('scoped Live clients can exclude companion instructions and tools', () => {
   assert.deepEqual(messages[0].setup.tools, []);
   assert.equal(messages[0].setup.systemInstruction.parts[0].text, 'Read only visible words.');
 });
+test('visual turns explicitly supersede stale image context', () => {
+  const messages = [];
+  const client = new GeminiLiveSocket({ apiKey: 'test-key', modelId: 'gemini-2.5-flash-native-audio-preview-12-2025' });
+  client.isConnected = true;
+  client.websocket = { readyState: WebSocket.OPEN, send: data => messages.push(JSON.parse(data)) };
+  client.sendTextMessage('Lee el texto actual.', 'data:image/jpeg;base64,valid-frame');
+  const text = messages[0].clientContent.turns[0].parts.at(-1).text;
+  assert.match(text, /observación visual más reciente/i);
+  assert.match(text, /ignora por completo/i);
+});
 function output() {
   const service = new AudioOutputService();
   const sources = [];

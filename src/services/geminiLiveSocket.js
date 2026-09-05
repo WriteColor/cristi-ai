@@ -362,9 +362,12 @@ export class GeminiLiveSocket {
    */
   sendTextMessage(text, imageBase64 = null) {
     if (!this.isConnected || !this.websocket || this.websocket.readyState !== WebSocket.OPEN) return;
+    const visualInstruction = imageBase64
+      ? `La imagen adjunta es la observación visual más reciente y reemplaza cualquier imagen anterior. Ignora por completo el contenido visual previo. ${text || ''}`.trim()
+      : text;
     if (this.modelId.startsWith('gemini-3')) {
       if (imageBase64) this.sendVideoFrame(imageBase64);
-      this.websocket.send(JSON.stringify({ realtimeInput: { text } }));
+      this.websocket.send(JSON.stringify({ realtimeInput: { text: visualInstruction } }));
       return;
     }
 
@@ -380,7 +383,7 @@ export class GeminiLiveSocket {
         });
       }
     }
-    parts.push({ text });
+    parts.push({ text: visualInstruction });
 
     const message = {
       clientContent: {
