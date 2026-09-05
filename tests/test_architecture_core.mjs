@@ -166,6 +166,12 @@ test('discord voice adapter isolates participant sources and handles lifecycle w
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(sentAudio.length, 1);
   assert.notEqual(sentAudio[0].data, 'AQIDBA==');
+  bus.emitDomain(EVENTS.TRANSLATION_COMPLETED, {
+    sourceId: 'discord_voice:other-guild:u1',
+    audio: { data: 'AQIDBA==', sampleRate: 16000 }
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(sentAudio.length, 1);
   eventHandler({ type: 'ready' });
   await service.leave();
   assert.equal(left, true);
