@@ -29,6 +29,7 @@ console.log('🔍 [3/5] Verificando estabilidad de callbacks en App.jsx (sin err
 const appContent = fs.readFileSync('src/App.jsx', 'utf8');
 assert(!appContent.includes('setMicVolume(vol)'), 'App.jsx no debe llamar a setMicVolume inexistente.');
 assert(appContent.includes('cleanText = text ? text.replace'), 'App.jsx debe limpiar emojis antes de actualizar subtítulos.');
+assert(appContent.includes('sendScreenInstruction') && appContent.includes('captureActiveFrame'), 'Los cambios de modo de pantalla adjuntan el fotograma actual al turno visual.');
 console.log('  ✅ App.jsx no contiene excepciones de llamada y filtra subtítulos.');
 
 // 4. Verify Native Screen Capture Mutex, Caching & Resolution in main.cjs

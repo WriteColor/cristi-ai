@@ -1388,6 +1388,22 @@ export function App() {
   };
 
   // --- Screen Capture Handlers (Mutually Exclusive: Fullscreen vs Region) ---
+  const sendScreenInstruction = useCallback(async (text) => {
+    const socket = socketRef.current;
+    if (!socket?.isConnected || !text) return false;
+    // Include one freshly captured frame with mode changes. This gives
+    // Gemini 2.5 an explicit visual turn and prevents it from answering from
+    // a previous full-screen/region observation while the periodic stream is
+    // still catching up.
+    let frame = null;
+    try {
+      frame = await screenCaptureRef.current?.captureActiveFrame?.();
+    } catch (_) {}
+    if (socketRef.current !== socket || !socket.isConnected) return false;
+    socket.sendTextMessage(text, frame);
+    return true;
+  }, []);
+
   const handleToggleScreenWatch = () => {
     // Si había una región activa y se hace clic en pantalla completa, cambiamos a pantalla completa
     if (screenRegion) {
@@ -1400,9 +1416,7 @@ export function App() {
         toolExecutorRef.current.executeSingleTool('clear_screen_region', {});
         toolExecutorRef.current.executeSingleTool('set_screen_watch', { enabled: true });
       }
-      if (socketRef.current?.isConnected) {
-        socketRef.current.sendTextMessage('[SISTEMA: Ariel ha cambiado a la observación de pantalla completa. Los fotogramas de video en tiempo real corresponden a su monitor entero.]');
-      }
+      void sendScreenInstruction('[SISTEMA: Ariel ha cambiado a la observación de pantalla completa. Los fotogramas de video en tiempo real corresponden a su monitor entero.]');
       return;
     }
 
@@ -1410,9 +1424,7 @@ export function App() {
     setIsScreenWatchActive(nextState);
     if (nextState) {
       toastService.info('Visión de Pantalla Activa', 'Cristi ahora está observando y analizando toda tu pantalla en tiempo real.');
-      if (socketRef.current?.isConnected) {
-        socketRef.current.sendTextMessage('[SISTEMA: Ariel ha activado la compartición de pantalla completa. Los fotogramas de video en tiempo real corresponden a su monitor.]');
-      }
+      void sendScreenInstruction('[SISTEMA: Ariel ha activado la compartición de pantalla completa. Los fotogramas de video en tiempo real corresponden a su monitor.]');
     } else {
       toastService.info('Visión de Pantalla Desactivada', 'Se detuvo el análisis continuo de pantalla.');
       if (socketRef.current?.isConnected) {
@@ -1439,9 +1451,7 @@ export function App() {
     if (toolExecutorRef.current) {
       toolExecutorRef.current.executeSingleTool('set_screen_region', region);
     }
-    if (socketRef.current?.isConnected) {
-      socketRef.current.sendTextMessage(`[SISTEMA: Ariel ha seleccionado un área recortada de su pantalla (${Math.round(region.w_pct)}% × ${Math.round(region.h_pct)}%) para que la observes en el flujo de video en tiempo real.]`);
-    }
+    void sendScreenInstruction(`[SISTEMA: Ariel ha seleccionado un área recortada de su pantalla (${Math.round(region.w_pct)}% × ${Math.round(region.h_pct)}%) para que la observes en el flujo de video en tiempo real.]`);
   };
 
   const handleClearScreenRegion = () => {
