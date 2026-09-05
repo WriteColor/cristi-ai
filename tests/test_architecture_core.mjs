@@ -124,6 +124,22 @@ test('memory repository prefers native SQLite IPC and retains a JSON fallback co
   assert.deepEqual(saved, [{ id: 'native-2' }]);
 });
 
+test('memory initialization seeds fresh storage without resurrecting an intentional clear', async () => {
+  let stored = null;
+  const repository = {
+    storageKey: 'seed-test',
+    async load() { return stored; },
+    async save(records) { stored = structuredClone(records); return true; }
+  };
+  const first = new MemoryService({ repository });
+  await first.initialize();
+  assert.equal(first.getAllMemories().length, 2);
+  await first.clearAll();
+  const restarted = new MemoryService({ repository });
+  await restarted.initialize();
+  assert.equal(restarted.getAllMemories().length, 0);
+});
+
 test('discord voice adapter isolates participant sources and handles lifecycle without Electron', async () => {
   let audioHandler = null;
   let eventHandler = null;

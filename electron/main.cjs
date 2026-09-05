@@ -862,12 +862,24 @@ function memoryJsonPath() {
   return path.join(app.getPath('userData'), 'cristi-memories.json');
 }
 
+function memoryInitializedPath() {
+  return path.join(app.getPath('userData'), 'cristi-memory.initialized');
+}
+
 ipcMain.handle('memory-load', async () => {
   const db = getMemoryDatabase();
   if (db) {
     try {
       const rows = db.prepare('SELECT payload FROM memories ORDER BY updated_at DESC').all();
-      return { success: true, backend: 'sqlite', memories: rows.map((row) => JSON.parse(row.payload)) };
+      if (rows.length > 0) {
+        return { success: true, backend: 'sqlite', memories: rows.map((row) => JSON.parse(row.payload)) };
+      }
+      try {
+        await fs.promises.access(memoryInitializedPath());
+        return { success: true, backend: 'sqlite', memories: [] };
+      } catch (_) {
+        return { success: true, backend: 'sqlite', memories: null };
+      }
     } catch (error) {
       console.warn('[Memory] Error leyendo SQLite:', error?.message || String(error));
     }
@@ -877,7 +889,7 @@ ipcMain.handle('memory-load', async () => {
     const memories = JSON.parse(content);
     return { success: true, backend: 'json', memories: Array.isArray(memories) ? memories : [] };
   } catch (_) {
-    return { success: true, backend: db ? 'sqlite' : 'json', memories: [] };
+    return { success: true, backend: db ? 'sqlite' : 'json', memories: null };
   }
 });
 
@@ -894,6 +906,8 @@ ipcMain.handle('memory-save', async (event, memories) => {
         insert.run(String(memory.id), JSON.stringify(memory), String(memory.updatedAt || new Date().toISOString()));
       }
       db.exec('COMMIT');
+      await fs.promises.mkdir(path.dirname(memoryInitializedPath()), { recursive: true });
+      await fs.promises.writeFile(memoryInitializedPath(), 'initialized', 'utf8');
       return { success: true, backend: 'sqlite', count: records.length };
     } catch (error) {
       try { db.exec('ROLLBACK'); } catch (_) {}
@@ -906,6 +920,7 @@ ipcMain.handle('memory-save', async (event, memories) => {
     await fs.promises.mkdir(path.dirname(target), { recursive: true });
     await fs.promises.writeFile(temp, JSON.stringify(records, null, 2), 'utf8');
     await fs.promises.rename(temp, target);
+    await fs.promises.writeFile(memoryInitializedPath(), 'initialized', 'utf8');
     return { success: true, backend: 'json', count: records.length };
   } catch (error) {
     try { await fs.promises.unlink(temp); } catch (_) {}
