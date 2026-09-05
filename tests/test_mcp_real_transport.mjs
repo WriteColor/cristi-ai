@@ -19,7 +19,7 @@ globalThis.window = {
         success: true,
         protocolVersion: '2025-03-26',
         tools: [{
-          name: 'echo',
+          name: 'echo-with/slash',
           description: 'Echo de prueba',
           inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }
         }]
@@ -54,7 +54,7 @@ const server = await manager.addServer({
 if (!server?.id) throw new Error('No se pudo registrar el servidor MCP de prueba.');
 await manager.toggleServer(server.id, true);
 
-const namespaced = `mcp_${server.id}_echo`;
+const namespaced = `mcp_${server.id}_echo_with_slash`;
 if (!manager.hasTool(namespaced)) throw new Error('La herramienta MCP no fue namespaceada en el renderer.');
 const declarations = manager.getGeminiFunctionDeclarations();
 const declaration = declarations.find((entry) => entry.name === namespaced);
@@ -67,7 +67,7 @@ await manager.disconnectServer(server.id);
 const connectCall = calls.find((entry) => entry.type === 'connect');
 const toolCall = calls.find((entry) => entry.type === 'call');
 if (connectCall?.config?.id !== server.id) throw new Error('mcp-connect no recibió el id del servidor.');
-if (toolCall?.payload?.name !== 'echo') throw new Error('mcp-call-tool no restauró el nombre original.');
+if (toolCall?.payload?.name !== 'echo-with/slash') throw new Error('mcp-call-tool no restauró el nombre original.');
 if (!calls.some((entry) => entry.type === 'disconnect')) throw new Error('mcp-disconnect no fue invocado.');
 
 console.log('✅ MCP Electron bridge: conexión, descubrimiento namespaceado, ejecución y desconexión verificados.');

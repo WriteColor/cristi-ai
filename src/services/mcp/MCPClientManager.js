@@ -310,11 +310,16 @@ export class MCPClientManager {
         });
         if (!res?.success) throw new Error(res?.error || `No se pudo conectar MCP ${server.name}.`);
         server.status = 'connected';
-        server.tools = (Array.isArray(res.tools) ? res.tools : []).map((tool) => ({
-          ...tool,
-          originalName: tool.name,
-          name: `mcp_${server.id}_${tool.name}`
-        }));
+        server.tools = (Array.isArray(res.tools) ? res.tools : []).map((tool) => {
+          const originalName = String(tool?.name || 'tool');
+          return {
+            ...tool,
+            originalName,
+            // Gemini function names are restricted to identifier-like ASCII;
+            // keep the exact MCP name separately for tools/call.
+            name: namespaceMcpToolName(server.id, originalName)
+          };
+        });
 
         // Register tools
         server.tools.forEach((t) => {
@@ -447,3 +452,9 @@ export class MCPClientManager {
 }
 
 export const mcpClientManager = new MCPClientManager();
+
+function namespaceMcpToolName(serverId, toolName) {
+  const safeServer = String(serverId || 'server').replace(/[^a-zA-Z0-9_]/g, '_');
+  const safeTool = String(toolName || 'tool').replace(/[^a-zA-Z0-9_]/g, '_');
+  return `mcp_${safeServer}_${safeTool}`;
+}
