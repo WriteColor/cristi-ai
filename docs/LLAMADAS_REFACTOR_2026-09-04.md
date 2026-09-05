@@ -28,7 +28,7 @@ Se trabajó sobre los cambios existentes del proyecto, sin revertirlos.
 | Reproducción real Web Audio | 15 bloques en ráfaga, sin solapamiento tras bloquear 180 ms el renderer |
 | Subtítulos en el ejecutable | Respuesta acumulada y entrada de más de 300 caracteres, mismo ancho y tipografía, sin elipsis |
 | Cierre de llamada | Dos desconexiones consecutivas no reinician la llamada |
-| API real Gemini 3.1 | Dos turnos, 22 bloques y 168.484 bytes PCM; transcripción de entrada y respuesta completa |
+| API real Gemini 3.1 | Dos turnos, 30 bloques y 230.434 bytes PCM; transcripción de entrada y respuesta completa |
 | API real Gemini 2.5 | El probe de voz histórico entregó audio; en la prueba de visión más reciente el endpoint aceptó setup pero no entregó texto/audio, por lo que queda como limitación abierta |
 | API real Gemini con visión | `gemini-3.1-flash-live-preview` identificó CARAMELO/COMETA en pantalla completa y TULIPAN en región; ambos resultados llegaron con `grounded:true` y dos frames posteriores al habla |
 | API real Gemini Live repetida | `gemini-3.1-flash-live-preview`: audio PCM, transcripción de entrada y respuesta completa sin duplicación |
