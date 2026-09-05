@@ -20,6 +20,7 @@
     "test:live": "node tests/test_live_gemini_master_orchestrator.mjs",
     "test:dual-live": "node tests/test_live_gemini_dual_models_agentic.mjs",
     "test:realtime": "node tests/test_live_gemini_single_session_realtime.mjs",
+    "test:minecraft-local": "node tests/test_minecraft_local_repro.mjs",
     "test": "node tests/run_all_diagnostics.mjs"
   },
   "dependencies": {
@@ -33,6 +34,8 @@
     "discord.js": "^14.27.0",
     "electron-updater": "^6.8.9",
     "lucide-react": "^1.34.0",
+    "minecraft-data": "^3.115.0",
+    "minecraft-protocol": "^1.50.0",
     "mineflayer": "^4.38.0",
     "mineflayer-pathfinder": "^2.4.5",
     "opusscript": "^0.1.1",

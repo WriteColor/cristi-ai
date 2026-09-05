@@ -16,7 +16,7 @@
 
 ## Integraciones actuales
 
-Minecraft usa Mineflayer desde el proceso principal de Electron y expone estado, chat, movimiento, seguimiento, minería, colocación y combate. Discord usa `discord.js` para Gateway y texto, y `@discordjs/voice` para unirse a canales, recibir Opus, decodificar PCM mono a 16 kHz y enviar PCM traducido. Playwright usa exclusivamente el ejecutable de Brave configurado por Electron.
+Minecraft usa Mineflayer desde el proceso principal de Electron y expone estado, chat, movimiento, seguimiento, minería, colocación y combate. `tests/test_minecraft_local_repro.mjs` levanta un servidor offline reproducible con `minecraft-protocol` para validar login, cambio a estado `play` y roundtrip de chat sin depender de UniversoCraft. Discord usa `discord.js` para Gateway y texto, y `@discordjs/voice` para unirse a canales, recibir Opus, decodificar PCM mono a 16 kHz y enviar PCM traducido. Playwright usa exclusivamente el ejecutable de Brave configurado por Electron.
 
 ## Límites deliberados
 

@@ -237,6 +237,12 @@ importers:
       lucide-react:
         specifier: ^1.34.0
         version: 1.34.0(react@19.2.8)
+      minecraft-data:
+        specifier: ^3.115.0
+        version: 3.115.0
+      minecraft-protocol:
+        specifier: ^1.50.0
+        version: 1.50.0(encoding@0.1.13)(supports-color@8.1.1)
       mineflayer:
         specifier: ^4.38.0
         version: 4.38.0(encoding@0.1.13)(supports-color@8.1.1)
@@ -1131,6 +1137,12 @@ packages:
   '@webgpu/types@0.1.38':
     resolution: {integrity: sha512-7LrhVKz2PRh+DD7+S+PVaFd5HxaWQvoMqBbsV9fNJO1pjUs1P8bM2vQVNfk+3URTqbuTI7gkXi0rfsN0IadoBA==}
 
+  '@xboxreplay/errors@0.1.0':
+    resolution: {integrity: sha512-Tgz1d/OIPDWPeyOvuL5+aai5VCcqObhPnlI3skQuf80GVF3k1I0lPCnGC+8Cm5PV9aLBT5m8qPcJoIUQ2U4y9g==}
+
+  '@xboxreplay/xboxlive-auth@3.3.3':
+    resolution: {integrity: sha512-j0AU8pW10LM8O68CTZ5QHnvOjSsnPICy0oQcP7zyM7eWkDQ/InkiQiirQKsPn1XRYDl4ccNu0WM582s3UKwcBg==}
+
   '@xboxreplay/xboxlive-auth@5.1.0':
     resolution: {integrity: sha512-UngHHsehZbiTjyyNmo8HvdoUDKMID1U9uVfrpFWUK/2UxPuVTKy5n+CzZQ3S488sW5vOhgh0lHqqynT8ouwgvw==}
     engines: {node: '>=16.0.0'}
@@ -1289,6 +1301,9 @@ packages:
     hasBin: true
     peerDependencies:
       postcss: ^8.1.0
+
+  axios@0.21.4:
+    resolution: {integrity: sha512-ut5vewkiu8jjGBdqpM44XxjuCjq9LAKeHVmoVfHVzy8eHgxxq8SbAVQNovDA8mVi05kP0Ea/n/UzcSHcTJQfNg==}
 
   axios@1.20.0:
     resolution: {integrity: sha512-r8aOh8j9cGKpgQAqpzrUHnSIc6a59Y3Xf/cv8sy1DrHCkZHzQGEuoq1tARk6qSyDdtQGSDgpb9kFlruzPvrgwg==}
@@ -2416,6 +2431,10 @@ packages:
   lodash.flatten@4.4.0:
     resolution: {integrity: sha512-C5N2Z3DgnnKr0LOpv/hKCgKdb7ZZwafIrsesve6lmzvZIRZRGaZ/l6Q8+2W7NaT+ZwO3fFlSCzCzrDCFdJfZ4g==}
 
+  lodash.get@4.4.2:
+    resolution: {integrity: sha512-z+Uw/vLuy6gQe8cfaFWD7p0wVv8fJl3mbzXh33RS+0oW2wvUqiRXiQ69gLWSLpgB5/6sU+r6BlQR0MBILadqTQ==}
+    deprecated: This package is deprecated. Use the optional chaining (?.) operator instead.
+
   lodash.includes@4.3.0:
     resolution: {integrity: sha512-W3Bx6mdkRTGtlJISOvVD/lbqjTlPPUDTMnlXZFnVwi9NKJ6tiAk6LVdlhZMm17VZisqhKcgzpO5Wz91PCt5b0w==}
 
@@ -2554,6 +2573,10 @@ packages:
 
   minecraft-folder-path@1.2.0:
     resolution: {integrity: sha512-qaUSbKWoOsH9brn0JQuBhxNAzTDMwrOXorwuRxdJKKKDYvZhtml+6GVCUrY5HRiEsieBEjCUnhVpDuQiKsiFaw==}
+
+  minecraft-protocol@1.50.0:
+    resolution: {integrity: sha512-GiZy8g4YG0iZEKifX6ulCyhVnTDGZ1gH0ouUdxjo6xkKwp4KOf+ptbBgZ8G5+WHCumrI91+v/JYU07uCvKdi0w==}
+    engines: {node: '>=14'}
 
   minecraft-protocol@1.68.0:
     resolution: {integrity: sha512-atAGg/fhIVqyK6voWvED5QA+4ah65PNwpoDnkHawWhVzQbwFii77KcF6OpsU/Xlbi0o9GpihHiPdORSxXEA+Ug==}
@@ -2882,6 +2905,9 @@ packages:
         optional: true
       opusscript:
         optional: true
+
+  prismarine-auth@2.7.0:
+    resolution: {integrity: sha512-L8wTF6sdtnN6hViPNy+Nx39a8iQBwR5iO92AWCiym5cSXp/92pmnuwnTdcmNDWyqq6zY4hbibVGYhgLA1Ox8sQ==}
 
   prismarine-auth@3.1.1:
     resolution: {integrity: sha512-NuNrMGZdoigFKsvi1ZZgAEvNYNuE5qe6lo/tw+bqeNbkhpjHC0u1JNxLEujnfqduXI18e19PvUtWNMDl/gH7yw==}
@@ -4352,7 +4378,7 @@ snapshots:
 
   '@types/yauzl@2.10.3':
     dependencies:
-      '@types/node': 20.19.43
+      '@types/node': 26.4.0
     optional: true
 
   '@vitejs/plugin-react@6.1.0(vite@8.2.2(@types/node@26.4.0)(jiti@2.7.0))':
@@ -4365,6 +4391,15 @@ snapshots:
   '@vladmandic/face-api@1.7.15': {}
 
   '@webgpu/types@0.1.38': {}
+
+  '@xboxreplay/errors@0.1.0': {}
+
+  '@xboxreplay/xboxlive-auth@3.3.3(debug@4.4.3(supports-color@8.1.1))':
+    dependencies:
+      '@xboxreplay/errors': 0.1.0
+      axios: 0.21.4(debug@4.4.3(supports-color@8.1.1))
+    transitivePeerDependencies:
+      - debug
 
   '@xboxreplay/xboxlive-auth@5.1.0': {}
 
@@ -4559,6 +4594,12 @@ snapshots:
       picocolors: 1.1.1
       postcss: 8.5.26
       postcss-value-parser: 4.2.0
+
+  axios@0.21.4(debug@4.4.3(supports-color@8.1.1)):
+    dependencies:
+      follow-redirects: 1.16.0(debug@4.4.3(supports-color@8.1.1))
+    transitivePeerDependencies:
+      - debug
 
   axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
     dependencies:
@@ -5830,6 +5871,8 @@ snapshots:
 
   lodash.flatten@4.4.0: {}
 
+  lodash.get@4.4.2: {}
+
   lodash.includes@4.3.0: {}
 
   lodash.isboolean@3.0.3: {}
@@ -5945,6 +5988,31 @@ snapshots:
   minecraft-data@3.115.0: {}
 
   minecraft-folder-path@1.2.0: {}
+
+  minecraft-protocol@1.50.0(encoding@0.1.13)(supports-color@8.1.1):
+    dependencies:
+      '@types/readable-stream': 4.0.24
+      aes-js: 3.1.2
+      buffer-equal: 1.0.1
+      debug: 4.4.3(supports-color@8.1.1)
+      endian-toggle: 0.0.0
+      lodash.get: 4.4.2
+      lodash.merge: 4.6.2
+      minecraft-data: 3.115.0
+      minecraft-folder-path: 1.2.0
+      node-fetch: 2.6.13(encoding@0.1.13)
+      node-rsa: 0.4.2
+      prismarine-auth: 2.7.0(supports-color@8.1.1)
+      prismarine-chat: 1.13.0(supports-color@8.1.1)
+      prismarine-nbt: 2.8.0
+      prismarine-realms: 1.6.0(encoding@0.1.13)(supports-color@8.1.1)
+      protodef: 1.19.0
+      readable-stream: 4.7.0
+      uuid-1345: 1.0.2
+      yggdrasil: 1.8.0(encoding@0.1.13)
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
 
   minecraft-protocol@1.68.0(encoding@0.1.13)(supports-color@8.1.1):
     dependencies:
@@ -6322,6 +6390,16 @@ snapshots:
   prism-media@1.3.5(opusscript@0.1.1):
     optionalDependencies:
       opusscript: 0.1.1
+
+  prismarine-auth@2.7.0(supports-color@8.1.1):
+    dependencies:
+      '@azure/msal-node': 2.16.3
+      '@xboxreplay/xboxlive-auth': 3.3.3(debug@4.4.3(supports-color@8.1.1))
+      debug: 4.4.3(supports-color@8.1.1)
+      smart-buffer: 4.2.0
+      uuid-1345: 1.0.2
+    transitivePeerDependencies:
+      - supports-color
 
   prismarine-auth@3.1.1(supports-color@8.1.1):
     dependencies:

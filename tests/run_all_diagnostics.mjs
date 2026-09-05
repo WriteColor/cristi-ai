@@ -112,6 +112,7 @@ runSuite('Universal MCP Protocol Manager', 'node tests/test_mcp_client_manager.m
 // 16. Suite de Compañeros de Juego y Chat (AIRI)
 console.log('\n[16/17] Ejecutando suite de Game Companions & AIRI Integration...');
 runSuite('Game Companions & AIRI Integration', 'node tests/test_game_companions_and_bridge.mjs', 'Minecraft bot, Discord bot & tools catalog');
+runSuite('Minecraft Local Reproducible Transport', 'node tests/test_minecraft_local_repro.mjs', 'Offline protocol login, state transition and chat roundtrip');
 
 // 17. Suite de Automatización de Navegador Brave y Visión
 console.log('\n[17/18] Ejecutando suite de Browser Automation y Sensory Vision Stream...');
