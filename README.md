@@ -13,7 +13,7 @@
 [![React](https://img.shields.io/badge/React-19.0.0-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Electron](https://img.shields.io/badge/Electron-32.3.3-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
 [![Gemini Live](https://img.shields.io/badge/Google%20Gemini-Multimodal%20Live%20API-4285F4?logo=google&logoColor=white)](https://aistudio.google.com/)
-[![Tests](https://img.shields.io/badge/Diagnostics-12%2F12%20PASS-brightgreen?logo=checkmarx&logoColor=white)](#-diagnósticos-y-verificación-automatizada)
+[![Tests](https://img.shields.io/badge/Diagnostics-39%2F39%20PASS-brightgreen?logo=checkmarx&logoColor=white)](#-diagnósticos-y-verificación-automatizada)
 
 </div>
 
@@ -42,7 +42,7 @@ Para configurar todo el entorno automáticamente sin pasos manuales ni posibilid
 * **Windows Explorer:** Haz doble clic en [`setup.bat`](setup.bat).
 * **PowerShell:** Ejecuta `.\setup.ps1`.
 
-El instalador automático se encarga de habilitar `pnpm`, instalar dependencias, descargar el motor de Electron, verificar iconos estáticos y validar los 8 modelos de Live2D y 14 redes neuronales.
+El instalador automático se encarga de habilitar `pnpm`, instalar dependencias, descargar el motor de Electron, verificar iconos estáticos y validar los 13 modelos de Live2D y 14 redes neuronales. En Windows, el build incluye además el helper WASAPI para capturar la mezcla del dispositivo de salida sin depender de un programa externo.
 
 ---
 
@@ -205,6 +205,11 @@ git clone https://github.com/WriteColor/cristi-ai.git "Cristi AI"
 cd "Cristi AI"
 pnpm install
 ```
+
+El helper WASAPI se compila automáticamente durante `pnpm app:build` con el
+`Add-Type` de Windows PowerShell y se incluye fuera de `app.asar`. Si se cambia
+`native/CristiWasapiLoopback.cs`, el prebuild lo recompila; en otros sistemas se
+mantiene la captura compatible de Chromium.
 
 ### 3. Inicializar y Validar el Entorno
 ```powershell

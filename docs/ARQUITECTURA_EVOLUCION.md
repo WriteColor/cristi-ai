@@ -29,7 +29,7 @@ Minecraft usa Mineflayer desde el proceso principal de Electron y expone estado,
 
 ## Límites deliberados
 
-La captura de audio de una ventana o pantalla compartida está disponible con `DesktopLoopbackCaptureService`. La captura WASAPI loopback de procesos arbitrarios y la síntesis hacia un dispositivo virtual todavía requieren un adaptador nativo de dispositivos. Discord voice requiere permisos de voz y el intent Gateway correspondiente; si el paquete opcional no carga, el resto del bot de texto sigue funcionando. `TranslationService` ya define el contrato para conectar esos proveedores sin modificar el orquestador ni la llamada Live.
+La captura de audio de una ventana o pantalla compartida está disponible con `DesktopLoopbackCaptureService`. En Windows, el servicio prefiere ahora el helper `native/CristiWasapiLoopback.exe` para capturar la mezcla del dispositivo de salida predeterminado en un proceso privilegiado y entregar frames PCM16 etiquetados por IPC; si el helper no está disponible, conserva `getDisplayMedia` como fallback. La captura WASAPI por proceso y la síntesis hacia un dispositivo virtual todavía requieren un adaptador/driver adicional. Discord voice requiere permisos de voz y el intent Gateway correspondiente; si el paquete opcional no carga, el resto del bot de texto sigue funcionando. `TranslationService` ya define el contrato para conectar esos proveedores sin modificar el orquestador ni la llamada Live.
 
 Los tokens de Discord se guardan mediante `safeStorage` de Electron cuando está disponible. El archivo de preferencias del renderer no contiene el token.
 
@@ -39,4 +39,4 @@ Los tokens de Discord se guardan mediante `safeStorage` de Electron cuando está
 2. Sustituir el vector hash por embeddings en un worker y mantener la búsqueda local como fallback offline.
 3. Conectar `InteractionOrchestrator` al envío de respuestas por canal.
 4. Crear un servidor Minecraft local reproducible para pruebas de conexión y reconexión.
-5. Implementar loopback WASAPI para procesos arbitrarios y dispositivos virtuales antes de activar traducción de voz de baja latencia.
+5. Completar loopback WASAPI por proceso y dispositivos virtuales antes de activar traducción de voz de baja latencia por aplicación.

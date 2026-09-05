@@ -64,6 +64,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setClipboardText: (text) => ipcRenderer.invoke('set-clipboard-text', text),
   showNotification: (payload) => ipcRenderer.invoke('show-notification', payload),
   captureScreenNative: (region) => ipcRenderer.invoke('capture-screen-native', region),
+  desktopAudioNativeStart: (options) => ipcRenderer.invoke('desktop-audio-native-start', options),
+  desktopAudioNativeStop: () => ipcRenderer.invoke('desktop-audio-native-stop'),
+  desktopAudioNativeStatus: () => ipcRenderer.invoke('desktop-audio-native-status'),
+  onDesktopAudioNativeFrame: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (event, data) => callback(data);
+    ipcRenderer.on('desktop-audio-native-frame', listener);
+    return () => {
+      try { ipcRenderer.removeListener('desktop-audio-native-frame', listener); } catch (_) {}
+    };
+  },
+  onDesktopAudioNativeEvent: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (event, data) => callback(data);
+    ipcRenderer.on('desktop-audio-native-event', listener);
+    return () => {
+      try { ipcRenderer.removeListener('desktop-audio-native-event', listener); } catch (_) {}
+    };
+  },
   importCustomSceneFile: () => ipcRenderer.invoke('import-custom-scene-file'),
   getProcessMemoryInfo: () => ipcRenderer.invoke('get-process-memory-info'),
   getGpuInfo: () => ipcRenderer.invoke('get-gpu-info'),

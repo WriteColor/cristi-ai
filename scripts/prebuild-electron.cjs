@@ -8,6 +8,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 function prepareWinCodeSignCache() {
   if (process.platform !== 'win32') return;
@@ -48,9 +49,28 @@ function prepareWinCodeSignCache() {
   }
 }
 
+function prepareWasapiHelper() {
+  if (process.platform !== 'win32') return;
+  const root = path.join(__dirname, '..');
+  const source = path.join(root, 'native', 'CristiWasapiLoopback.cs');
+  const script = path.join(root, 'native', 'build-wasapi-helper.ps1');
+  const output = path.join(root, 'native', 'CristiWasapiLoopback.exe');
+  if (!fs.existsSync(source) || !fs.existsSync(script)) return;
+  const sourceMtime = fs.statSync(source).mtimeMs;
+  const outputMtime = fs.existsSync(output) ? fs.statSync(output).mtimeMs : 0;
+  if (outputMtime >= sourceMtime) return;
+  const result = spawnSync('powershell.exe', [
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-Output', output
+  ], { cwd: root, stdio: 'inherit', windowsHide: true });
+  if (result.status !== 0) {
+    console.warn('[Prebuild] Helper WASAPI no pudo compilarse; se usará getDisplayMedia como fallback.');
+  }
+}
+
 
 try {
   prepareWinCodeSignCache();
+  prepareWasapiHelper();
   // Vite copies public assets once, after clearing dist.
 } catch (e) {
   // Non-fatal prebuild check

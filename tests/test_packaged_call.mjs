@@ -122,6 +122,28 @@ try {
   assert.equal(sseSmoke.disconnected?.success, true, 'MCP SSE libera EventSource en desconexión');
   report.checks.push('Real MCP SSE endpoint; discovery, tools/call and close');
 
+  // Exercise the optional privileged WASAPI transport included in the
+  // Windows package. The default render endpoint may be silent in CI, so the
+  // contract requires a clean start/status/stop lifecycle rather than audio
+  // content from the user's speakers.
+  const nativeAudioSmoke = await page.evaluate(async () => {
+    const frames = [];
+    const unsubscribe = window.electronAPI.onDesktopAudioNativeFrame?.((frame) => frames.push(frame));
+    const started = await window.electronAPI.desktopAudioNativeStart?.({ sourceId: 'packaged_wasapi_smoke' });
+    await new Promise(resolve => setTimeout(resolve, 350));
+    const status = await window.electronAPI.desktopAudioNativeStatus?.();
+    const stopped = await window.electronAPI.desktopAudioNativeStop?.();
+    unsubscribe?.();
+    return { started, status, stopped, frameCount: frames.length, sampleRate: frames[0]?.sampleRate || null };
+  });
+  report.nativeAudioSmoke = nativeAudioSmoke;
+  if (process.platform === 'win32') {
+    assert.equal(nativeAudioSmoke.started?.success, true, 'WASAPI nativo inicia dentro del ejecutable empaquetado');
+    assert.equal(nativeAudioSmoke.status?.running, true, 'WASAPI nativo permanece activo durante la captura');
+    assert.equal(nativeAudioSmoke.stopped?.success, true, 'WASAPI nativo se detiene y libera el proceso');
+  }
+  report.checks.push('Packaged Windows WASAPI start/status/stop lifecycle');
+
   const seedFrame = await page.evaluate(() => window.electronAPI.captureScreenNative(null));
   assert.ok(seedFrame?.length > 100, 'Native screen capture must supply a real JPEG');
   try {

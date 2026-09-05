@@ -46,6 +46,9 @@ assert(mainContent.includes("tray = new Tray("), 'System tray nativo de Electron
 assert(mainContent.includes("createSettingsWindow"), 'Función createSettingsWindow configurada en main.cjs');
 assert(mainContent.includes("open-settings-window"), 'IPC handler open-settings-window configurado');
 assert(mainContent.includes("save-app-config"), 'IPC handler save-app-config configurado');
+assert(mainContent.includes("ipcMain.handle('desktop-audio-native-start'"), 'IPC handler para iniciar loopback WASAPI nativo');
+assert(mainContent.includes("ipcMain.handle('desktop-audio-native-stop'"), 'IPC handler para detener loopback WASAPI nativo');
+assert(mainContent.includes("desktop-audio-native-frame"), 'Main envía frames PCM WASAPI al renderer con framing seguro');
 
 // Check IPC uniqueness (no duplicated handlers)
 const handleMatches = [...mainContent.matchAll(/ipcMain\.handle\s*\(\s*['"]([^'"]+)['"]/g)].map(m => m[1]);
@@ -70,6 +73,8 @@ assert(preloadContent.includes('openSettingsWindow:'), 'Método openSettingsWind
 assert(preloadContent.includes('onConfigUpdated:'), 'Método onConfigUpdated expuesto');
 assert(preloadContent.includes('memoryLoad:'), 'Método memoryLoad expuesto');
 assert(preloadContent.includes('memorySave:'), 'Método memorySave expuesto');
+assert(preloadContent.includes('desktopAudioNativeStart:'), 'Método desktopAudioNativeStart expuesto');
+assert(preloadContent.includes('onDesktopAudioNativeFrame:'), 'Suscripción a frames WASAPI expuesta');
 
 // 3. Check Renderer ElectronBridge
 console.log('\n[3/7] Verificando src/services/desktop/ElectronBridge.js...');
@@ -82,6 +87,8 @@ assert(bridgeContent.includes('mcpCallTool(payload'), 'Wrapper mcpCallTool con f
 assert(bridgeContent.includes('mcpDisconnect(serverId'), 'Wrapper mcpDisconnect con fallback seguro');
 assert(bridgeContent.includes('openPath(targetPath)'), 'Wrapper openPath para apertura directa de archivos/carpetas');
 assert(bridgeContent.includes('captureScreenNative(region'), 'Wrapper captureScreenNative para visión multimodal');
+assert(bridgeContent.includes('startDesktopAudioCapture(options = {})'), 'Wrapper startDesktopAudioCapture para loopback WASAPI');
+assert(bridgeContent.includes('onDesktopAudioFrame(callback)'), 'Wrapper onDesktopAudioFrame para audio nativo');
 assert(bridgeContent.includes('onShortcutEvent(channel, callback)'), 'Wrapper onShortcutEvent para atajos globales');
 assert(bridgeContent.includes('openSettingsWindow()'), 'Wrapper openSettingsWindow para ventana independiente');
 assert(bridgeContent.includes('onConfigUpdated(callback)'), 'Wrapper onConfigUpdated para sincronización en caliente');
@@ -166,6 +173,8 @@ assert(readme.includes('pnpm run app:dev'), 'README.md documenta comando app:dev
 
 const arch = fs.readFileSync('docs/ARCHITECTURE.md', 'utf8');
 assert(arch.includes('Electron Native Desktop Shell'), 'docs/ARCHITECTURE.md actualizado');
+assert(fs.existsSync('native/CristiWasapiLoopback.cs'), 'Fuente del helper WASAPI incluida');
+assert(fs.existsSync('native/CristiWasapiLoopback.exe') || process.platform !== 'win32', 'Helper WASAPI compilado en Windows o plataforma no Windows');
 
 console.log('\n================================================================');
 console.log(`📊 RESULTADO FINAL: ${passedChecks}/${totalChecks} VERIFICACIONES EXITOSAS (${Math.round(passedChecks/totalChecks*100)}%)`);

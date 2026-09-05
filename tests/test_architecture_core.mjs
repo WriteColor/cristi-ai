@@ -162,6 +162,36 @@ test('desktop loopback cancellation cannot revive a late permission stream', asy
   globalThis.AudioWorkletNode = previousWorklet;
 });
 
+test('desktop loopback prefers Electron WASAPI transport and forwards tagged PCM frames', async () => {
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  let frameListener = null;
+  let stopped = false;
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: {
+    electronAPI: {
+      isElectron: true,
+      onDesktopAudioNativeFrame: (callback) => { frameListener = callback; return () => { frameListener = null; }; },
+      onDesktopAudioNativeEvent: () => () => {},
+      desktopAudioNativeStart: async () => {
+        setTimeout(() => frameListener?.({ frameId: 'wasapi-test-1', sourceId: 'game_loopback', sampleRate: 48000, data: 'AQI=' }), 0);
+        return { success: true, transport: 'wasapi', sourceId: 'game_loopback' };
+      },
+      desktopAudioNativeStop: async () => { stopped = true; return { success: true }; }
+    }
+  } });
+  const capture = new DesktopLoopbackCaptureService();
+  const frames = [];
+  capture.setFrameHandler((frame) => frames.push(frame));
+  const result = await capture.start({ sourceId: 'game_loopback' });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(result.transport, 'wasapi');
+  assert.equal(capture.getStatus().transport, 'wasapi');
+  assert.equal(frames[0].sampleRate, 48000);
+  capture.stop();
+  assert.equal(stopped, true);
+  if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow);
+  else delete globalThis.window;
+});
+
 test('memory index supports bounded semantic fallback and replacement without stale postings', () => {
   const index = new MemoryIndex({ dimensions: 32 });
   index.upsert({ id: 'one', key: 'juego favorito', content: 'Minecraft por las noches', category: 'preference' });

@@ -265,6 +265,35 @@ export const electronBridge = {
     return null;
   },
 
+  /** Start the optional Windows Core Audio (WASAPI) default-render loopback. */
+  async startDesktopAudioCapture(options = {}) {
+    const api = getApi();
+    if (api?.desktopAudioNativeStart) return await api.desktopAudioNativeStart(options);
+    return { success: false, available: false, error: 'Captura WASAPI no disponible fuera de Electron.' };
+  },
+
+  async stopDesktopAudioCapture() {
+    const api = getApi();
+    if (api?.desktopAudioNativeStop) return await api.desktopAudioNativeStop();
+    return { success: true, alreadyStopped: true };
+  },
+
+  async getDesktopAudioCaptureStatus() {
+    const api = getApi();
+    if (api?.desktopAudioNativeStatus) return await api.desktopAudioNativeStatus();
+    return { running: false, transport: null, frameCount: 0 };
+  },
+
+  onDesktopAudioFrame(callback) {
+    const api = getApi();
+    return api?.onDesktopAudioNativeFrame?.(callback) || (() => {});
+  },
+
+  onDesktopAudioEvent(callback) {
+    const api = getApi();
+    return api?.onDesktopAudioNativeEvent?.(callback) || (() => {});
+  },
+
   /** Import custom scene / wallpaper file through native OS file dialog */
   async importCustomSceneFile() {
     const api = getApi();

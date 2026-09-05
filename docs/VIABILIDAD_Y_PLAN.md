@@ -15,7 +15,7 @@ Este documento conserva el análisis técnico que guía la refactorización. Las
 | Minecraft | Mineflayer, acciones y eventos | Sesiones por conexión, reconexión y servidor reproducible | `mineflayer`, `minecraft-protocol` | Servidores públicos pueden bloquear bots, exigir autenticación o usar protocolos no compatibles | Adaptador `GameAdapter`; pruebas locales antes de UniversoCraft |
 | Discord texto/voz | `discord.js`, `@discordjs/voice`, routing PCM | Contexto por canal, rejoin y separación de eventos | Gateway intents, permisos de bot y voz | Requiere token, intents y permisos; Opus/CPU añaden latencia | Adaptador aislado que publica eventos; no inyectar el socket Gemini compartido |
 | Traducción externa | Pipeline provider-agnostic, VAD, speaker/source IDs y routing | Proveedores reales y selección de relevancia | Gemini REST/Live o proveedor local, TTS, Opus | Separación de hablantes imperfecta; pipeline completo acumula latencia | Fragmentos agregados, cola por fuente, descartar audio autogenerado y degradar a texto |
-| Audio de juegos y sistema | `DesktopLoopbackCaptureService` para fuentes que Chromium expone | Adaptador nativo de dispositivos | `getDisplayMedia` hoy; WASAPI/driver virtual después | Windows no ofrece loopback arbitrario desde DOM; requiere permisos/driver y puede introducir eco | Mantener captura de ventana/pantalla funcional; implementar WASAPI en módulo nativo separado |
+| Audio de juegos y sistema | `DesktopLoopbackCaptureService` para fuentes que Chromium expone | Helper WASAPI opcional para la mezcla de salida predeterminada; captura por proceso/dispositivo virtual sigue separada | `getDisplayMedia` + helper C# Core Audio/WASAPI incluido en el paquete | El renderer no abre loopback arbitrario; WASAPI default-render depende de un dispositivo de salida activo y no identifica cada proceso | Preferir WASAPI en Electron para audio-only, conservar `getDisplayMedia` para selección de ventana/pantalla y añadir aislamiento por proceso en una fase posterior |
 | MCP, Spotify y navegador | `MCPClientManager`, Spotify local y Playwright Brave | Transporte real y ciclo de vida | MCP `stdio` JSON-RPC, `SSEClientTransport`, Brave executable, IPC Electron | Un servidor remoto necesita autenticación y políticas propias; nunca exponer `spawn` al renderer | Ejecutar MCP en main, namespace por servidor, validar esquema y enrutar `tools/call`; usar SSE para servidores remotos |
 | Electron instalable | preload, IPC y electron-builder | Limpieza de procesos y pruebas aisladas | Electron 32, NSIS | Firma de código y permisos dependen del entorno del usuario | `contextBridge` mínimo, procesos hijos registrados y build reproducible |
 
@@ -26,7 +26,7 @@ Este documento conserva el análisis técnico que guía la refactorización. Las
 3. **Integraciones:** Minecraft local, Discord texto/voz, herramientas MCP y Brave; cada una publica eventos al orquestador.
 4. **Traducción:** VAD, agregación configurable, detección de idioma/hablante, traducción/TTS y rutas de salida sin bucles.
 5. **Rendimiento:** perfiles de audio/visión/GPU, backpressure, workers y límites de memoria; preservar la calidad Live2D.
-6. **Dispositivos nativos:** WASAPI por proceso y dispositivo virtual, con instalador/controlador separado y pruebas de permisos.
+6. **Dispositivos nativos:** WASAPI default-render ya integrado; completar WASAPI por proceso y dispositivo virtual con instalador/controlador separado.
 7. **Operación:** pruebas reales con credenciales autorizadas, métricas de latencia p50/p95, instalación limpia, firma y recuperación tras suspensión o saturación.
 
 ## Criterios de aceptación
@@ -38,4 +38,4 @@ Este documento conserva el análisis técnico que guía la refactorización. Las
 - La captura o traducción que pierde permisos termina de forma segura, libera recursos y deja un error accionable.
 - La aplicación empaquetada inicia con `app://`, carga los modelos Live2D y puede cerrar/reconectar sin procesos huérfanos.
 
-Las áreas que requieren un cambio del sistema operativo (WASAPI arbitrario, dispositivo virtual, firma y permisos de Discord) se mantienen explícitas para que una futura implementación no se confunda con una capacidad que el renderer por sí solo no puede garantizar.
+El paquete Windows incluye un helper WASAPI sin dependencias que captura la mezcla del dispositivo de salida predeterminado y la entrega a Electron mediante frames PCM16 con longitud. La captura arbitraria por proceso, un dispositivo virtual de entrada/salida, firma y permisos de Discord siguen dependiendo del sistema operativo y de configuración del usuario; no se presentan como capacidades garantizadas del renderer.

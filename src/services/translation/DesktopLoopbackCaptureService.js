@@ -1,5 +1,6 @@
-import { eventBus } from '../eventBus.js';
+import { eventBus, EVENTS } from '../eventBus.js';
 import { audioRoutingService } from './AudioRoutingService.js';
+import { electronBridge } from '../desktop/ElectronBridge.js';
 
 const WORKLET_SOURCE = `
 class CristiLoopbackProcessor extends AudioWorkletProcessor {
@@ -57,19 +58,88 @@ export class DesktopLoopbackCaptureService {
     this.frameHandler = null;
     this.frameCount = 0;
     this.operationGeneration = 0;
+    this.nativeMode = false;
+    this.nativeUnsubscribe = null;
+    this.nativeEventUnsubscribe = null;
+    this.speechProtected = false;
+    this.audioStartUnsubscribe = null;
+    this.audioEndUnsubscribe = null;
   }
 
   setFrameHandler(handler) {
     this.frameHandler = typeof handler === 'function' ? handler : null;
   }
 
-  async start({ sourceId = 'system_loopback', includeVideo = false } = {}) {
+  async start({ sourceId = 'system_loopback', includeVideo = false, preferNative = true } = {}) {
     if (this.running) return { success: true, alreadyRunning: true };
+    const generation = ++this.operationGeneration;
+    this.sourceId = sourceId;
+    // Never feed Cristi's own rendered voice back into the external
+    // translation pipeline. The output event is emitted by AudioOutputService
+    // before the first PCM buffer reaches the system mixer, so this guard also
+    // covers the native WASAPI transport's first packet.
+    this.audioStartUnsubscribe = eventBus.on(EVENTS.AUDIO_START, () => { this.speechProtected = true; });
+    this.audioEndUnsubscribe = eventBus.on(EVENTS.AUDIO_END, () => { this.speechProtected = false; });
+
+    // Prefer the privileged WASAPI transport for audio-only translation in
+    // Electron. It avoids the browser picker and captures the default render
+    // mix even when the transparent renderer is unfocused. Video requests
+    // continue through getDisplayMedia because WASAPI intentionally carries
+    // audio only.
+    if (preferNative && !includeVideo && electronBridge.isElectron) {
+      this.nativeUnsubscribe = electronBridge.onDesktopAudioFrame((frame) => {
+        if (!this.running || !this.nativeMode || this.speechProtected || generation !== this.operationGeneration || !frame?.data) return;
+        const envelope = audioRoutingService.acceptFrame({
+          frameId: frame.frameId,
+          sourceId: frame.sourceId || this.sourceId,
+          data: frame.data,
+          sampleRate: Number(frame.sampleRate) || 16000,
+          timestamp: frame.timestamp || Date.now()
+        });
+        if (envelope) {
+          this.frameCount += 1;
+          this.frameHandler?.(envelope);
+        }
+      });
+      this.nativeEventUnsubscribe = electronBridge.onDesktopAudioEvent((event) => {
+        if (generation !== this.operationGeneration || event?.sourceId !== this.sourceId) return;
+        if (event?.type === 'error') {
+          this.running = false;
+          this.nativeMode = false;
+          this.nativeUnsubscribe?.();
+          this.nativeEventUnsubscribe?.();
+          this.nativeUnsubscribe = null;
+          this.nativeEventUnsubscribe = null;
+          eventBus.emitDomain('audio.loopback_error', { sourceId: this.sourceId, error: event.error || 'WASAPI terminó.' }, {
+            source: 'system_loopback', privacy: 'internal'
+          });
+        }
+      });
+      const nativeResult = await electronBridge.startDesktopAudioCapture({ sourceId: this.sourceId });
+      if (generation !== this.operationGeneration) {
+        this.nativeUnsubscribe?.();
+        this.nativeEventUnsubscribe?.();
+        this.nativeUnsubscribe = null;
+        this.nativeEventUnsubscribe = null;
+        return { success: false, error: 'Captura loopback cancelada.' };
+      }
+      if (nativeResult?.success) {
+        this.nativeMode = true;
+        this.running = true;
+        eventBus.emitDomain('audio.loopback_started', { sourceId: this.sourceId, transport: 'wasapi' }, {
+          source: 'system_loopback', privacy: 'external'
+        });
+        return { ...nativeResult, sourceId: this.sourceId, transport: 'wasapi' };
+      }
+      this.nativeUnsubscribe?.();
+      this.nativeEventUnsubscribe?.();
+      this.nativeUnsubscribe = null;
+      this.nativeEventUnsubscribe = null;
+    }
+
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getDisplayMedia || typeof AudioWorkletNode === 'undefined') {
       return { success: false, error: 'Captura loopback no disponible en este entorno.' };
     }
-    const generation = ++this.operationGeneration;
-    this.sourceId = sourceId;
     let acquiredStream = null;
     try {
       acquiredStream = await navigator.mediaDevices.getDisplayMedia({
@@ -101,7 +171,7 @@ export class DesktopLoopbackCaptureService {
       const input = this.audioContext.createMediaStreamSource(streamForAudio);
       this.workletNode = new AudioWorkletNode(this.audioContext, 'cristi-loopback-processor');
       this.workletNode.port.onmessage = (event) => {
-        if (!this.running || generation !== this.operationGeneration || !(event.data instanceof Float32Array)) return;
+        if (!this.running || this.speechProtected || generation !== this.operationGeneration || !(event.data instanceof Float32Array)) return;
         const pcm = floatToPcm16(event.data);
         const frameId = `loopback_${Date.now()}_${this.frameCount++}`;
         const data = pcmToBase64(pcm);
@@ -134,6 +204,19 @@ export class DesktopLoopbackCaptureService {
   stop() {
     this.operationGeneration += 1;
     this.running = false;
+    this.speechProtected = false;
+    this.audioStartUnsubscribe?.();
+    this.audioEndUnsubscribe?.();
+    this.audioStartUnsubscribe = null;
+    this.audioEndUnsubscribe = null;
+    if (this.nativeMode) {
+      this.nativeMode = false;
+      void electronBridge.stopDesktopAudioCapture();
+    }
+    this.nativeUnsubscribe?.();
+    this.nativeEventUnsubscribe?.();
+    this.nativeUnsubscribe = null;
+    this.nativeEventUnsubscribe = null;
     this.workletNode?.port.close?.();
     this.workletNode?.disconnect?.();
     this.workletNode = null;
@@ -149,6 +232,8 @@ export class DesktopLoopbackCaptureService {
   getStatus() {
     return {
       running: this.running,
+      transport: this.nativeMode ? 'wasapi' : (this.stream ? 'getDisplayMedia' : null),
+      speechProtected: this.speechProtected,
       sourceId: this.sourceId,
       frameCount: this.frameCount,
       sampleRate: this.audioContext?.sampleRate || 16000
