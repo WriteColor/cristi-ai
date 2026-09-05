@@ -706,6 +706,26 @@ export const COMPANION_FUNCTION_DECLARATIONS = [
       required: ['status_text']
     }
   },
+  {
+    name: 'discord_voice_join',
+    description: 'Conecta a Cristi a un canal de voz de Discord para escuchar participantes y enviar audio traducido cuando corresponda.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        guild_id: { type: 'STRING', description: 'ID del servidor de Discord.' },
+        channel_id: { type: 'STRING', description: 'ID del canal de voz o stage.' }
+      },
+      required: ['guild_id', 'channel_id']
+    }
+  },
+  {
+    name: 'discord_voice_leave',
+    description: 'Desconecta a Cristi del canal de voz de Discord y libera el decodificador.'
+  },
+  {
+    name: 'discord_voice_status',
+    description: 'Devuelve el estado de la conexión de voz de Discord.'
+  },
 
   // ─────────────────────────────────────────────────────────────────────
   // CONTROL DE AVATAR (LIVE2D)

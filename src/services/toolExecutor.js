@@ -6,6 +6,7 @@ import { memoryService } from './memory/MemoryService.js';
 import { browserAutomationService } from './browser/BrowserAutomationService.js';
 import { minecraftCompanion } from './gameIntegration/MinecraftCompanionService.js';
 import { discordCompanion } from './discord/DiscordCompanionService.js';
+import { discordVoiceService } from './discord/DiscordVoiceService.js';
 import { mcpClientManager } from './mcp/MCPClientManager.js';
 import { visionStreamManager } from './vision/VisionStreamManager.js';
 import { proactiveScheduler } from './proactiveScheduler.js';
@@ -796,6 +797,18 @@ export class ToolExecutor {
 
       case 'discord_set_status': {
         return await discordCompanion.setStatus(args.status_text, args.activity_type);
+      }
+
+      case 'discord_voice_join': {
+        return await discordVoiceService.join({ guildId: args.guild_id, channelId: args.channel_id });
+      }
+
+      case 'discord_voice_leave': {
+        return await discordVoiceService.leave();
+      }
+
+      case 'discord_voice_status': {
+        return { status: 'success', ...discordVoiceService.getStatus() };
       }
 
       // ─────────────────────────────────────────────────────────────────

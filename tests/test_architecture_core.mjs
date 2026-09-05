@@ -6,6 +6,7 @@ import { AudioRoutingService } from '../src/services/translation/AudioRoutingSer
 import { TranslationService } from '../src/services/translation/TranslationService.js';
 import { DesktopLoopbackCaptureService } from '../src/services/translation/DesktopLoopbackCaptureService.js';
 import { MemoryIndex } from '../src/services/memory/MemoryIndex.js';
+import { DiscordVoiceService } from '../src/services/discord/DiscordVoiceService.js';
 
 test('domain event envelopes are traceable and wildcard listeners are isolated', () => {
   const bus = new EventBus();
@@ -85,6 +86,10 @@ test('translation source attachment keeps one latest frame per source and preser
   assert.equal(completed[0].speakerId, 'speaker-a');
   assert.equal(completed.at(-1).transcript, 'latest');
   assert.equal(service.detachSource(source), true);
+  assert.equal(service.attachEventSource('test.translation.audio', { targetLanguage: 'es' }), true);
+  eventBus.emitDomain('test.translation.audio', { frameId: 'f3', sourceId: 'discord_voice:g1:u1', data: 'event', sampleRate: 16000 });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(service.detachEventSource('test.translation.audio'), true);
 });
 
 test('desktop loopback capture fails safely outside a browser media environment', async () => {
@@ -103,4 +108,26 @@ test('memory index supports bounded semantic fallback and replacement without st
   index.upsert({ id: 'one', key: 'juego favorito', content: 'Stardew Valley los fines de semana', category: 'preference' });
   assert.equal(index.search('Minecraft', { limit: 2, minScore: 0.01 }).some((item) => item.id === 'one'), false);
   assert.equal(index.search('Stardew', { limit: 1 })[0].id, 'one');
+});
+
+test('discord voice adapter isolates participant sources and handles lifecycle without Electron', async () => {
+  let audioHandler = null;
+  let eventHandler = null;
+  let left = false;
+  const bridge = {
+    onDiscordVoiceAudio(handler) { audioHandler = handler; return () => { audioHandler = null; }; },
+    onDiscordVoiceEvent(handler) { eventHandler = handler; return () => { eventHandler = null; }; },
+    async discordVoiceJoin() { return { success: true }; },
+    async discordVoiceLeave() { left = true; return { success: true }; },
+    async discordVoiceSendAudio() { return { success: true }; }
+  };
+  const service = new DiscordVoiceService({ bridge, bus: new EventBus() });
+  assert.equal((await service.join({ guildId: 'g1', channelId: 'c1' })).success, true);
+  assert.equal(service.getStatus().status, 'connected');
+  const routed = audioHandler({ frameId: 'voice-1', guildId: 'g1', channelId: 'c1', userId: 'u1', data: 'cGNi', sampleRate: 16000 });
+  assert.equal(routed.sourceId, 'discord_voice:g1:u1');
+  eventHandler({ type: 'ready' });
+  await service.leave();
+  assert.equal(left, true);
+  service.destroy();
 });

@@ -103,6 +103,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   discordSendMessage: (payload) => ipcRenderer.invoke('discord-send-message', payload),
   discordGetMessages: (payload) => ipcRenderer.invoke('discord-get-messages', payload),
   discordSetStatus: (opts) => ipcRenderer.invoke('discord-set-status', opts),
+  discordVoiceJoin: (opts) => ipcRenderer.invoke('discord-voice-join', opts),
+  discordVoiceLeave: () => ipcRenderer.invoke('discord-voice-leave'),
+  discordVoiceSendAudio: (payload) => ipcRenderer.invoke('discord-voice-send-audio', payload),
   onDiscordMessage: (callback) => {
     if (typeof callback !== 'function') return () => {};
     const listener = (event, data) => callback(data);
@@ -117,6 +120,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('discord-event', listener);
     return () => {
       try { ipcRenderer.removeListener('discord-event', listener); } catch (_) {}
+    };
+  },
+  onDiscordVoiceEvent: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (event, data) => callback(data);
+    ipcRenderer.on('discord-voice-event', listener);
+    return () => {
+      try { ipcRenderer.removeListener('discord-voice-event', listener); } catch (_) {}
+    };
+  },
+  onDiscordVoiceAudio: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (event, data) => callback(data);
+    ipcRenderer.on('discord-voice-audio', listener);
+    return () => {
+      try { ipcRenderer.removeListener('discord-voice-audio', listener); } catch (_) {}
     };
   },
 

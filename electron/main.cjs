@@ -4,6 +4,7 @@ const { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell, cli
 const path = require('path');
 const fs = require('fs');
 const { exec } = require('child_process');
+const { PassThrough } = require('stream');
 const { pathToFileURL } = require('url');
 
 // ── Register Privileged Custom Protocol for Production Asset Serving ─────────
@@ -109,6 +110,10 @@ function terminateAllChildProcesses() {
 function cleanupResources() {
   try {
     globalShortcut.unregisterAll();
+  } catch (_) {}
+
+  try {
+    disconnectDiscordVoice();
   } catch (_) {}
 
   try {
@@ -1382,6 +1387,151 @@ ipcMain.handle('minecraft-stop', () => {
 
 // ── Discord Companion Native Engine (AIRI Inspired) ───────────────────────────
 let discordClient = null;
+let discordVoiceConnection = null;
+let discordVoicePlayer = null;
+let discordVoiceOutput = null;
+const discordVoiceSubscriptions = new Map();
+
+function notifyDiscordVoiceEvent(type, payload = {}) {
+  if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('discord-voice-event', { type, ...payload });
+  }
+}
+
+function downsampleDiscordPcm(pcm) {
+  if (!Buffer.isBuffer(pcm) || pcm.length < 4) return Buffer.alloc(0);
+  const input = new Int16Array(pcm.buffer, pcm.byteOffset, Math.floor(pcm.length / 2));
+  const frames = Math.floor(input.length / 2);
+  const output = Buffer.alloc(Math.floor(frames / 3) * 2);
+  for (let i = 0, out = 0; i + 5 < frames * 2; i += 6, out += 2) {
+    const left = input[i] + input[i + 2] + input[i + 4];
+    const right = input[i + 1] + input[i + 3] + input[i + 5];
+    output.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round((left + right) / 6))), out);
+  }
+  return output;
+}
+
+function upsampleDiscordPcm(pcm) {
+  if (!Buffer.isBuffer(pcm) || pcm.length < 2) return Buffer.alloc(0);
+  const input = new Int16Array(pcm.buffer, pcm.byteOffset, Math.floor(pcm.length / 2));
+  const output = Buffer.alloc(input.length * 6 * 2);
+  let offset = 0;
+  for (const sample of input) {
+    for (let repeat = 0; repeat < 3; repeat += 1) {
+      output.writeInt16LE(sample, offset);
+      output.writeInt16LE(sample, offset + 2);
+      offset += 4;
+    }
+  }
+  return output;
+}
+
+function subscribeDiscordVoiceUser(userId, receiver, guildId, channelId) {
+  if (!userId || discordVoiceSubscriptions.has(userId)) return;
+  try {
+    const { EndBehaviorType } = require('@discordjs/voice');
+    const prism = require('prism-media');
+    const opus = receiver.subscribe(userId, {
+      end: { behavior: EndBehaviorType.AfterSilence, duration: 220 }
+    });
+    const decoder = new prism.opus.Decoder({ frameSize: 960, channels: 2, rate: 48000 });
+    const subscription = { opus, decoder };
+    discordVoiceSubscriptions.set(userId, subscription);
+    opus.pipe(decoder);
+    decoder.on('data', (pcm) => {
+      const mono16k = downsampleDiscordPcm(pcm);
+      if (!mono16k.length || !mainWindow?.webContents || mainWindow.isDestroyed()) return;
+      mainWindow.webContents.send('discord-voice-audio', {
+        guildId, channelId, userId,
+        frameId: `discord_voice_${userId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        encoding: 'pcm_s16le', sampleRate: 16000, channels: 1,
+        data: mono16k.toString('base64')
+      });
+    });
+    const clear = () => {
+      if (discordVoiceSubscriptions.get(userId) === subscription) discordVoiceSubscriptions.delete(userId);
+    };
+    opus.once('end', clear);
+    opus.once('close', clear);
+    opus.once('error', (error) => notifyDiscordVoiceEvent('audio_error', { userId, message: error?.message || String(error) }));
+    decoder.once('error', (error) => notifyDiscordVoiceEvent('decoder_error', { userId, message: error?.message || String(error) }));
+  } catch (error) {
+    notifyDiscordVoiceEvent('audio_error', { userId, message: error?.message || String(error) });
+  }
+}
+
+function disconnectDiscordVoice() {
+  for (const { opus, decoder } of discordVoiceSubscriptions.values()) {
+    try { opus.destroy(); } catch (_) {}
+    try { decoder.destroy(); } catch (_) {}
+  }
+  discordVoiceSubscriptions.clear();
+  try { discordVoiceOutput?.end(); } catch (_) {}
+  discordVoiceOutput = null;
+  try { discordVoicePlayer?.stop(); } catch (_) {}
+  discordVoicePlayer = null;
+  try { discordVoiceConnection?.destroy(); } catch (_) {}
+  discordVoiceConnection = null;
+}
+
+ipcMain.handle('discord-voice-join', async (event, { guildId, channelId } = {}) => {
+  if (!discordClient) return { success: false, error: 'Bot de Discord no conectado.' };
+  if (!guildId || !channelId) return { success: false, error: 'guildId y channelId son obligatorios.' };
+  try {
+    const voice = require('@discordjs/voice');
+    const guild = discordClient.guilds.cache.get(String(guildId)) || await discordClient.guilds.fetch(String(guildId));
+    const channel = guild?.channels?.cache?.get(String(channelId)) || await guild?.channels?.fetch(String(channelId));
+    if (!channel || ![2, 13].includes(Number(channel.type))) {
+      return { success: false, error: 'El canal no es de voz o stage.' };
+    }
+    disconnectDiscordVoice();
+    discordVoiceConnection = voice.joinVoiceChannel({
+      channelId: channel.id,
+      guildId: guild.id,
+      adapterCreator: guild.voiceAdapterCreator,
+      selfDeaf: false,
+      selfMute: false
+    });
+    await voice.entersState(discordVoiceConnection, voice.VoiceConnectionStatus.Ready, 15000);
+    discordVoicePlayer = voice.createAudioPlayer();
+    discordVoiceOutput = new PassThrough();
+    const resource = voice.createAudioResource(discordVoiceOutput, { inputType: voice.StreamType.Raw });
+    discordVoiceConnection.subscribe(discordVoicePlayer);
+    discordVoicePlayer.play(resource);
+    discordVoiceConnection.receiver.speaking.on('start', (userId) => {
+      subscribeDiscordVoiceUser(userId, discordVoiceConnection.receiver, guild.id, channel.id);
+    });
+    discordVoiceConnection.on('stateChange', (_, next) => {
+      if (next.status === voice.VoiceConnectionStatus.Disconnected) notifyDiscordVoiceEvent('disconnect', { guildId: guild.id, channelId: channel.id });
+      if (next.status === voice.VoiceConnectionStatus.Destroyed) notifyDiscordVoiceEvent('destroyed', { guildId: guild.id, channelId: channel.id });
+    });
+    notifyDiscordVoiceEvent('ready', { guildId: guild.id, channelId: channel.id });
+    return { success: true, guildId: guild.id, channelId: channel.id, sampleRate: 16000 };
+  } catch (error) {
+    disconnectDiscordVoice();
+    return { success: false, error: error?.message || String(error) };
+  }
+});
+
+ipcMain.handle('discord-voice-leave', () => {
+  disconnectDiscordVoice();
+  notifyDiscordVoiceEvent('disconnected');
+  return { success: true };
+});
+
+ipcMain.handle('discord-voice-send-audio', (event, { data } = {}) => {
+  if (!discordVoiceOutput || discordVoiceOutput.destroyed || !data) {
+    return { success: false, error: 'No hay una conexión de voz de Discord activa.' };
+  }
+  try {
+    const pcm = Buffer.from(String(data), 'base64');
+    const upsampled = upsampleDiscordPcm(pcm);
+    if (upsampled.length) discordVoiceOutput.write(upsampled);
+    return { success: true, bytes: upsampled.length };
+  } catch (error) {
+    return { success: false, error: error?.message || String(error) };
+  }
+});
 
 ipcMain.handle('discord-connect', async (event, { token, statusMessage, activityType }) => {
   try {
@@ -1396,6 +1546,7 @@ ipcMain.handle('discord-connect', async (event, { token, statusMessage, activity
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildVoiceStates,
         GatewayIntentBits.DirectMessages
       ]
     });
@@ -1467,6 +1618,7 @@ ipcMain.handle('discord-connect', async (event, { token, statusMessage, activity
 });
 
 ipcMain.handle('discord-disconnect', () => {
+  disconnectDiscordVoice();
   if (discordClient) {
     try { discordClient.destroy(); } catch (_) {}
     discordClient = null;

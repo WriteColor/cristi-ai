@@ -18,6 +18,7 @@ export class TranslationService {
     this.inFlight = new Map();
     this.pending = new Map();
     this.sourceSubscriptions = new Map();
+    this.eventSubscriptions = new Map();
     this.metrics = { frames: 0, completed: 0, dropped: 0, queued: 0, lastLatencyMs: 0 };
   }
 
@@ -46,6 +47,27 @@ export class TranslationService {
     source.setFrameHandler(null);
     this.sourceSubscriptions.delete(source);
     this.pending.delete(source.sourceId || 'system_loopback');
+    return true;
+  }
+
+  /** Attach a domain event source such as `discord.voice_audio`. */
+  attachEventSource(eventName, { targetLanguage = 'es', sessionId = null, relevanceGate = true } = {}) {
+    if (!eventName || typeof eventBus.on !== 'function') return false;
+    this.detachEventSource(eventName);
+    const unsubscribe = eventBus.on(eventName, (envelope) => {
+      const payload = envelope?.payload || envelope;
+      if (!payload?.data) return;
+      this.enqueueFrame({ ...payload, routed: true, targetLanguage, sessionId: sessionId || envelope?.sessionId, relevanceGate });
+    });
+    this.eventSubscriptions.set(eventName, unsubscribe);
+    return true;
+  }
+
+  detachEventSource(eventName) {
+    const unsubscribe = this.eventSubscriptions.get(eventName);
+    if (!unsubscribe) return false;
+    unsubscribe();
+    this.eventSubscriptions.delete(eventName);
     return true;
   }
 

@@ -71,6 +71,9 @@ async function runCompanionTests() {
   // Discord Tools
   assert(toolNames.includes('discord_send_message'), 'Herramienta "discord_send_message" expuesta a Gemini Live.');
   assert(toolNames.includes('discord_set_status'), 'Herramienta "discord_set_status" expuesta a Gemini Live.');
+  assert(toolNames.includes('discord_voice_join'), 'Herramienta "discord_voice_join" expuesta a Gemini Live.');
+  assert(toolNames.includes('discord_voice_leave'), 'Herramienta "discord_voice_leave" expuesta a Gemini Live.');
+  assert(toolNames.includes('discord_voice_status'), 'Herramienta "discord_voice_status" expuesta a Gemini Live.');
 
   // Hybrid Model Switching
   assert(toolNames.includes('switch_avatar_model'), 'Herramienta "switch_avatar_model" expuesta a Gemini Live.');

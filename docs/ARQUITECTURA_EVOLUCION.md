@@ -11,15 +11,16 @@
 - `AudioRoutingService` conserva el origen de cada frame y bloquea audio autogenerado para evitar bucles.
 - `TranslationService` expone un pipeline provider-agnostic con métricas, VAD, transcripción, detección de idioma, traducción y síntesis.
 - `TranslationService.attachSource()` conecta capturas etiquetadas con una cola por origen que conserva sólo el frame más reciente durante backpressure; admite filtro de relevancia y `speakerId` sin bloquear la llamada Live.
+- `TranslationService.attachEventSource()` permite conectar eventos como `discord.voice_audio` al mismo pipeline sin acoplar Discord a la lógica de traducción.
 - `DesktopLoopbackCaptureService` captura audio de una fuente compartida por Electron mediante `getDisplayMedia` + `AudioWorklet`, normaliza PCM a 16 kHz y conserva el `sourceId` para separar juego, sistema y voz.
 
 ## Integraciones actuales
 
-Minecraft usa Mineflayer desde el proceso principal de Electron y expone estado, chat, movimiento, seguimiento, minería, colocación y combate. Discord usa `discord.js` para Gateway y texto. Playwright usa exclusivamente el ejecutable de Brave configurado por Electron.
+Minecraft usa Mineflayer desde el proceso principal de Electron y expone estado, chat, movimiento, seguimiento, minería, colocación y combate. Discord usa `discord.js` para Gateway y texto, y `@discordjs/voice` para unirse a canales, recibir Opus, decodificar PCM mono a 16 kHz y enviar PCM traducido. Playwright usa exclusivamente el ejecutable de Brave configurado por Electron.
 
 ## Límites deliberados
 
-La captura de audio de una ventana o pantalla compartida está disponible con `DesktopLoopbackCaptureService`. La captura WASAPI loopback de procesos arbitrarios, el audio de voz de Discord y la síntesis hacia un dispositivo virtual todavía requieren un adaptador nativo de dispositivos. `TranslationService` ya define el contrato para conectar esos proveedores sin modificar el orquestador ni la llamada Live.
+La captura de audio de una ventana o pantalla compartida está disponible con `DesktopLoopbackCaptureService`. La captura WASAPI loopback de procesos arbitrarios y la síntesis hacia un dispositivo virtual todavía requieren un adaptador nativo de dispositivos. Discord voice requiere permisos de voz y el intent Gateway correspondiente; si el paquete opcional no carga, el resto del bot de texto sigue funcionando. `TranslationService` ya define el contrato para conectar esos proveedores sin modificar el orquestador ni la llamada Live.
 
 Los tokens de Discord se guardan mediante `safeStorage` de Electron cuando está disponible. El archivo de preferencias del renderer no contiene el token.
 

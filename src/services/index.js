@@ -38,6 +38,7 @@ export { TranslationService, translationService } from './translation/Translatio
 export { DesktopLoopbackCaptureService, desktopLoopbackCaptureService } from './translation/DesktopLoopbackCaptureService.js';
 export { InteractionOrchestrator, interactionOrchestrator } from './interaction/InteractionOrchestrator.js';
 export { DiscordCompanionService, discordCompanion } from './discord/DiscordCompanionService.js';
+export { DiscordVoiceService, discordVoiceService } from './discord/DiscordVoiceService.js';
 export { VisionStreamManager, visionStreamManager } from './vision/VisionStreamManager.js';
 export { VisionFrameDispatcher, visionFrameDispatcher } from './vision/VisionFrameDispatcher.js';
 export { TTSFallbackService, ttsFallbackService } from './ttsFallbackService.js';

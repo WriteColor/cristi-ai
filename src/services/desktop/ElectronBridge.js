@@ -318,11 +318,31 @@ export const electronBridge = {
   async discordSetStatus(opts) {
     return await getApi()?.discordSetStatus?.(opts);
   },
+
+  async discordVoiceJoin(opts) {
+    return await getApi()?.discordVoiceJoin?.(opts);
+  },
+
+  async discordVoiceLeave() {
+    return await getApi()?.discordVoiceLeave?.();
+  },
+
+  async discordVoiceSendAudio(payload) {
+    return await getApi()?.discordVoiceSendAudio?.(payload);
+  },
   onDiscordMessage(callback) {
     return getApi()?.onDiscordMessage?.(callback) || (() => {});
   },
   onDiscordEvent(callback) {
     return getApi()?.onDiscordEvent?.(callback) || (() => {});
+  },
+
+  onDiscordVoiceEvent(callback) {
+    return getApi()?.onDiscordVoiceEvent?.(callback) || (() => {});
+  },
+
+  onDiscordVoiceAudio(callback) {
+    return getApi()?.onDiscordVoiceAudio?.(callback) || (() => {});
   },
 
   /** Query granular memory telemetry across all Electron processes */
