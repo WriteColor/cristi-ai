@@ -20,7 +20,7 @@ Se trabajó sobre los cambios existentes del proyecto, sin revertirlos.
 | Comprobación | Resultado |
 | --- | --- |
 | ESLint en `src` y `electron` | Sin errores ni advertencias |
-| Diagnósticos del proyecto | 37 suites aprobadas, incluyendo contratos de eventos, memoria, orquestación, loopback y Minecraft local |
+| Diagnósticos del proyecto | 39 suites aprobadas, incluyendo contratos de eventos, memoria, orquestación, loopback, MCP real y Minecraft local |
 | Compilación Vite y electron-builder NSIS | Correcta |
 | Ejecutable empaquetado en perfil aislado | Arranque con `app://`, preload y ajustes correctos |
 | Avatares en el ejecutable empaquetado | 13 cargados; suscriptores de audio constantes en cada cambio |
@@ -28,10 +28,10 @@ Se trabajó sobre los cambios existentes del proyecto, sin revertirlos.
 | Reproducción real Web Audio | 15 bloques en ráfaga, sin solapamiento tras bloquear 180 ms el renderer |
 | Subtítulos en el ejecutable | Respuesta acumulada y entrada de más de 300 caracteres, mismo ancho y tipografía, sin elipsis |
 | Cierre de llamada | Dos desconexiones consecutivas no reinician la llamada |
-| API real Gemini 3.1 | Dos turnos, audio y transcripción de entrada; herramientas solicitadas respondidas como deshabilitadas, sin ejecutarlas |
-| API real Gemini 2.5 | Dos turnos, audio y transcripción de entrada |
-| API real Gemini con visión | Dos modelos recibieron imágenes JPEG reales de pantalla; devolvieron audio y descripción transcrita |
-| API real Gemini Live repetida | `gemini-3.1-flash-live-preview`: 32 bloques PCM, transcripción de entrada y respuesta completa |
+| API real Gemini 3.1 | Dos turnos, 22 bloques y 168.484 bytes PCM; transcripción de entrada y respuesta completa |
+| API real Gemini 2.5 | El probe de voz histórico entregó audio; en la prueba de visión más reciente el endpoint aceptó setup pero no entregó texto/audio, por lo que queda como limitación abierta |
+| API real Gemini con visión | `gemini-3.1-flash-live-preview` identificó CARAMELO/COMETA en pantalla completa y TULIPAN en región; ambos resultados llegaron con `grounded:true` y dos frames posteriores al habla |
+| API real Gemini Live repetida | `gemini-3.1-flash-live-preview`: audio PCM, transcripción de entrada y respuesta completa sin duplicación |
 | Minecraft local reproducible | Servidor offline 1.16.4, login Mineflayer, estado `play` y roundtrip de chat |
 | Discord voice transport | Carga de `@discordjs/voice` 0.18, decoder Opus y conversión PCM 16 kHz verificada |
 

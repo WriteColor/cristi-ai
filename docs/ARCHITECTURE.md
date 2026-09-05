@@ -144,7 +144,7 @@ Cada fuente conserva `sourceId`, `sessionId` y `correlationId`. El router rechaz
 - **Eventos:** las integraciones publican envelopes mediante `eventBus.emitDomain`. `InteractionOrchestrator` decide si un evento es relevante y aplica cooldowns; Discord y los juegos no contienen lógica de respuesta propia.
 - **Memoria:** `MemoryService` aplica reglas de actualización, contradicción, caducidad e índice semántico. `MemoryRepository` permite cambiar SQLite por otro backend sin tocar el dominio.
 - **Traducción:** `TranslationService` recibe frames etiquetados, agrega audio por utterance y conecta proveedores mediante métodos (`transcribe`, `detectLanguage`, `translate`, `synthesize`). Los hablantes Discord se agregan en colas independientes.
-- **MCP/navegador:** `MCPClientManager` descubre herramientas y `PlaywrightService` ejecuta en Brave. Las herramientas nuevas se declaran en `src/config/tools.js` y se resuelven en `ToolExecutor`.
+- **MCP/navegador:** `MCPClientManager` descubre herramientas y `PlaywrightService` ejecuta en Brave. En Electron, los servidores MCP `stdio` viven en el proceso principal y hablan JSON-RPC 2.0 mediante IPC seguro; cada herramienta se namespacea por servidor antes de llegar a Gemini. Las herramientas nuevas se declaran en `src/config/tools.js` y se resuelven en `ToolExecutor`.
 
 La traducción externa está desactivada por defecto. Al activarla desde Ajustes o con `translate: true`, el lote configurable de 200–1200 ms limita coste, CPU y latencia. Discord remuestrea el PCM TTS de Gemini a 16 kHz y Electron ignora el identificador del propio bot para impedir bucles.
 
@@ -165,3 +165,5 @@ La traducción externa está desactivada por defecto. Al activarla desde Ajustes
 - `pnpm app:build`
 
 Las pruebas de API real (`tests/probe_live_call.mjs` y `tests/probe_live_vision.mjs`) requieren `VITE_GEMINI_API_KEY` y deben ejecutarse explícitamente.
+
+La matriz de viabilidad, dependencias, límites de plataforma y fases de evolución está en [`docs/VIABILIDAD_Y_PLAN.md`](VIABILIDAD_Y_PLAN.md).
