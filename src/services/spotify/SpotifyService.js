@@ -12,8 +12,10 @@ import { logger } from '../logger.js';
 
 export class SpotifyService {
   constructor() {
-    this.clientId = '137a82bce2e94563959a2d99bca747b7';
-    this.clientSecret = '68a444218dab4a25898c2bbdd76b35db';
+    // Spotify credentials are supplied by the user through Settings. Never
+    // ship a client secret in the renderer bundle or source repository.
+    this.clientId = '';
+    this.clientSecret = '';
     this.accessToken = null;
     this.tokenExpiresAt = 0;
     this.currentTrack = null;
@@ -78,8 +80,6 @@ export class SpotifyService {
           this.configure({ clientId: cfg.spotifyClientId, clientSecret: cfg.spotifyClientSecret });
         }
       } catch (_) {}
-      this.clientId = this.clientId || '137a82bce2e94563959a2d99bca747b7';
-      this.clientSecret = this.clientSecret || '68a444218dab4a25898c2bbdd76b35db';
     }
     if (!this.clientId || !this.clientSecret) return null;
     if (this.accessToken && Date.now() < this.tokenExpiresAt - 60000) {

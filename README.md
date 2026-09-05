@@ -148,6 +148,12 @@ Cristi puede operar e interactuar de forma autónoma mediante llamadas a funcion
 25. **`switch_live2d_avatar`**: Cambia dinámicamente entre los 8 modelos de Live2D.
 26. **`switch_ai_voice`**: Cambia la voz neuronal activa entre las 16 disponibles.
 
+Además, durante una llamada Live Cristi puede administrar servidores MCP con
+`mcp_add_server`, `mcp_list_servers`, `mcp_reconnect_server`,
+`mcp_remove_server` y `mcp_call_tool`. Los servidores se ejecutan en el proceso
+principal de Electron por `stdio` o SSE; sus herramientas se namespacean antes
+de entregarse al modelo y las credenciales no se exponen al renderer.
+
 ---
 
 ## 📦 Sistema de Actualización Local y Offline (Zero Network)

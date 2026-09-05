@@ -747,6 +747,61 @@ export const COMPANION_FUNCTION_DECLARATIONS = [
   },
 
   // ─────────────────────────────────────────────────────────────────────
+  // GESTIÓN DINÁMICA DE SERVIDORES MCP
+  // ─────────────────────────────────────────────────────────────────────
+  {
+    name: 'mcp_add_server',
+    description: 'Registra y conecta un servidor MCP nuevo para ampliar tus herramientas. Usa stdio para procesos locales o sse para endpoints HTTP compatibles.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        name: { type: 'STRING', description: 'Nombre legible del servidor MCP.' },
+        transport: { type: 'STRING', enum: ['stdio', 'sse'], description: 'Transporte MCP.' },
+        command: { type: 'STRING', description: 'Comando del proceso local (stdio), por ejemplo node, pnpm o python.' },
+        args: { type: 'ARRAY', items: { type: 'STRING' }, description: 'Argumentos del proceso stdio, en orden.' },
+        url: { type: 'STRING', description: 'URL del endpoint SSE cuando transport es sse.' },
+        enabled: { type: 'BOOLEAN', description: 'Conecta el servidor inmediatamente (por defecto true).' }
+      },
+      required: ['name']
+    }
+  },
+  {
+    name: 'mcp_remove_server',
+    description: 'Desconecta y elimina un servidor MCP registrado.',
+    parameters: {
+      type: 'OBJECT',
+      properties: { server_id: { type: 'STRING', description: 'ID del servidor MCP.' } },
+      required: ['server_id']
+    }
+  },
+  {
+    name: 'mcp_list_servers',
+    description: 'Lista los servidores MCP registrados, su estado y las herramientas descubiertas.'
+  },
+  {
+    name: 'mcp_reconnect_server',
+    description: 'Reconecta un servidor MCP existente y vuelve a descubrir sus herramientas.',
+    parameters: {
+      type: 'OBJECT',
+      properties: { server_id: { type: 'STRING', description: 'ID del servidor MCP.' } },
+      required: ['server_id']
+    }
+  },
+  {
+    name: 'mcp_call_tool',
+    description: 'Ejecuta una herramienta MCP por servidor y nombre original. Permite usar inmediatamente un servidor recién creado sin esperar a reconectar la llamada Live.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        server_id: { type: 'STRING', description: 'ID del servidor MCP conectado.' },
+        tool_name: { type: 'STRING', description: 'Nombre exacto de la herramienta anunciado por el servidor MCP.' },
+        arguments: { type: 'OBJECT', description: 'Argumentos JSON requeridos por la herramienta.' }
+      },
+      required: ['server_id', 'tool_name']
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────
   // CONTROL DE AVATAR (LIVE2D)
   // ─────────────────────────────────────────────────────────────────────
   {

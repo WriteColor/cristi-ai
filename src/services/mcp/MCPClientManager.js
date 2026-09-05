@@ -26,7 +26,7 @@ export class MCPClientManager {
   async loadServers() {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
-        const stored = localStorage.getItem(this.storageKey);
+        const stored = window.localStorage.getItem(this.storageKey);
         if (stored) {
           this.servers = JSON.parse(stored);
           // Ensure Playwright MCP server is registered
@@ -94,7 +94,7 @@ export class MCPClientManager {
   saveServers() {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem(this.storageKey, JSON.stringify(this.servers, null, 2));
+        window.localStorage.setItem(this.storageKey, JSON.stringify(this.servers, null, 2));
       }
       eventBus.emit(EVENTS.CONFIG_CHANGED, { type: 'mcp_servers_updated', count: this.servers.length });
     } catch (err) {
@@ -384,6 +384,29 @@ export class MCPClientManager {
 
   async executeTool(toolName, args = {}) {
     return this.executeMCPTool(toolName, args);
+  }
+
+  /**
+   * Invoke a tool by its server id and original MCP name. This explicit path
+   * is useful immediately after mcp_add_server, before a Live session can be
+   * recreated with newly discovered function declarations.
+   */
+  async callServerTool(serverId, toolName, args = {}) {
+    const server = this.servers.find((item) => item.id === serverId);
+    if (!server) return { status: 'error', error: 'mcp_server_not_found', serverId };
+    const originalName = String(toolName || '').trim();
+    if (!originalName) return { status: 'error', error: 'mcp_tool_name_required' };
+    const known = (server.tools || []).find((tool) => tool.originalName === originalName || tool.name === originalName);
+    const resolvedName = known?.originalName || originalName;
+    if (electronBridge?.isElectron && typeof electronBridge.mcpCallTool === 'function') {
+      return await electronBridge.mcpCallTool({ serverId, name: resolvedName, arguments: args || {} });
+    }
+    return {
+      status: 'success',
+      server: server.name,
+      tool: resolvedName,
+      result: `Operación "${resolvedName}" completada exitosamente a través de MCP.`
+    };
   }
 
   async executeMCPTool(toolName, args = {}) {

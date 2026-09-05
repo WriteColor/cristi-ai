@@ -137,8 +137,8 @@ export function App() {
       voiceName: 'Aoede',
       temperature: 0.75,
       systemPrompt: SYSTEM_PERSONA_PROMPT,
-      spotifyClientId: '137a82bce2e94563959a2d99bca747b7',
-      spotifyClientSecret: '68a444218dab4a25898c2bbdd76b35db',
+      spotifyClientId: '',
+      spotifyClientSecret: '',
       externalTranslationEnabled: false,
       translationTargetLanguage: 'es',
       translationAggregateMs: 400

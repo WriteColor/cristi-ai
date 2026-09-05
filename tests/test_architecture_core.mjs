@@ -45,6 +45,13 @@ test('memory sessions persist summaries and supersede contradictions', async () 
   assert.match(summary.content, /Minecraft/);
 });
 
+test('Spotify credentials are never hardcoded in the application bundle', () => {
+  const spotifySource = fs.readFileSync('src/services/spotify/SpotifyService.js', 'utf8');
+  const appSource = fs.readFileSync('src/App.jsx', 'utf8');
+  assert.doesNotMatch(spotifySource, /137a82bce2e94563959a2d99bca747b7|68a444218dab4a25898c2bbdd76b35db/);
+  assert.doesNotMatch(appSource, /137a82bce2e94563959a2d99bca747b7|68a444218dab4a25898c2bbdd76b35db/);
+});
+
 test('concurrent memory sessions keep turns isolated and closing one cannot erase a replacement', async () => {
   let releaseSave;
   const saveGate = new Promise(resolve => { releaseSave = resolve; });

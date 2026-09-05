@@ -833,6 +833,76 @@ export class ToolExecutor {
       }
 
       // ─────────────────────────────────────────────────────────────────
+      // GESTIÓN DINÁMICA DE SERVIDORES MCP
+      // ─────────────────────────────────────────────────────────────────
+      case 'mcp_add_server': {
+        const server = await mcpClientManager.addServer({
+          name: String(args.name || '').trim(),
+          type: args.transport === 'sse' ? 'sse' : 'stdio',
+          command: String(args.command || '').trim(),
+          args: Array.isArray(args.args) ? args.args.map(value => String(value)) : [],
+          url: String(args.url || '').trim(),
+          enabled: args.enabled !== false
+        });
+        if (!server) return { status: 'error', message: 'El servidor MCP requiere un nombre válido.' };
+        return {
+          status: server.status === 'connected' ? 'success' : 'error',
+          server: {
+            id: server.id,
+            name: server.name,
+            type: server.type,
+            status: server.status,
+            lastError: server.lastError || null,
+            tools: (server.tools || []).map(tool => tool.name)
+          }
+        };
+      }
+
+      case 'mcp_remove_server': {
+        const serverId = String(args.server_id || '').trim();
+        const removed = await mcpClientManager.removeServer(serverId);
+        return removed
+          ? { status: 'success', server_id: serverId }
+          : { status: 'error', message: `Servidor MCP "${serverId}" no encontrado.` };
+      }
+
+      case 'mcp_list_servers': {
+        return {
+          status: 'success',
+          servers: mcpClientManager.getServers().map(server => ({
+            id: server.id,
+            name: server.name,
+            type: server.type,
+            enabled: server.enabled,
+            status: server.status,
+            lastError: server.lastError || null,
+            tools: (server.tools || []).map(tool => tool.name)
+          }))
+        };
+      }
+
+      case 'mcp_reconnect_server': {
+        const serverId = String(args.server_id || '').trim();
+        const server = mcpClientManager.getServers().find(item => item.id === serverId);
+        if (!server) return { status: 'error', message: `Servidor MCP "${serverId}" no encontrado.` };
+        await mcpClientManager.disconnectServer(serverId);
+        const connected = await mcpClientManager.connectServer(serverId);
+        const current = mcpClientManager.getServers().find(item => item.id === serverId) || server;
+        return {
+          status: connected ? 'success' : 'error',
+          server: { id: current.id, name: current.name, status: current.status, tools: (current.tools || []).map(tool => tool.name), lastError: current.lastError || null }
+        };
+      }
+
+      case 'mcp_call_tool': {
+        return await mcpClientManager.callServerTool(
+          String(args.server_id || '').trim(),
+          String(args.tool_name || '').trim(),
+          args.arguments && typeof args.arguments === 'object' ? args.arguments : {}
+        );
+      }
+
+      // ─────────────────────────────────────────────────────────────────
       // CAMBIO DE MODELO DE AVATAR (LIVE2D)
       // ─────────────────────────────────────────────────────────────────
       case 'switch_avatar_model': {

@@ -31,6 +31,8 @@ Minecraft usa Mineflayer desde el proceso principal de Electron y expone estado,
 
 La captura de audio de una ventana o pantalla compartida está disponible con `DesktopLoopbackCaptureService`. En Windows, el servicio prefiere ahora el helper `native/CristiWasapiLoopback.exe` para capturar la mezcla del dispositivo de salida predeterminado en un proceso privilegiado y entregar frames PCM16 etiquetados por IPC; si el helper no está disponible, conserva `getDisplayMedia` como fallback. La captura WASAPI por proceso y la síntesis hacia un dispositivo virtual todavía requieren un adaptador/driver adicional. Discord voice requiere permisos de voz y el intent Gateway correspondiente; si el paquete opcional no carga, el resto del bot de texto sigue funcionando. `TranslationService` ya define el contrato para conectar esos proveedores sin modificar el orquestador ni la llamada Live.
 
+Los servidores MCP se administran desde el proceso principal de Electron. Además de descubrir herramientas al conectar, el catálogo Live expone `mcp_add_server`, `mcp_list_servers`, `mcp_reconnect_server`, `mcp_remove_server` y `mcp_call_tool`; este último permite ejecutar una herramienta recién creada durante la misma llamada, sin esperar a renegociar las declaraciones de funciones.
+
 Los tokens de Discord se guardan mediante `safeStorage` de Electron cuando está disponible. El archivo de preferencias del renderer no contiene el token.
 
 ## Evolución prevista
