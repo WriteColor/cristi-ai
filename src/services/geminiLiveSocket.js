@@ -75,6 +75,12 @@ export class GeminiLiveSocket {
     this.responseWatchdogMs = Math.max(1000, Number(responseWatchdogMs) || 45000);
     this.responseWatchdogTimer = null;
     this.awaitingTextResponse = false;
+    // Keep one bounded turn for recovery when the provider closes the socket
+    // before replying. Session resumption takes precedence; replay is only
+    // used when no resumable handle exists and is capped to one attempt.
+    this.pendingTurn = null;
+    this.pendingTurnNeedsReplay = false;
+    this.pendingTurnReplayCount = 0;
 
     // Keepalive Heartbeat parameters to prevent server-side inactivity timeouts
     this.lastAudioSendTime = Date.now();
@@ -152,6 +158,10 @@ export class GeminiLiveSocket {
         this.isConnected = false;
         this.isConnecting = false;
         this.stopKeepAlive();
+
+        if (!this.isExplicitDisconnect && this.awaitingTextResponse && this.pendingTurn && !this.sessionResumptionHandle && this.pendingTurnReplayCount < 1) {
+          this.pendingTurnNeedsReplay = true;
+        }
 
         if (this.isExplicitDisconnect) {
           logger.info('GEMINI', 'Sesión cerrada explícitamente por el usuario.');
@@ -369,48 +379,29 @@ export class GeminiLiveSocket {
   }
 
   /**
-   * Send a text message turn to Gemini Live, optionally with a visual frame (inlineData)
+   * Send a text message turn to Gemini Live, optionally preceded by a visual frame
    */
   sendTextMessage(text, imageBase64 = null) {
-    if (!this.isConnected || !this.websocket || this.websocket.readyState !== WebSocket.OPEN) return;
+    if (!this.isConnected || !this.websocket || this.websocket.readyState !== WebSocket.OPEN) return false;
+    const isReplay = this._isReplayingTurn === true;
+    this.pendingTurn = {
+      text: typeof text === 'string' ? text : '',
+      imageBase64: typeof imageBase64 === 'string' && imageBase64.length <= 4_000_000 ? imageBase64 : null
+    };
+    this.pendingTurnNeedsReplay = false;
+    if (!isReplay) this.pendingTurnReplayCount = 0;
     this.awaitingTextResponse = true;
     this.armResponseWatchdog();
     const visualInstruction = imageBase64
       ? `La imagen adjunta es la observación visual más reciente y reemplaza cualquier imagen anterior. Ignora por completo el contenido visual previo. ${text || ''}`.trim()
       : text;
-    if (this.modelId.startsWith('gemini-3')) {
-      if (imageBase64) this.sendVideoFrame(imageBase64);
-      this.websocket.send(JSON.stringify({ realtimeInput: { text: visualInstruction } }));
-      return;
-    }
-
-    const parts = [];
-    if (imageBase64 && typeof imageBase64 === 'string') {
-      const cleanData = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-      if (cleanData.length > 50) {
-        parts.push({
-          inlineData: {
-            mimeType: 'image/jpeg',
-            data: cleanData.trim()
-          }
-        });
-      }
-    }
-    parts.push({ text: visualInstruction });
-
-    const message = {
-      clientContent: {
-        turns: [
-          {
-            role: 'user',
-            parts
-          }
-        ],
-        turnComplete: true
-      }
-    };
-
-    this.websocket.send(JSON.stringify(message));
+    // Use one transport for every Live model. The realtime input stream keeps
+    // video ordering consistent with the dispatcher and avoids the 2.5-only
+    // inlineData clientContent path, which can stall when a frame is large or
+    // the provider is under load.
+    if (imageBase64) this.sendVideoFrame(imageBase64);
+    this.websocket.send(JSON.stringify({ realtimeInput: { text: visualInstruction } }));
+    return true;
   }
 
   armResponseWatchdog() {
@@ -420,8 +411,11 @@ export class GeminiLiveSocket {
       this.responseWatchdogTimer = null;
       if (!this.awaitingTextResponse || !this.isConnected || this.isExplicitDisconnect) return;
       logger.warn('GEMINI', `El turno no produjo actividad durante ${this.responseWatchdogMs} ms; se reinicia la sesión para evitar una llamada congelada.`);
+      if (this.pendingTurn && this.pendingTurnReplayCount < 1 && !this.sessionResumptionHandle) {
+        this.pendingTurnNeedsReplay = true;
+      }
       this.awaitingTextResponse = false;
-      this._restartSession();
+      this._restartSession({ preserveResumption: true });
     }, this.responseWatchdogMs);
     // Do not keep a Node-based diagnostic process alive solely for a browser
     // watchdog. Chromium timers do not expose unref(), so this is conditional.
@@ -495,6 +489,7 @@ export class GeminiLiveSocket {
         this.reconnectAttempts = 0;
         this.startKeepAlive();
         this.onOpen();
+        this._replayPendingTurnIfNeeded();
         if (!memoryService.hasSession?.(this.sessionId)) {
           memoryService.startSession(this.sessionId, {
             source: 'gemini_live', modelId: this.modelId, voiceName: this.voiceName
@@ -517,6 +512,9 @@ export class GeminiLiveSocket {
 
         if (interrupted) {
           this._newOutputTurn = true;
+          this.pendingTurn = null;
+          this.pendingTurnNeedsReplay = false;
+          this.pendingTurnReplayCount = 0;
           logger.info('GEMINI', 'Interrupción por el usuario (Barge-in confirmado por Gemini Live).');
           this.onInterrupted();
         }
@@ -592,6 +590,9 @@ export class GeminiLiveSocket {
 
         if (turnComplete) {
           this.clearResponseWatchdog();
+          this.pendingTurn = null;
+          this.pendingTurnNeedsReplay = false;
+          this.pendingTurnReplayCount = 0;
           if (this._inputTranscript) {
             memoryService.recordTurn({ role: 'user', text: this._inputTranscript, source: 'gemini_live', sessionId: this.sessionId });
             eventBus.emitDomain(EVENTS.VOICE_TRANSCRIBED, { role: 'user', text: this._inputTranscript }, {
@@ -650,10 +651,10 @@ export class GeminiLiveSocket {
     }
   }
 
-  _restartSession() {
+  _restartSession({ preserveResumption = false } = {}) {
     const active = !this.isExplicitDisconnect && (this.isConnected || this.isConnecting || this.reconnectTimer);
     this.disconnect({ endSession: false });
-    this.sessionResumptionHandle = null;
+    if (!preserveResumption) this.sessionResumptionHandle = null;
     this._newInputTurn = this._newOutputTurn = true;
     if (!active) return;
     this.isExplicitDisconnect = false;
@@ -663,6 +664,30 @@ export class GeminiLiveSocket {
       this.reconnectTimer = null;
       if (!this.isExplicitDisconnect) this.connect();
     }, 100);
+  }
+
+  _replayPendingTurnIfNeeded() {
+    if (!this.pendingTurnNeedsReplay || !this.pendingTurn || this.isExplicitDisconnect || !this.isConnected) return;
+    if (this.sessionResumptionHandle || this.pendingTurnReplayCount >= 1) {
+      this.pendingTurnNeedsReplay = false;
+      return;
+    }
+    const turn = this.pendingTurn;
+    this.pendingTurnNeedsReplay = false;
+    this.pendingTurnReplayCount += 1;
+    // Let the setup callback and browser event loop finish before writing the
+    // first client turn on the replacement socket.
+    Promise.resolve().then(() => {
+      if (this.isConnected && !this.isExplicitDisconnect && this.pendingTurn === turn) {
+        logger.info('GEMINI', 'Reintentando una vez el último turno pendiente tras una desconexión transitoria.');
+        this._isReplayingTurn = true;
+        try {
+          this.sendTextMessage(turn.text, turn.imageBase64);
+        } finally {
+          this._isReplayingTurn = false;
+        }
+      }
+    });
   }
 
   switchVoice(newVoiceName) {
@@ -685,5 +710,6 @@ function audioChunkFingerprint(data) {
     hash ^= text.charCodeAt(i);
     hash = Math.imul(hash, 16777619);
   }
+
   return `${text.length}:${hash >>> 0}`;
 }

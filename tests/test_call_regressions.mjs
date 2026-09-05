@@ -31,7 +31,8 @@ test('visual turns explicitly supersede stale image context', () => {
   client.isConnected = true;
   client.websocket = { readyState: WebSocket.OPEN, send: data => messages.push(JSON.parse(data)) };
   client.sendTextMessage('Lee el texto actual.', 'data:image/jpeg;base64,valid-frame');
-  const text = messages[0].clientContent.turns[0].parts.at(-1).text;
+  const text = messages.at(-1).realtimeInput?.text || messages.at(-1).clientContent?.turns?.[0]?.parts?.at(-1)?.text;
+  assert.ok(text, 'la petición visual debe incluir texto en el turno Live');
   assert.match(text, /observación visual más reciente/i);
   assert.match(text, /ignora por completo/i);
 });
@@ -217,6 +218,25 @@ test('transient close reconnects once, permanent errors do not loop', async () =
   next.close(1008);
   assert.equal(client.reconnectTimer, null);
   client.disconnect();
+});
+
+test('a transient close replays one pending visual turn without looping', async () => {
+  const { client, ws } = socket({ maxReconnectAttempts: 1 });
+  try {
+    await ready(client, ws);
+    client.sendTextMessage('Lee la imagen actual.', 'data:image/jpeg;base64,frame');
+    ws.close(1011);
+    await new Promise(resolve => setTimeout(resolve, 1800));
+    const replacement = client.websocket;
+    assert.ok(replacement, 'debe abrir un socket de reemplazo');
+    replacement.open(); replacement.message({ setupComplete: {} }); await client._messageChain;
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const textTurns = replacement.sent.filter(message => message.realtimeInput?.text);
+    assert.equal(textTurns.length, 1, 'el turno pendiente se reintenta exactamente una vez');
+    client.disconnect();
+  } finally {
+    client.disconnect();
+  }
 });
 
 test('outgoing media has bounded backpressure and interruption precedes audio', async () => {

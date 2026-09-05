@@ -978,7 +978,10 @@ export function App() {
           // Commit one complete response after generation. Gemini can stream
           // output transcription ahead of the PCM audio, so rendering each
           // delta would show text Cristi has not pronounced yet.
-          const completedModelText = modelTextTurnRef.current || externalResponseRef.current;
+          // Legacy invariant kept explicit: const completedModelText = modelTextTurnRef.current || externalResponseRef.current;
+          const completedModelText = [modelTextTurnRef.current, externalResponseRef.current]
+            .filter(Boolean)
+            .sort((a, b) => b.length - a.length)[0] || '';
           if (completedModelText) {
             setModelTranscript(completedModelText);
             if (modelSubtitleTimeoutRef.current) clearTimeout(modelSubtitleTimeoutRef.current);
@@ -1001,9 +1004,9 @@ export function App() {
           hasModelTextTurnRef.current = true;
           pendingTextRef.current = next;
           externalResponseRef.current = next;
-          setModelTranscript(next);
-          if (modelSubtitleTimeoutRef.current) clearTimeout(modelSubtitleTimeoutRef.current);
-          modelSubtitleTimeoutRef.current = setTimeout(() => setModelTranscript(''), 12000);
+          // Text parts are streamed ahead of the spoken PCM. Keep them in the
+          // turn buffer; the complete subtitle is committed atomically from
+          // onTurnComplete so Cristi never displays words she has not said.
         },
         onOutputTranscription: (text) => {
           proactiveTriggerService.recordDialogueActivity();
@@ -1024,6 +1027,9 @@ export function App() {
           if (cleanText) {
             pendingTextRef.current = cleanText;
             externalResponseRef.current = cleanText;
+            if (cleanText.length >= modelTextTurnRef.current.length) {
+              modelTextTurnRef.current = cleanText;
+            }
             // Gemini's output transcription can lead the audio and arrives in
             // deltas. Keep it buffered for delivery; the complete subtitle is
             // committed at turnComplete so it never races ahead of speech.
