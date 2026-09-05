@@ -40,6 +40,10 @@ async function runCompanionTests() {
   const botState = mcService.getBotState();
   assert(botState.health !== undefined && botState.food !== undefined, 'Estructura de telemetría de vida y hambre presente.');
   assert(botState.position && typeof botState.position.x === 'number', 'Estructura vectorial de posición {x, y, z} presente.');
+  const connection = await mcService.connect({ host: '127.0.0.1', port: 25565 });
+  assert(connection.sessionId && connection.sessionId.startsWith('minecraft_'), 'Cada conexión de Minecraft recibe una sesión estable para aislar reconexiones.');
+  await mcService.disconnect();
+  assert(mcService.sessionId === null, 'Cerrar Minecraft libera la identidad de sesión.');
 
   // ── 2. Discord Companion Service ────────────────────────────────────────────
   console.log('\n[2/3] Verificando Discord Companion Service...');

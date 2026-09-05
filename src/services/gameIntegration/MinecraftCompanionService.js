@@ -42,10 +42,11 @@ export class MinecraftCompanionService {
     };
     this.reconnectAttempts = 0;
     this.reconnectTimer = null;
+    this.sessionId = null;
     this.unsubscribeEvent = electronBridge?.onMinecraftEvent?.((event) => {
       eventBus.emitDomain(EVENTS.GAME_EVENT, {
-        game: 'minecraft', eventType: event?.type || 'unknown', payload: event || {}
-      }, { source: 'minecraft', privacy: 'external' });
+        game: 'minecraft', eventType: event?.type || 'unknown', payload: event || {}, sessionId: this.sessionId
+      }, { source: 'minecraft', sessionId: this.sessionId, privacy: 'external' });
       if (['end', 'kicked', 'error', 'disconnect'].includes(event?.type)) {
         this.status = 'error';
         this.scheduleReconnect(this.config, event?.message || event?.reason || 'desconexión inesperada');
@@ -56,8 +57,8 @@ export class MinecraftCompanionService {
       this.chatHistory.push(item);
       if (this.chatHistory.length > this.maxChatHistory) this.chatHistory.shift();
       eventBus.emitDomain(EVENTS.GAME_EVENT, {
-        game: 'minecraft', eventType: 'chat_message', payload: item
-      }, { source: 'minecraft', privacy: 'external' });
+        game: 'minecraft', eventType: 'chat_message', payload: item, sessionId: this.sessionId
+      }, { source: 'minecraft', sessionId: this.sessionId, privacy: 'external' });
     });
     this.loadConfig();
   }
@@ -100,6 +101,9 @@ export class MinecraftCompanionService {
     }
     const opts = { ...this.config, ...options };
     this.config = { ...this.config, ...options };
+    if (!this.sessionId) {
+      this.sessionId = `minecraft_${opts.host || 'localhost'}_${opts.port || 25565}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    }
     this.status = 'connecting';
     logger.info('MINECRAFT', `Conectando al servidor ${opts.host}:${opts.port} con usuario "${opts.username}"...`);
 
@@ -109,11 +113,11 @@ export class MinecraftCompanionService {
         if (res && res.success) {
           this.status = 'connected';
           this.reconnectAttempts = 0;
-          eventBus.emitDomain(EVENTS.GAME_CONNECTED, { game: 'minecraft', host: opts.host, port: opts.port }, {
-            source: 'minecraft', privacy: 'internal'
+          eventBus.emitDomain(EVENTS.GAME_CONNECTED, { game: 'minecraft', host: opts.host, port: opts.port, sessionId: this.sessionId }, {
+            source: 'minecraft', sessionId: this.sessionId, privacy: 'internal'
           });
           logger.info('MINECRAFT', '✓ Conexión establecida con el servidor de Minecraft.');
-          return { status: 'success', message: `Conectada al servidor ${opts.host}:${opts.port} como ${opts.username}.` };
+          return { status: 'success', sessionId: this.sessionId, message: `Conectada al servidor ${opts.host}:${opts.port} como ${opts.username}.` };
         } else {
           this.status = 'error';
           this.scheduleReconnect(opts, res?.error || 'Error de conexión.');
@@ -123,7 +127,10 @@ export class MinecraftCompanionService {
       }
 
       this.status = 'connected';
-      return { status: 'success', message: 'Simulación de Minecraft Companion activa.' };
+      eventBus.emitDomain(EVENTS.GAME_CONNECTED, { game: 'minecraft', host: opts.host, port: opts.port, sessionId: this.sessionId }, {
+        source: 'minecraft', sessionId: this.sessionId, privacy: 'internal'
+      });
+      return { status: 'success', sessionId: this.sessionId, message: 'Simulación de Minecraft Companion activa.' };
     } catch (err) {
       this.status = 'error';
       this.scheduleReconnect(opts, err.message);
@@ -137,14 +144,16 @@ export class MinecraftCompanionService {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
     this.status = 'disconnected';
+    const sessionId = this.sessionId;
     logger.info('MINECRAFT', 'Desconectando bot de Minecraft...');
     try {
       if (electronBridge?.isElectron) {
         await electronBridge.minecraftDisconnect();
       }
-      eventBus.emitDomain(EVENTS.GAME_DISCONNECTED, { game: 'minecraft' }, {
-        source: 'minecraft', privacy: 'internal'
+      eventBus.emitDomain(EVENTS.GAME_DISCONNECTED, { game: 'minecraft', sessionId }, {
+        source: 'minecraft', sessionId, privacy: 'internal'
       });
+      this.sessionId = null;
       return { status: 'success', message: 'Bot desconectado del servidor de Minecraft.' };
     } catch (err) {
       return { status: 'error', message: err.message };
@@ -172,13 +181,14 @@ export class MinecraftCompanionService {
         if (liveStatus) {
           this.botState = { ...this.botState, ...liveStatus };
           this.status = liveStatus.status || this.status;
-          eventBus.emitDomain(EVENTS.GAME_STATE_CHANGED, { game: 'minecraft', state: this.botState }, {
-            source: 'minecraft', privacy: 'external'
+          eventBus.emitDomain(EVENTS.GAME_STATE_CHANGED, { game: 'minecraft', state: this.botState, sessionId: this.sessionId }, {
+            source: 'minecraft', sessionId: this.sessionId, privacy: 'external'
           });
         }
       }
       return {
         status: this.status,
+        sessionId: this.sessionId,
         bot: this.botState
       };
     } catch (err) {
