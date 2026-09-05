@@ -250,6 +250,8 @@ test('Gemini translation provider keeps audio transcription and text translation
   assert.equal(audio.frameId, 'tts-hola Ariel');
   assert.equal(requests.length, 2);
   assert.equal(requests[0].body.contents[0].parts[1].inlineData.mimeType, 'audio/pcm;rate=16000');
+  await provider.transcribe({ data: 'cGNi', sampleRate: 24000, sourceId: 'discord_voice:g:u' });
+  assert.equal(requests[2].body.contents[0].parts[1].inlineData.mimeType, 'audio/pcm;rate=24000');
 });
 
 test('Gemini translation provider can synthesize a translated PCM response', async () => {

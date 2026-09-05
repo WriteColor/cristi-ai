@@ -121,9 +121,12 @@ export class GeminiTranslationProvider {
   }
 
   async transcribe({ data, sampleRate = 16000, sourceId = 'external_audio' } = {}) {
+    const rate = Number.isFinite(Number(sampleRate))
+      ? Math.max(8000, Math.min(48000, Math.round(Number(sampleRate))))
+      : 16000;
     const text = await this.request(this.transcriptionModel, [
-      { text: `Transcribe exactamente el audio PCM recibido de ${sourceId}. Devuelve sólo las palabras habladas, sin etiquetas, explicaciones ni traducción. Frecuencia: ${sampleRate} Hz.` },
-      { inlineData: { mimeType: 'audio/pcm;rate=16000', data: String(data || '') } }
+      { text: `Transcribe exactamente el audio PCM recibido de ${sourceId}. Devuelve sólo las palabras habladas, sin etiquetas, explicaciones ni traducción. Frecuencia: ${rate} Hz.` },
+      { inlineData: { mimeType: `audio/pcm;rate=${rate}`, data: String(data || '') } }
     ]);
     return text ? { text } : null;
   }

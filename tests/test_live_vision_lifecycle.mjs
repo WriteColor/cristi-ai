@@ -42,12 +42,14 @@ try {
   await page.waitForFunction(() => window.electronAPI?.isElectron);
   const bounds = await app.evaluate(async ({ BrowserWindow, screen }) => {
     const bounds = screen.getPrimaryDisplay().bounds;
-    const fixture = new BrowserWindow({ ...bounds, frame: false, show: true, alwaysOnTop: true, webPreferences: { sandbox: true } });
+    const fixture = new BrowserWindow({ ...bounds, frame: false, show: true, alwaysOnTop: true, skipTaskbar: true, webPreferences: { sandbox: true } });
     fixture.setTitle('Cristi — prueba temporal de visión');
     globalThis.__visionFixture = fixture;
     await fixture.loadURL('data:text/html,<html><body>Preparing visual test</body></html>');
     fixture.setBounds(bounds);
-    fixture.setAlwaysOnTop(true, 'floating');
+    fixture.setAlwaysOnTop(true, 'screen-saver');
+    fixture.show();
+    fixture.moveTop();
     fixture.focus();
     return bounds;
   });
@@ -112,7 +114,8 @@ try {
         requestAt: Date.now(), chunks: 0, pcmBytes: 0, transcript: '' };
       report.rounds.push(currentRound);
       complete = false;
-      client.sendTextMessage('Lee únicamente las palabras grandes que aparecen en la imagen más reciente. No menciones imágenes anteriores.');
+      const currentFrame = await capture.captureActiveFrame();
+      client.sendTextMessage('Lee únicamente las palabras grandes que aparecen en la imagen más reciente. No menciones imágenes anteriores.', currentFrame);
       await until(() => complete || failure, 45000);
       assert.ok(!failure, failure);
       currentRound.responseMs = Date.now() - currentRound.requestAt;
