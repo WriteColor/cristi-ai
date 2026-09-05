@@ -34,6 +34,7 @@ Se trabajó sobre los cambios existentes del proyecto, sin revertirlos.
 | API real Gemini Live repetida | `gemini-3.1-flash-live-preview`: audio PCM, transcripción de entrada y respuesta completa sin duplicación |
 | Minecraft local reproducible | Servidor offline 1.16.4, login Mineflayer, estado `play` y roundtrip de chat |
 | Discord voice transport | Carga de `@discordjs/voice` 0.18, decoder Opus y conversión PCM 16 kHz verificada |
+| MCP en Electron | Servidor `stdio` y endpoint SSE locales: discovery, `tools/call`, namespace y cierre verificados dentro del ejecutable empaquetado |
 
 Evidencia en `tests/output/packaged-call-report.json`, `packaged-subtitles.png`, `live-call-probe.json`, `refactor-diagnostics.log` y `refactor-build.log`.
 

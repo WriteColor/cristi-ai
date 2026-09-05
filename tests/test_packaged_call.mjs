@@ -2,6 +2,7 @@ import { _electron as electron } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import http from 'node:http';
 
 const outputDir = path.resolve('tests/output');
 const profile = fs.mkdtempSync(path.join(outputDir, 'electron-probe-'));
@@ -75,6 +76,51 @@ try {
   assert.equal(mcpSmoke.called?.content?.[0]?.text, 'electron-stdio-ok', 'MCP tools/call devuelve contenido del proceso hijo');
   assert.equal(mcpSmoke.disconnected?.success, true, 'MCP real libera el proceso en desconexión');
   report.checks.push('Real MCP stdio child process; initialize/list/call/disconnect');
+
+  // Exercise the official SSE transport against a local deterministic server.
+  let sseStream;
+  const sseServer = http.createServer((request, response) => {
+    if (request.method === 'GET' && request.url === '/sse') {
+      response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+      response.write('event: endpoint\ndata: /message\n\n');
+      sseStream = response;
+      return;
+    }
+    if (request.method === 'POST' && request.url === '/message') {
+      let body = '';
+      request.setEncoding('utf8');
+      request.on('data', chunk => { body += chunk; });
+      request.on('end', () => {
+        try {
+          const message = JSON.parse(body);
+          let result = {};
+          if (message.method === 'initialize') result = { protocolVersion: '2025-03-26', capabilities: { tools: {} }, serverInfo: { name: 'sse-test', version: '1.0.0' } };
+          if (message.method === 'tools/list') result = { tools: [{ name: 'echo-sse', description: 'Echo SSE', inputSchema: { type: 'object', properties: { text: { type: 'string' } } } }] };
+          if (message.method === 'tools/call') result = { content: [{ type: 'text', text: String(message.params?.arguments?.text || '') }] };
+          if (message.id !== undefined) sseStream?.write(`data: ${JSON.stringify({ jsonrpc: '2.0', id: message.id, result })}\n\n`);
+          response.writeHead(202);
+          response.end();
+        } catch (_) { response.writeHead(400); response.end(); }
+      });
+      return;
+    }
+    response.writeHead(404);
+    response.end();
+  });
+  await new Promise((resolve, reject) => { sseServer.once('error', reject); sseServer.listen(0, '127.0.0.1', resolve); });
+  const sseAddress = sseServer.address();
+  const sseSmoke = await page.evaluate(async (url) => {
+    const connected = await window.electronAPI.mcpConnect({ id: 'packaged_mcp_sse_smoke', type: 'sse', url });
+    if (!connected?.success) return { connected };
+    const called = await window.electronAPI.mcpCallTool({ serverId: 'packaged_mcp_sse_smoke', name: 'echo-sse', arguments: { text: 'electron-sse-ok' } });
+    const disconnected = await window.electronAPI.mcpDisconnect('packaged_mcp_sse_smoke');
+    return { connected, called, disconnected };
+  }, `http://127.0.0.1:${sseAddress.port}/sse`);
+  await new Promise(resolve => sseServer.close(resolve));
+  assert.equal(sseSmoke.connected?.success, true, 'MCP SSE real negocia endpoint y descubre herramientas');
+  assert.equal(sseSmoke.called?.content?.[0]?.text, 'electron-sse-ok', 'MCP SSE tools/call devuelve contenido');
+  assert.equal(sseSmoke.disconnected?.success, true, 'MCP SSE libera EventSource en desconexión');
+  report.checks.push('Real MCP SSE endpoint; discovery, tools/call and close');
 
   const seedFrame = await page.evaluate(() => window.electronAPI.captureScreenNative(null));
   assert.ok(seedFrame?.length > 100, 'Native screen capture must supply a real JPEG');

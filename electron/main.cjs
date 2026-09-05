@@ -628,14 +628,67 @@ function quoteWindowsShellArg(value) {
   return `"${text.replace(/"/g, '\\"')}"`;
 }
 
+async function connectMcpSse(serverId, config) {
+  const urlText = String(config.url || '').trim();
+  if (!urlText) return { success: false, error: 'MCP SSE requiere una URL.' };
+  let url;
+  try { url = new URL(urlText); } catch (_) { return { success: false, error: 'URL SSE inválida.' }; }
+  try {
+    // The SDK owns EventSource framing, endpoint negotiation and JSON-RPC
+    // request correlation. Keeping it in main preserves the renderer boundary.
+    const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
+    const { SSEClientTransport } = require('@modelcontextprotocol/sdk/client/sse.js');
+    const headers = Object.fromEntries(Object.entries(config.headers || {})
+      .filter(([key, value]) => /^[A-Za-z0-9-]+$/.test(key) && value !== undefined)
+      .map(([key, value]) => [key, String(value)]));
+    const transport = new SSEClientTransport(url, { requestInit: { headers } });
+    const client = new Client({ name: 'Cristi AI Companion', version: app.getVersion() });
+    await client.connect(transport);
+    const listed = await client.listTools();
+    const state = { id: serverId, transport: 'sse', client, pending: new Map() };
+    mcpProcesses.set(serverId, state);
+    transport.onerror = error => console.warn(`[MCP:${serverId}] SSE`, error?.message || String(error));
+    transport.onclose = () => {
+      if (mcpProcesses.get(serverId) === state) mcpProcesses.delete(serverId);
+    };
+    return {
+      success: true,
+      serverId,
+      protocolVersion: client.getServerVersion?.()?.version || null,
+      tools: Array.isArray(listed.tools) ? listed.tools : []
+    };
+  } catch (error) {
+    return { success: false, error: `No se pudo conectar MCP SSE: ${error.message}` };
+  }
+}
+
+async function closeMcpState(state, reason = 'Servidor MCP desconectado.') {
+  if (!state) return;
+  if (state.transport === 'sse') {
+    try { await state.client?.close?.(); } catch (_) {}
+  } else {
+    rejectMcpPending(state, new Error(reason));
+    try { state.process?.kill?.(); } catch (_) {}
+  }
+}
+
 ipcMain.handle('mcp-connect', async (event, config = {}) => {
   const serverId = String(config.id || '').trim();
+  const transportType = String(config.type || 'stdio').trim().toLowerCase();
+  if (!serverId) return { success: false, error: 'MCP requiere id.' };
+  if (transportType === 'sse') {
+    const previous = mcpProcesses.get(serverId);
+    if (previous) {
+      await closeMcpState(previous, 'Conexión MCP reemplazada.');
+      mcpProcesses.delete(serverId);
+    }
+    return connectMcpSse(serverId, config);
+  }
   const command = String(config.command || '').trim();
-  if (!serverId || !command) return { success: false, error: 'MCP requiere id y command.' };
+  if (!command) return { success: false, error: 'MCP stdio requiere id y command.' };
   const previous = mcpProcesses.get(serverId);
   if (previous) {
-    rejectMcpPending(previous, new Error('Conexión MCP reemplazada.'));
-    try { previous.process.kill(); } catch (_) {}
+    await closeMcpState(previous, 'Conexión MCP reemplazada.');
     mcpProcesses.delete(serverId);
   }
 
@@ -710,6 +763,10 @@ ipcMain.handle('mcp-call-tool', async (event, { serverId, name, arguments: toolA
   const state = mcpProcesses.get(String(serverId || ''));
   if (!state) return { success: false, error: 'Servidor MCP no conectado.' };
   try {
+    if (state.transport === 'sse') {
+      const result = await state.client.callTool({ name: String(name || ''), arguments: toolArguments || {} });
+      return { success: true, ...result };
+    }
     const result = await sendMcpRequest(state, 'tools/call', { name: String(name || ''), arguments: toolArguments || {} });
     return { success: true, ...result };
   } catch (error) {
@@ -720,8 +777,10 @@ ipcMain.handle('mcp-call-tool', async (event, { serverId, name, arguments: toolA
 ipcMain.handle('mcp-disconnect', async (event, serverId) => {
   const state = mcpProcesses.get(String(serverId || ''));
   if (!state) return { success: true, alreadyDisconnected: true };
-  try { sendMcpNotification(state, 'notifications/cancelled', { reason: 'client_disconnect' }); } catch (_) {}
-  try { state.process.kill(); } catch (_) {}
+  if (state.transport !== 'sse') {
+    try { sendMcpNotification(state, 'notifications/cancelled', { reason: 'client_disconnect' }); } catch (_) {}
+  }
+  await closeMcpState(state);
   mcpProcesses.delete(String(serverId));
   rejectMcpPending(state, new Error('Servidor MCP desconectado.'));
   return { success: true };

@@ -35,6 +35,7 @@ assert(mainContent.includes("ipcMain.handle('exec-command'"), 'IPC handler para 
 assert(mainContent.includes("ipcMain.handle('mcp-connect'"), 'IPC handler para conexión MCP en proceso principal');
 assert(mainContent.includes("ipcMain.handle('mcp-call-tool'"), 'IPC handler para llamadas de herramientas MCP');
 assert(mainContent.includes("ipcMain.handle('mcp-disconnect'"), 'IPC handler para desconexión MCP y limpieza de procesos');
+assert(mainContent.includes('SSEClientTransport'), 'Transporte MCP SSE oficial disponible en Electron');
 assert(mainContent.includes('spawn(shellCommand, shellArgs'), 'Transporte MCP inicia servidores stdio fuera del renderer');
 assert(mainContent.includes("jsonrpc: '2.0'"), 'Transporte MCP usa mensajes JSON-RPC 2.0');
 assert(mainContent.includes("ipcMain.handle('read-file'"), 'IPC handler para lectura de archivos');
