@@ -34,6 +34,7 @@ import { ModelPreviewCanvas } from './components/ModelPreviewCanvas.jsx';
 const TABS = [
   { id: 'general', label: 'General & IA', icon: Zap },
   { id: 'voice', label: 'Voz & Audio', icon: Volume2 },
+  { id: 'translation', label: 'Traducción de Voz', icon: Globe },
   { id: 'models', label: 'Personajes Live2D', icon: Smile },
   { id: 'scene', label: 'Fondo & Escena', icon: ImageIcon },
   { id: 'spotify', label: 'Spotify & Música', icon: Music },
@@ -102,6 +103,9 @@ export default function SettingsApp({ isModal = false, onClose = null }) {
   const [voiceName, setVoiceName] = useState(() => initialConfig.voiceName || 'Aoede');
   const [temperature, setTemperature] = useState(() => initialConfig.temperature ?? 0.75);
   const [systemPrompt, setSystemPrompt] = useState(() => initialConfig.systemPrompt || SYSTEM_PERSONA_PROMPT);
+  const [externalTranslationEnabled, setExternalTranslationEnabled] = useState(() => initialConfig.externalTranslationEnabled === true);
+  const [translationTargetLanguage, setTranslationTargetLanguage] = useState(() => initialConfig.translationTargetLanguage || 'es');
+  const [translationAggregateMs, setTranslationAggregateMs] = useState(() => initialConfig.translationAggregateMs || 400);
 
   // Avatar Models State (Pure Live2D)
   const [live2dModelId, setLive2dModelId] = useState(() => initialConfig.live2dModelId || 'yanderegirl');
@@ -229,7 +233,10 @@ export default function SettingsApp({ isModal = false, onClose = null }) {
           live2dModelId,
           sceneId,
           spotifyClientId: spotifyClientId.trim(),
-          spotifyClientSecret: spotifyClientSecret.trim()
+          spotifyClientSecret: spotifyClientSecret.trim(),
+          externalTranslationEnabled,
+          translationTargetLanguage,
+          translationAggregateMs: Number(translationAggregateMs)
         };
 
         configManager.saveConfig(newConfig);
@@ -252,7 +259,7 @@ export default function SettingsApp({ isModal = false, onClose = null }) {
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
-  }, [apiKey, modelId, voiceName, temperature, systemPrompt, live2dModelId, sceneId, viewMode, spotifyClientId, spotifyClientSecret]);
+  }, [apiKey, modelId, voiceName, temperature, systemPrompt, live2dModelId, sceneId, viewMode, spotifyClientId, spotifyClientSecret, externalTranslationEnabled, translationTargetLanguage, translationAggregateMs]);
 
   // Escape key & global shortcut blocker listener (Capture Phase)
   useEffect(() => {
@@ -584,6 +591,65 @@ export default function SettingsApp({ isModal = false, onClose = null }) {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* ── 2B. TRADUCCIÓN DE VOZ EXTERNA ─────────────────────────────── */}
+          {activeTab === 'translation' && (
+            <div className="flex-1 overflow-y-auto space-y-5">
+              <div>
+                <h2 className="text-sm font-semibold font-mono uppercase tracking-wider text-zinc-100 flex items-center gap-2">
+                  <Globe size={16} className="text-cyan-400" /> Traducción de voz externa
+                </h2>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Traduce audio de una pantalla compartida o de participantes de Discord sin mezclarlo con tu micrófono ni con la voz de Cristi.
+                </p>
+              </div>
+              <div className="border border-zinc-800 bg-zinc-900/40 p-4 rounded-sm space-y-4">
+                <label className="flex items-center justify-between gap-4 cursor-pointer">
+                  <span>
+                    <span className="block text-xs font-mono text-zinc-200">Activar traducción externa</span>
+                    <span className="block text-[11px] text-zinc-500 mt-1">El modelo procesa sólo las fuentes que se inicien con traducción.</span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={externalTranslationEnabled}
+                    onChange={(e) => setExternalTranslationEnabled(e.target.checked)}
+                    className="h-4 w-4 accent-cyan-500"
+                  />
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <label className="space-y-1">
+                    <span className="block text-[11px] font-mono text-zinc-400">Idioma destino</span>
+                    <select
+                      value={translationTargetLanguage}
+                      onChange={(e) => setTranslationTargetLanguage(e.target.value)}
+                      className="w-full px-2.5 py-2 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm"
+                    >
+                      <option value="es">Español</option>
+                      <option value="en">English</option>
+                      <option value="ja">日本語</option>
+                      <option value="fr">Français</option>
+                      <option value="de">Deutsch</option>
+                      <option value="pt">Português</option>
+                      <option value="ko">한국어</option>
+                    </select>
+                  </label>
+                  <label className="space-y-1">
+                    <span className="block text-[11px] font-mono text-zinc-400">Lote de audio: {translationAggregateMs} ms</span>
+                    <input
+                      type="range"
+                      min="200"
+                      max="1200"
+                      step="50"
+                      value={translationAggregateMs}
+                      onChange={(e) => setTranslationAggregateMs(Number(e.target.value))}
+                      className="w-full accent-cyan-500 mt-2"
+                    />
+                    <span className="block text-[10px] text-zinc-500">Menor valor reduce latencia; mayor valor mejora frases largas.</span>
+                  </label>
+                </div>
               </div>
             </div>
           )}

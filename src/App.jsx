@@ -273,7 +273,7 @@ export function App() {
       return undefined;
     }
     const provider = translationProviderRef.current || new GeminiTranslationProvider();
-    provider.configure({ apiKey: config.apiKey });
+    provider.configure({ apiKey: config.apiKey, voiceName: config.voiceName || 'Kore' });
     translationProviderRef.current = provider;
     translationService.configure(provider);
     translationService.attachSource(desktopLoopbackCaptureService, {

@@ -1,5 +1,5 @@
 import { electronBridge } from '../desktop/ElectronBridge.js';
-import { eventBus } from '../eventBus.js';
+import { eventBus, EVENTS } from '../eventBus.js';
 import { audioRoutingService } from '../translation/AudioRoutingService.js';
 
 /**
@@ -18,6 +18,14 @@ export class DiscordVoiceService {
       this.bus.emitDomain(`discord.voice_${event?.type || 'event'}`, event || {}, {
         source: 'discord_voice', privacy: 'internal', sessionId: this.session?.sessionId || null
       });
+    });
+    this.unsubscribeTranslation = bus?.on?.(EVENTS.TRANSLATION_COMPLETED, (envelope) => {
+      const result = envelope?.payload || envelope;
+      if (!result?.sourceId?.startsWith('discord_voice:') || !result.audio?.data || this.status !== 'connected') return;
+      const data = Number(result.audio.sampleRate) === 16000
+        ? result.audio.data
+        : resamplePcm16Base64(result.audio.data, Number(result.audio.sampleRate) || 24000, 16000);
+      void this.sendAudio({ data, frameId: `translation_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` });
     });
   }
 
@@ -80,7 +88,33 @@ export class DiscordVoiceService {
     this.unsubscribeEvent?.();
     this.unsubscribeAudio = null;
     this.unsubscribeEvent = null;
+    this.unsubscribeTranslation?.();
+    this.unsubscribeTranslation = null;
     void this.leave();
+  }
+}
+
+function resamplePcm16Base64(data, inputRate, outputRate) {
+  try {
+    const bytes = typeof globalThis.atob === 'function'
+      ? Uint8Array.from(globalThis.atob(String(data)), (char) => char.charCodeAt(0))
+      : new Uint8Array(Buffer.from(String(data), 'base64'));
+    const source = new Int16Array(bytes.buffer, bytes.byteOffset, Math.floor(bytes.byteLength / 2));
+    const length = Math.max(1, Math.round(source.length * outputRate / inputRate));
+    const target = new Int16Array(length);
+    for (let i = 0; i < length; i += 1) {
+      const position = i * inputRate / outputRate;
+      const left = Math.floor(position);
+      const right = Math.min(source.length - 1, left + 1);
+      const fraction = position - left;
+      target[i] = Math.round((source[left] || 0) * (1 - fraction) + (source[right] || 0) * fraction);
+    }
+    const out = new Uint8Array(target.buffer);
+    let binary = '';
+    for (let i = 0; i < out.length; i += 0x8000) binary += String.fromCharCode(...out.subarray(i, Math.min(i + 0x8000, out.length)));
+    return typeof globalThis.btoa === 'function' ? globalThis.btoa(binary) : Buffer.from(out).toString('base64');
+  } catch (_) {
+    return data;
   }
 }
 

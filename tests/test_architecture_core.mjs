@@ -9,6 +9,7 @@ import { MemoryIndex } from '../src/services/memory/MemoryIndex.js';
 import { MemoryRepository } from '../src/services/memory/MemoryRepository.js';
 import { DiscordVoiceService } from '../src/services/discord/DiscordVoiceService.js';
 import { GeminiTranslationProvider } from '../src/services/translation/GeminiTranslationProvider.js';
+import fs from 'node:fs';
 
 test('domain event envelopes are traceable and wildcard listeners are isolated', () => {
   const bus = new EventBus();
@@ -143,23 +144,38 @@ test('memory initialization seeds fresh storage without resurrecting an intentio
 test('discord voice adapter isolates participant sources and handles lifecycle without Electron', async () => {
   let audioHandler = null;
   let eventHandler = null;
+  const sentAudio = [];
   let left = false;
   const bridge = {
     onDiscordVoiceAudio(handler) { audioHandler = handler; return () => { audioHandler = null; }; },
     onDiscordVoiceEvent(handler) { eventHandler = handler; return () => { eventHandler = null; }; },
     async discordVoiceJoin() { return { success: true }; },
     async discordVoiceLeave() { left = true; return { success: true }; },
-    async discordVoiceSendAudio() { return { success: true }; }
+    async discordVoiceSendAudio(payload) { sentAudio.push(payload); return { success: true }; }
   };
-  const service = new DiscordVoiceService({ bridge, bus: new EventBus() });
+  const bus = new EventBus();
+  const service = new DiscordVoiceService({ bridge, bus });
   assert.equal((await service.join({ guildId: 'g1', channelId: 'c1' })).success, true);
   assert.equal(service.getStatus().status, 'connected');
   const routed = audioHandler({ frameId: 'voice-1', guildId: 'g1', channelId: 'c1', userId: 'u1', data: 'cGNi', sampleRate: 16000 });
   assert.equal(routed.sourceId, 'discord_voice:g1:u1');
+  bus.emitDomain(EVENTS.TRANSLATION_COMPLETED, {
+    sourceId: routed.sourceId,
+    audio: { data: 'AQIDBA==', sampleRate: 24000 }
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(sentAudio.length, 1);
+  assert.notEqual(sentAudio[0].data, 'AQIDBA==');
   eventHandler({ type: 'ready' });
   await service.leave();
   assert.equal(left, true);
   service.destroy();
+});
+
+test('Discord voice transport ignores the bot identity to prevent outbound translation loops', () => {
+  const main = fs.readFileSync(new URL('../electron/main.cjs', import.meta.url), 'utf8');
+  assert.match(main, /discordClient\?\.user\?\.id/);
+  assert.match(main, /Never decode the bot's own outbound translation/);
 });
 
 test('Gemini translation provider keeps audio transcription and text translation independently mockable', async () => {
@@ -182,6 +198,26 @@ test('Gemini translation provider keeps audio transcription and text translation
   assert.equal(audio.frameId, 'tts-hola Ariel');
   assert.equal(requests.length, 2);
   assert.equal(requests[0].body.contents[0].parts[1].inlineData.mimeType, 'audio/pcm;rate=16000');
+});
+
+test('Gemini translation provider can synthesize a translated PCM response', async () => {
+  let requestBody = null;
+  const provider = new GeminiTranslationProvider({
+    apiKey: 'tts-key',
+    fetchImpl: async (_url, options) => {
+      requestBody = JSON.parse(options.body);
+      return {
+        ok: true,
+        async json() {
+          return { candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/pcm;rate=24000', data: 'AQIDBA==' } }] } }] };
+        }
+      };
+    }
+  });
+  const audio = await provider.synthesize({ text: 'Hola Ariel', language: 'es' });
+  assert.equal(audio.data, 'AQIDBA==');
+  assert.equal(audio.sampleRate, 24000);
+  assert.deepEqual(requestBody.generationConfig.responseModalities, ['AUDIO']);
 });
 
 test('translation service binds class-based providers when configured at runtime', async () => {

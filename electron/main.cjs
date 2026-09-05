@@ -1524,6 +1524,10 @@ function upsampleDiscordPcm(pcm) {
 
 function subscribeDiscordVoiceUser(userId, receiver, guildId, channelId) {
   if (!userId || discordVoiceSubscriptions.has(userId)) return;
+  // Never decode the bot's own outbound translation. Discord may expose the
+  // bot as a speaking participant, and feeding that PCM back would create a
+  // translation loop and duplicate voice responses.
+  if (discordClient?.user?.id && String(userId) === String(discordClient.user.id)) return;
   try {
     const { EndBehaviorType } = require('@discordjs/voice');
     const prism = require('prism-media');
@@ -1595,6 +1599,7 @@ ipcMain.handle('discord-voice-join', async (event, { guildId, channelId } = {}) 
     discordVoiceConnection.subscribe(discordVoicePlayer);
     discordVoicePlayer.play(resource);
     discordVoiceConnection.receiver.speaking.on('start', (userId) => {
+      if (discordClient?.user?.id && String(userId) === String(discordClient.user.id)) return;
       subscribeDiscordVoiceUser(userId, discordVoiceConnection.receiver, guild.id, channel.id);
     });
     discordVoiceConnection.on('stateChange', (_, next) => {
