@@ -8,6 +8,7 @@ import { DesktopLoopbackCaptureService } from '../src/services/translation/Deskt
 import { MemoryIndex } from '../src/services/memory/MemoryIndex.js';
 import { MemoryRepository } from '../src/services/memory/MemoryRepository.js';
 import { DiscordVoiceService } from '../src/services/discord/DiscordVoiceService.js';
+import { GeminiTranslationProvider } from '../src/services/translation/GeminiTranslationProvider.js';
 
 test('domain event envelopes are traceable and wildcard listeners are isolated', () => {
   const bus = new EventBus();
@@ -143,4 +144,26 @@ test('discord voice adapter isolates participant sources and handles lifecycle w
   await service.leave();
   assert.equal(left, true);
   service.destroy();
+});
+
+test('Gemini translation provider keeps audio transcription and text translation independently mockable', async () => {
+  const requests = [];
+  const provider = new GeminiTranslationProvider({
+    apiKey: 'test-key',
+    fetchImpl: async (url, options) => {
+      requests.push({ url, body: JSON.parse(options.body) });
+      const prompt = JSON.parse(options.body).contents[0].parts[0].text;
+      const text = prompt.startsWith('Transcribe') ? 'hello Ariel' : 'hola Ariel';
+      return { ok: true, status: 200, async json() { return { candidates: [{ content: { parts: [{ text }] } }] }; } };
+    },
+    synthesize: async ({ text }) => ({ frameId: `tts-${text}` })
+  });
+  const transcript = await provider.transcribe({ data: 'cGNi', sourceId: 'discord_voice:g:u' });
+  const translation = await provider.translate({ text: transcript.text, sourceLanguage: 'en', targetLanguage: 'es' });
+  const audio = await provider.synthesize({ text: translation.text });
+  assert.equal(transcript.text, 'hello Ariel');
+  assert.equal(translation.text, 'hola Ariel');
+  assert.equal(audio.frameId, 'tts-hola Ariel');
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].body.contents[0].parts[1].inlineData.mimeType, 'audio/pcm;rate=16000');
 });
