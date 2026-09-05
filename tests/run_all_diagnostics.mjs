@@ -103,6 +103,7 @@ runSuite('Live2D Avatar Studio & Kinetics', 'node tests/test_live2d_avatar_studi
 console.log('\n[14/17] Ejecutando suite de Memoria Contextual a Largo Plazo...');
 runSuite('Long-Term Memory Service', 'node tests/test_memory_service.mjs', 'CRUD, Spanish accents recall & Gemini context');
 runSuite('Event Contracts & Translation Boundaries', 'node --test tests/test_architecture_core.mjs', 'Traceable domain events, session memory, source-isolated translation');
+runSuite('Interaction Orchestrator', 'node --test tests/test_interaction_orchestrator.mjs', 'Domain event routing, channel context and duplicate-session protection');
 
 // 15. Suite de Protocolo Universal MCP
 console.log('\n[15/17] Ejecutando suite de Universal MCP Protocol Manager...');

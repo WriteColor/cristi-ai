@@ -44,7 +44,8 @@ import {
   spotifyService,
   playwrightService,
   logger,
-  VisionFrameDispatcher
+  VisionFrameDispatcher,
+  interactionOrchestrator
 } from './services/index.js';
 import {
   DEFAULT_MODEL_ID,
@@ -313,9 +314,11 @@ export function App() {
   // Clean up subtitle & decision timers on unmount
   useEffect(() => {
     visionDispatcherRef.current = new VisionFrameDispatcher({ socketRef: socketRef, minIntervalMs: 1000 });
+    interactionOrchestrator.start();
     return () => {
       visionDispatcherRef.current?.destroy();
       visionDispatcherRef.current = null;
+      interactionOrchestrator.stop();
     };
   }, []);
 
@@ -328,6 +331,7 @@ export function App() {
     audioInRef.current?.stop();
     proactiveTriggerService.setGeminiSocket(null);
     proactiveScheduler.setGeminiSocket(null);
+    interactionOrchestrator.setGeminiSocket(null);
     if (subtitleTimeoutRef.current) clearTimeout(subtitleTimeoutRef.current);
     if (userSubtitleTimeoutRef.current) clearTimeout(userSubtitleTimeoutRef.current);
     if (modelSubtitleTimeoutRef.current) clearTimeout(modelSubtitleTimeoutRef.current);
@@ -778,6 +782,7 @@ export function App() {
       isCallActiveRef.current = false;
       proactiveTriggerService.setGeminiSocket(null);
       proactiveScheduler.setGeminiSocket(null);
+      interactionOrchestrator.setGeminiSocket(null);
       if (socketRef.current) socketRef.current.disconnect();
       if (audioInRef.current) audioInRef.current.stop();
       if (audioOutRef.current) audioOutRef.current.stopImmediate();
@@ -859,6 +864,7 @@ export function App() {
           setIsConnecting(false);
           proactiveTriggerService.setGeminiSocket(socket);
           proactiveScheduler.setGeminiSocket(socket);
+          interactionOrchestrator.setGeminiSocket(socket);
           soundFxService.playConnectedBleep();
         },
         onReconnecting: (_attempts, _delay) => {
@@ -872,6 +878,7 @@ export function App() {
           audioOutRef.current?.stopImmediate();
           proactiveTriggerService.setGeminiSocket(null);
           proactiveScheduler.setGeminiSocket(null);
+          interactionOrchestrator.setGeminiSocket(null);
           setIsConnected(false);
           setIsConnecting(false);
           setIsSpeaking(false);
