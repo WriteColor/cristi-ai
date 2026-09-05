@@ -56,6 +56,7 @@ export class DesktopLoopbackCaptureService {
     this.running = false;
     this.frameHandler = null;
     this.frameCount = 0;
+    this.operationGeneration = 0;
   }
 
   setFrameHandler(handler) {
@@ -67,14 +68,21 @@ export class DesktopLoopbackCaptureService {
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getDisplayMedia || typeof AudioWorkletNode === 'undefined') {
       return { success: false, error: 'Captura loopback no disponible en este entorno.' };
     }
+    const generation = ++this.operationGeneration;
     this.sourceId = sourceId;
+    let acquiredStream = null;
     try {
-      this.stream = await navigator.mediaDevices.getDisplayMedia({
+      acquiredStream = await navigator.mediaDevices.getDisplayMedia({
         // Chromium requires a video track for getDisplayMedia even when only
         // system audio is needed. We stop that track immediately below.
         video: true,
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
       });
+      if (generation !== this.operationGeneration) {
+        acquiredStream.getTracks?.().forEach((track) => track.stop());
+        return { success: false, error: 'Captura loopback cancelada.' };
+      }
+      this.stream = acquiredStream;
       const audioTrack = this.stream.getAudioTracks()[0];
       if (!audioTrack) {
         this.stop();
@@ -93,7 +101,7 @@ export class DesktopLoopbackCaptureService {
       const input = this.audioContext.createMediaStreamSource(streamForAudio);
       this.workletNode = new AudioWorkletNode(this.audioContext, 'cristi-loopback-processor');
       this.workletNode.port.onmessage = (event) => {
-        if (!this.running || !(event.data instanceof Float32Array)) return;
+        if (!this.running || generation !== this.operationGeneration || !(event.data instanceof Float32Array)) return;
         const pcm = floatToPcm16(event.data);
         const frameId = `loopback_${Date.now()}_${this.frameCount++}`;
         const data = pcmToBase64(pcm);
@@ -106,18 +114,25 @@ export class DesktopLoopbackCaptureService {
       sink.gain.value = 0;
       this.workletNode.connect(sink).connect(this.audioContext.destination);
       await this.audioContext.resume();
+      if (generation !== this.operationGeneration) {
+        if (this.stream === acquiredStream) this.stop();
+        else acquiredStream?.getTracks?.().forEach((track) => track.stop());
+        return { success: false, error: 'Captura loopback cancelada.' };
+      }
       this.running = true;
       eventBus.emitDomain('audio.loopback_started', { sourceId: this.sourceId }, {
         source: 'system_loopback', privacy: 'external'
       });
       return { success: true, sourceId: this.sourceId, sampleRate: this.audioContext.sampleRate };
     } catch (error) {
-      this.stop();
+      if (generation === this.operationGeneration) this.stop();
+      else acquiredStream?.getTracks?.().forEach((track) => track.stop());
       return { success: false, error: error?.message || String(error) };
     }
   }
 
   stop() {
+    this.operationGeneration += 1;
     this.running = false;
     this.workletNode?.port.close?.();
     this.workletNode?.disconnect?.();

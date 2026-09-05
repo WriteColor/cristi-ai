@@ -140,6 +140,28 @@ test('desktop loopback capture fails safely outside a browser media environment'
   assert.equal(capture.getStatus().running, false);
 });
 
+test('desktop loopback cancellation cannot revive a late permission stream', async () => {
+  const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  const previousWorklet = globalThis.AudioWorkletNode;
+  let resolvePermission;
+  let stopped = 0;
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {
+    mediaDevices: { getDisplayMedia: () => new Promise((resolve) => { resolvePermission = resolve; }) }
+  } });
+  globalThis.AudioWorkletNode = class FakeAudioWorkletNode {};
+  const capture = new DesktopLoopbackCaptureService();
+  const starting = capture.start({ sourceId: 'game_loopback' });
+  capture.stop();
+  resolvePermission({ getTracks: () => [{ stop: () => { stopped += 1; } }], getAudioTracks: () => [] });
+  const result = await starting;
+  assert.equal(result.success, false);
+  assert.equal(stopped, 1);
+  assert.equal(capture.getStatus().running, false);
+  if (previousNavigator) Object.defineProperty(globalThis, 'navigator', previousNavigator);
+  else delete globalThis.navigator;
+  globalThis.AudioWorkletNode = previousWorklet;
+});
+
 test('memory index supports bounded semantic fallback and replacement without stale postings', () => {
   const index = new MemoryIndex({ dimensions: 32 });
   index.upsert({ id: 'one', key: 'juego favorito', content: 'Minecraft por las noches', category: 'preference' });
