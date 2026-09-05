@@ -17,7 +17,7 @@ server.on('playerJoin', (client) => {
     entityId: client.id,
     isHardcore: false,
     gameMode: 0,
-    previousGameMode: 1,
+    previousGameMode: loginPacket.previousGameMode,
     worldNames: loginPacket.worldNames,
     dimensionCodec: loginPacket.dimensionCodec,
     dimension: loginPacket.dimension,
@@ -39,8 +39,17 @@ try {
   const port = server.socketServer.address().port;
   const bot = mineflayer.createBot({ host: '127.0.0.1', port, username: 'Cristi_Local', version: VERSION });
   // The protocol login is the stable transport boundary; a full world/chunk
-  // stream is intentionally outside this fixture.
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  // stream is intentionally outside this fixture. Wait on the actual state
+  // transition instead of assuming a fixed delay under CPU contention.
+  await new Promise((resolve, reject) => {
+    const deadline = Date.now() + 10000;
+    const poll = () => {
+      if (bot._client.state === 'play') return resolve();
+      if (Date.now() >= deadline) return reject(new Error(`Minecraft login timeout (state=${bot._client.state})`));
+      setTimeout(poll, 50);
+    };
+    poll();
+  });
   assert.equal(bot._client.state, 'play');
   bot._client.write('chat', { message: 'Cristi local smoke test' });
   await new Promise((resolve) => setTimeout(resolve, 150));
