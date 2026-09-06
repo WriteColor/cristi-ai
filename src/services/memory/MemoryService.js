@@ -18,6 +18,12 @@ export const MEMORY_CATEGORIES = {
   CONVERSATION: 'conversation'  // Key conversational highlights
 };
 
+const PROMPT_QUERY_STOPWORDS = new Set([
+  'a', 'al', 'de', 'del', 'el', 'ella', 'en', 'es', 'esta', 'este', 'la', 'las', 'lo', 'los',
+  'me', 'mi', 'mis', 'para', 'por', 'que', 'se', 'su', 'sus', 'un', 'una', 'uno', 'y', 'yo',
+  'como', 'con', 'cual', 'cuales', 'cuando', 'donde', 'porque', 'qué', 'quien'
+]);
+
 export class MemoryService {
   constructor({ repository = null, index = null } = {}) {
     this.repository = repository || new MemoryRepository();
@@ -390,17 +396,59 @@ export class MemoryService {
   /**
    * Generates a context block for system prompt injection in Gemini Live
    */
-  getSystemPromptContext() {
+  getSystemPromptContext({ query = '', limit = 12, maxConversationSummaries = 3, maxChars = 5000 } = {}) {
     if (this.memories.length === 0) return '';
 
-    const top = this.getTopMemories(12).filter((memory) => memory.status === 'active');
-    const lines = top.map((m) => `- [${m.category.toUpperCase()}] ${m.key}: ${m.content}`);
+    const active = this.memories.filter((memory) => memory.status === 'active' && (!memory.validUntil || new Date(memory.validUntil).getTime() >= Date.now()));
+    const byRecency = (left, right) => new Date(right.updatedAt || right.createdAt).getTime() - new Date(left.updatedAt || left.createdAt).getTime();
+    const safeLimit = Math.max(1, Math.floor(Number(limit) || 12));
+    const summaryLimit = Math.min(Math.max(0, Math.floor(Number(maxConversationSummaries) || 0)), Math.max(0, safeLimit - 1));
+    const normalizedQuery = String(query || '').trim();
+    const selected = normalizedQuery
+      ? this._selectPromptMemoriesForQuery(normalizedQuery, safeLimit)
+      : [
+          // Stable facts make the companion consistent, while recent session
+          // summaries preserve continuity after a Live call is closed.
+          ...active.filter((memory) => memory.category !== MEMORY_CATEGORIES.CONVERSATION)
+            .sort((left, right) => (right.importance - left.importance) || byRecency(left, right))
+            .slice(0, safeLimit - summaryLimit),
+          ...active.filter((memory) => memory.category === MEMORY_CATEGORIES.CONVERSATION)
+            .sort(byRecency)
+            .slice(0, summaryLimit)
+        ];
+    const seen = new Set();
+    const lines = [];
+    let used = 0;
+    for (const memory of selected) {
+      if (!memory?.id || seen.has(memory.id)) continue;
+      seen.add(memory.id);
+      const content = String(memory.content || '').replace(/\s+/g, ' ').trim();
+      if (!content) continue;
+      const line = `- [${String(memory.category || 'fact').toUpperCase()}] ${memory.key || 'recuerdo'}: ${content}`;
+      if (lines.length && used + line.length > Math.max(600, Number(maxChars) || 5000)) break;
+      lines.push(line);
+      used += line.length + 1;
+    }
+    if (!lines.length) return '';
 
     return `\n\n=== RECUERDOS Y MEMORIA PERMANENTE DE CRISTI ===\nRecuerdas activamente los siguientes hechos y preferencias del usuario:\n${lines.join('\n')}\nUtiliza estos recuerdos de manera natural y afectuosa en tus respuestas cuando sean relevantes.`;
   }
 
-  getMemoryContextPrompt(limit = 12) {
-    return this.getSystemPromptContext();
+  _selectPromptMemoriesForQuery(query, limit) {
+    const queryTokens = new Set(MemoryIndex.tokenize(query).filter((token) => !PROMPT_QUERY_STOPWORDS.has(token)));
+    const semanticScores = this.semanticIndex.score(query);
+    return this.search(query, { limit, minScore: 0.08 }).filter((memory) => {
+      const memoryTokens = MemoryIndex.tokenize(`${memory.key || ''} ${memory.content || ''}`);
+      const lexicalMatch = memoryTokens.some((token) => queryTokens.has(token));
+      // The offline hashed index is intentionally compact. It is useful for
+      // paraphrases, but random bucket collisions must never inject unrelated
+      // conversation history into a live prompt.
+      return lexicalMatch || (semanticScores.get(memory.id) || 0) >= 0.58;
+    });
+  }
+
+  getMemoryContextPrompt(limit = 12, query = '') {
+    return this.getSystemPromptContext({ limit, query });
   }
 }
 
