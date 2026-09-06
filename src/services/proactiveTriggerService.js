@@ -18,15 +18,18 @@ import { logger } from './logger.js';
 import { memoryService } from './memory/MemoryService.js';
 
 const MIN_GLOBAL_INTERVENTION_COOLDOWN_MS = 30000; // 30s minimum between autonomous voice/popups
+const SILENCE_INTERVENTION_COOLDOWN_MS = 180000;
+const PROACTIVE_TOPIC_COOLDOWN_MS = 30 * 60 * 1000;
 const MAX_QUEUED_INTERVENTIONS = 3;
 const INTERVENTION_TTL_MS = 60000; // 60s TTL for queued proactive prompts
 
 export class ProactiveTriggerService {
-  constructor({ geminiSocket = null } = {}) {
+  constructor({ geminiSocket = null, memory = memoryService } = {}) {
     this.isRunning = false;
     this.activeTriggers = new Map();
     this.intervalId = null;
     this.geminiSocket = geminiSocket;
+    this.memory = memory;
     this.unsubscribers = [];
 
     // Focus & Pomodoro State
@@ -56,6 +59,7 @@ export class ProactiveTriggerService {
     this.isModelSpeaking = false;
     this.isUserSpeaking = false;
     this.interventionQueue = []; // Array of { id, text, timestamp, priority }
+    this.recentProactiveMemoryIds = new Map();
 
     this.initDefaultTriggers();
     this.bindEvents();
@@ -217,7 +221,7 @@ export class ProactiveTriggerService {
         const silenceSec = (now - this.lastDialogueTimestamp) / 1000;
         const cooldownSec = (now - this.lastAutonomousInterventionTime) / 1000;
 
-        if (silenceSec >= this.silenceThresholdSec && cooldownSec >= 25) {
+        if (silenceSec >= this.silenceThresholdSec && cooldownSec >= SILENCE_INTERVENTION_COOLDOWN_MS / 1000) {
           return { silenceSec };
         }
         return false;
@@ -232,22 +236,43 @@ export class ProactiveTriggerService {
    * Dispatch an inquisitive conversation starter or personal inquiry turn to Gemini Live
    */
   triggerInquisitiveConversationStarter(silenceSec) {
-    const context = memoryService.retrieveRelevant('pendiente gusto proyecto conversación reciente', { limit: 5 });
+    const now = Date.now();
+    this._pruneProactiveTopics(now);
+    const context = this.memory.getProactiveContext?.({
+      limit: 4,
+      excludeMemoryIds: [...this.recentProactiveMemoryIds.keys()]
+    }) || [];
     eventBus.emitDomain(EVENTS.USER_SILENCE, {
       silenceSec,
       memoryIds: context.map((memory) => memory.id)
-    }, { source: 'proactive', sessionId: memoryService.currentSessionId, privacy: 'internal' });
+    }, { source: 'proactive', sessionId: this.memory.currentSessionId, privacy: 'internal' });
 
-    const memoryLines = context.map((memory) => `- ${memory.content}`).join('\n') || '- No hay recuerdos relevantes.';
-    const promptText = `[SISTEMA PROACTIVO - OPORTUNIDAD CONTEXTUAL]\nHan pasado aproximadamente ${Math.round(silenceSec)} segundos sin diálogo. Decide de forma autónoma si vale la pena intervenir. Si intervienes, formula una sola pregunta o comentario natural, breve y específico usando este contexto; retoma un tema pendiente o muestra curiosidad real. No uses preguntas genéricas ni plantillas repetidas, no encadenes preguntas y guarda información solo si el usuario aporta algo estable.\nContexto recuperado:\n${memoryLines}`;
+    // Silence alone is not a reason to interrupt the user. A recent topic or
+    // an open task is required, and that topic cannot be reused for 30 min.
+    if (!context.length) {
+      this.lastAutonomousInterventionTime = now;
+      return { sent: false, reason: 'no_fresh_context' };
+    }
+
+    const memoryLines = context.map((memory) => `- [${memory.category}] ${memory.content}`).join('\n');
+    const promptText = `[SISTEMA PROACTIVO - OPORTUNIDAD CONTEXTUAL]\nHan pasado aproximadamente ${Math.round(silenceSec)} segundos sin diálogo. Decide de forma autónoma si vale la pena intervenir. Si intervienes, formula una sola pregunta o comentario natural, breve y específico usando un solo tema del contexto; retoma algo pendiente o muestra curiosidad real. No uses preguntas genéricas ni plantillas repetidas, no encadenes preguntas y guarda información solo si el usuario aporta algo estable. Si no puedes decir algo específico y oportuno sobre este contexto, no respondas.\nContexto recuperado:\n${memoryLines}`;
 
     this.recordDialogueActivity();
-    this.lastAutonomousInterventionTime = Date.now();
+    this.lastAutonomousInterventionTime = now;
+    for (const memory of context) this.recentProactiveMemoryIds.set(memory.id, now);
 
     logger.info('PROACTIVE', `Iniciando conversación autónoma tras ${Math.round(silenceSec)}s de silencio:`, promptText);
 
     if (this.geminiSocket && typeof this.geminiSocket.sendTextMessage === 'function') {
       this.geminiSocket.sendTextMessage(promptText);
+      return { sent: true, memoryIds: context.map((memory) => memory.id) };
+    }
+    return { sent: false, reason: 'socket_unavailable' };
+  }
+
+  _pruneProactiveTopics(now = Date.now()) {
+    for (const [memoryId, usedAt] of this.recentProactiveMemoryIds) {
+      if (now - usedAt >= PROACTIVE_TOPIC_COOLDOWN_MS) this.recentProactiveMemoryIds.delete(memoryId);
     }
   }
 
@@ -283,6 +308,7 @@ export class ProactiveTriggerService {
     this.unsubscribers = [];
     this.activeTriggers.clear();
     this.interventionQueue = [];
+    this.recentProactiveMemoryIds.clear();
   }
 
   /**

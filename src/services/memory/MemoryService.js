@@ -351,6 +351,24 @@ export class MemoryService {
       .slice(0, limit);
   }
 
+  getProactiveContext({ limit = 4, excludeMemoryIds = [], maxConversationAgeDays = 21 } = {}) {
+    const now = Date.now();
+    const excluded = new Set(excludeMemoryIds);
+    const active = this.memories.filter((memory) => memory.status === 'active'
+      && !excluded.has(memory.id)
+      && (!memory.validUntil || new Date(memory.validUntil).getTime() >= now));
+    const recentConversationCutoff = now - Math.max(1, Number(maxConversationAgeDays) || 21) * 86400000;
+    const recency = (left, right) => new Date(right.updatedAt || right.createdAt).getTime() - new Date(left.updatedAt || left.createdAt).getTime();
+    const recentConversations = active
+      .filter((memory) => memory.category === MEMORY_CATEGORIES.CONVERSATION && new Date(memory.updatedAt || memory.createdAt).getTime() >= recentConversationCutoff)
+      .sort(recency);
+    const openTasks = active
+      .filter((memory) => memory.category === MEMORY_CATEGORIES.TASK)
+      .sort((left, right) => (right.importance - left.importance) || recency(left, right));
+    const selected = [...recentConversations, ...openTasks];
+    return selected.slice(0, Math.max(1, Math.floor(Number(limit) || 4)));
+  }
+
   getAllMemories() {
     return [...this.memories];
   }

@@ -48,3 +48,21 @@ test('query-specific context avoids injecting unrelated session summaries', asyn
   assert.match(context, /portal del Nether/i);
   assert.doesNotMatch(context, /Discord/i);
 });
+
+test('proactive context prefers recent conversation and open tasks while excluding used topics', async () => {
+  const repository = {
+    storageKey: 'test-memory-proactive',
+    async load() {
+      return [
+        memory('old', 'session_summary_old', 'Un tema demasiado viejo.', MEMORY_CATEGORIES.CONVERSATION, '2020-01-01T00:00:00.000Z'),
+        memory('recent', 'session_summary_recent', 'Quedó pendiente el rendimiento de la llamada.', MEMORY_CATEGORIES.CONVERSATION, '2026-09-05T11:00:00.000Z'),
+        memory('task', 'project', 'Terminar el proyecto de subtítulos.', MEMORY_CATEGORIES.TASK, '2026-09-04T00:00:00.000Z', 0.9)
+      ];
+    },
+    async save() { return true; }
+  };
+  const service = new MemoryService({ repository });
+  await service.initialize();
+  assert.deepEqual(service.getProactiveContext({ limit: 3 }).map((item) => item.id), ['recent', 'task']);
+  assert.deepEqual(service.getProactiveContext({ limit: 3, excludeMemoryIds: ['recent'] }).map((item) => item.id), ['task']);
+});

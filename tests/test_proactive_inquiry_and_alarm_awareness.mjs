@@ -8,6 +8,7 @@ import { proactiveScheduler } from '../src/services/proactiveScheduler.js';
 import { proactiveTriggerService } from '../src/services/proactiveTriggerService.js';
 import { toastService } from '../src/services/toastService.js';
 import { eventBus, EVENTS } from '../src/services/eventBus.js';
+import { memoryService, MEMORY_CATEGORIES } from '../src/services/memory/MemoryService.js';
 
 console.log('========================================================================');
 console.log('🧪 TEST: PROACTIVE INQUIRY ENGINE & ALARM AWARENESS + DISMISS BUG FIX');
@@ -99,6 +100,13 @@ assert(proactiveTriggerService.silenceThresholdSec >= 30, 'silenceThresholdSec d
 // Force trigger an inquisitive conversation starter
 proactiveTriggerService.lastDialogueTimestamp = Date.now() - 60000; // 60s ago
 proactiveTriggerService.lastAutonomousInterventionTime = 0;
+await memoryService.remember({
+  key: 'test_proactive_context',
+  content: 'Ariel dejó pendiente comprobar la estabilidad de la llamada.',
+  category: MEMORY_CATEGORIES.CONVERSATION,
+  importance: 0.8,
+  source: 'test'
+});
 
 proactiveTriggerService.triggerInquisitiveConversationStarter(60);
 assert(dispatchedMessage !== null, 'triggerInquisitiveConversationStarter debe enviar un turno de texto a Gemini Live');
