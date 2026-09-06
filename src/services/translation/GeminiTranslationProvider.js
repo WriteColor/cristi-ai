@@ -149,6 +149,30 @@ export class GeminiTranslationProvider {
     return translated ? { text: translated } : null;
   }
 
+  /**
+   * Reduces the external pipeline by one network round trip. Gemini detects
+   * the source language while translating, then the core service can emit the
+   * subtitle before TTS completes.
+   */
+  async translateAndDetect({ text, targetLanguage = 'es' } = {}) {
+    const raw = await this.request(this.translationModel, [
+      {
+        text: `Detecta el idioma ISO 639-1 y traduce el texto a ${targetLanguage}. ` +
+          'Devuelve JSON estricto con las claves "sourceLanguage" y "text", sin markdown:\n' +
+          String(text || '')
+      }
+    ], { responseMimeType: 'application/json' });
+    try {
+      const parsed = JSON.parse(raw);
+      const translated = String(parsed?.text || '').trim();
+      if (translated) return { text: translated, sourceLanguage: normalizeLanguage(parsed?.sourceLanguage) };
+    } catch (_) {
+      // Some preview models can ignore responseMimeType. Preserve a useful
+      // translation rather than failing the live voice path.
+    }
+    return raw ? { text: raw, sourceLanguage: null } : null;
+  }
+
   async isRelevant({ text } = {}) {
     return Boolean(String(text || '').trim());
   }

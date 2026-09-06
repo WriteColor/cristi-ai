@@ -286,6 +286,7 @@ export const EVENTS = {
   DISCORD_CONNECTED: 'discord_connected',
   DISCORD_DISCONNECTED: 'discord_disconnected',
   TRANSLATION_REQUESTED: 'translation_requested',
+  TRANSLATION_TEXT_READY: 'translation_text_ready',
   TRANSLATION_COMPLETED: 'translation_completed',
 
   // Memory lifecycle and proactive opportunities

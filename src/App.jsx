@@ -49,7 +49,8 @@ import {
   interactionOrchestrator,
   translationService,
   GeminiTranslationProvider,
-  desktopLoopbackCaptureService
+  desktopLoopbackCaptureService,
+  TranslationOutputCoordinator
 } from './services/index.js';
 import {
   DEFAULT_MODEL_ID,
@@ -168,9 +169,11 @@ export function App() {
   // --- Subtitles / User & Model Transcripts & Decision Toasts ---
   const [userTranscript, setUserTranscript] = useState('');
   const [modelTranscript, setModelTranscript] = useState('');
+  const [translationTranscript, setTranslationTranscript] = useState('');
   const subtitleTimeoutRef = useRef(null);
   const userSubtitleTimeoutRef = useRef(null);
   const modelSubtitleTimeoutRef = useRef(null);
+  const translationSubtitleTimeoutRef = useRef(null);
   const decisionTimeoutRef = useRef(null);
 
   const setSubtitleText = useCallback((text) => {
@@ -262,32 +265,21 @@ export function App() {
   const lastVisionSendTimeRef = useRef(0);
   const translationProviderRef = useRef(null);
 
-  // External audio translation is opt-in. When enabled, capture sources are
-  // batched into short utterances so Gemini REST never receives one request
-  // per AudioWorklet frame and cannot starve the Live call.
+  // External translation is globally opt-in, then each capture source must
+  // request translation explicitly through its tool. Configuring a provider
+  // must never silently attach the system mixer or a Discord voice channel.
   useEffect(() => {
     const enabled = config?.externalTranslationEnabled === true && Boolean(config?.apiKey);
+    translationService.setEnabled(enabled);
     if (!enabled) {
-      translationService.detachSource(desktopLoopbackCaptureService);
-      translationService.detachEventSource('discord.voice_audio');
       return undefined;
     }
     const provider = translationProviderRef.current || new GeminiTranslationProvider();
     provider.configure({ apiKey: config.apiKey, voiceName: config.voiceName || 'Kore' });
     translationProviderRef.current = provider;
     translationService.configure(provider);
-    translationService.attachSource(desktopLoopbackCaptureService, {
-      targetLanguage: config.translationTargetLanguage || 'es',
-      aggregateMs: config.translationAggregateMs || 400,
-      relevanceGate: true
-    });
-    translationService.attachEventSource('discord.voice_audio', {
-      targetLanguage: config.translationTargetLanguage || 'es',
-      aggregateMs: config.translationAggregateMs || 400,
-      relevanceGate: true
-    });
     return undefined;
-  }, [config?.apiKey, config?.externalTranslationEnabled, config?.translationTargetLanguage, config?.translationAggregateMs]);
+  }, [config?.apiKey, config?.voiceName, config?.externalTranslationEnabled, config?.translationTargetLanguage, config?.translationAggregateMs]);
 
   /**
    * Unified, Rate-Gated Vision Frame Dispatcher for Gemini Live
@@ -376,6 +368,7 @@ export function App() {
     if (subtitleTimeoutRef.current) clearTimeout(subtitleTimeoutRef.current);
     if (userSubtitleTimeoutRef.current) clearTimeout(userSubtitleTimeoutRef.current);
     if (modelSubtitleTimeoutRef.current) clearTimeout(modelSubtitleTimeoutRef.current);
+    if (translationSubtitleTimeoutRef.current) clearTimeout(translationSubtitleTimeoutRef.current);
     if (decisionTimeoutRef.current) clearTimeout(decisionTimeoutRef.current);
   }, []);
 
@@ -599,6 +592,29 @@ export function App() {
       if (audioOutRef.current) {
         audioOutRef.current.destroy();
       }
+    };
+  }, []);
+
+  // Translation output has an independent transcript, but shares the ordered
+  // PCM player so it cannot overlap Cristi's live voice or feed the loopback
+  // path while it is rendered.
+  useEffect(() => {
+    const coordinator = new TranslationOutputCoordinator({
+      getAudioOutput: () => audioOutRef.current
+    });
+    coordinator.start();
+    const unsubscribe = eventBus.on('translation.local_output', (envelope) => {
+      const result = envelope?.payload || envelope;
+      if (!result?.translation) return;
+      const speaker = result.speakerId ? ` (${result.speakerId})` : '';
+      setTranslationTranscript(`TRADUCCIÓN${speaker}: ${result.translation}`);
+      if (translationSubtitleTimeoutRef.current) clearTimeout(translationSubtitleTimeoutRef.current);
+      translationSubtitleTimeoutRef.current = setTimeout(() => setTranslationTranscript(''), 15000);
+    });
+    return () => {
+      unsubscribe?.();
+      coordinator.destroy();
+      if (translationSubtitleTimeoutRef.current) clearTimeout(translationSubtitleTimeoutRef.current);
     };
   }, []);
 
@@ -1542,6 +1558,7 @@ export function App() {
       <SubtitleOverlay
         userTranscript={userTranscript}
         modelTranscript={modelTranscript}
+        translationTranscript={translationTranscript}
         activeDecision={activeDecision}
         isVisible={isUiVisible && !isZenMode}
       />

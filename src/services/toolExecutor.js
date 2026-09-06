@@ -634,18 +634,31 @@ export class ToolExecutor {
         const sourceId = typeof args.source_id === 'string' && args.source_id.trim()
           ? args.source_id.trim()
           : 'system_loopback';
+        if (args.translate === true && !translationService.isEnabled()) {
+          return {
+            status: 'translation_disabled',
+            sourceId,
+            message: 'La traducción externa está desactivada en Ajustes; activa la opción antes de iniciar una fuente traducida.'
+          };
+        }
+        if (args.translate !== true) translationService.detachSource(desktopLoopbackCaptureService);
         const result = await desktopLoopbackCaptureService.start({
           sourceId,
           includeVideo: args.keep_video_track === true
         });
         if (result?.success && args.translate === true) {
-          translationService.attachSource(desktopLoopbackCaptureService, {
+          const attached = translationService.attachSource(desktopLoopbackCaptureService, {
             targetLanguage: typeof args.target_language === 'string' ? args.target_language : 'es',
             aggregateMs: Number(args.aggregate_ms) || 400,
             relevanceGate: true
           });
+          return {
+            ...result,
+            sourceId,
+            translation: { enabled: true, attached, outputRoute: 'local' }
+          };
         }
-        return { ...result, sourceId };
+        return { ...result, sourceId, translation: { enabled: false } };
       }
 
       case 'stop_desktop_audio_capture': {
@@ -810,8 +823,18 @@ export class ToolExecutor {
 
       case 'discord_voice_join': {
         const result = await discordVoiceService.join({ guildId: args.guild_id, channelId: args.channel_id });
+        if (args.translate !== true) translationService.detachEventSource('discord.voice_audio');
         if (result?.success && args.translate === true) {
-          translationService.attachEventSource('discord.voice_audio', {
+          if (!translationService.isEnabled()) {
+            return {
+              ...result,
+              translation: {
+                enabled: false,
+                error: 'La traducción externa está desactivada en Ajustes.'
+              }
+            };
+          }
+          const attached = translationService.attachEventSource('discord.voice_audio', {
             targetLanguage: typeof args.target_language === 'string' ? args.target_language : 'es',
             aggregateMs: 400,
             relevanceGate: true,
@@ -819,6 +842,10 @@ export class ToolExecutor {
             guildId: args.guild_id,
             channelId: args.channel_id
           });
+          return {
+            ...result,
+            translation: { enabled: true, attached, outputRoute: args.output_route === 'discord_voice' ? 'discord_voice' : 'local' }
+          };
         }
         return result;
       }

@@ -8,6 +8,7 @@ import React from 'react';
 export function SubtitleOverlay({
   userTranscript = '',
   modelTranscript = '',
+  translationTranscript = '',
   activeDecision = null,
   isVisible = true
 }) {
@@ -38,7 +39,14 @@ export function SubtitleOverlay({
         .trim()
     : '';
 
-  const hasContent = Boolean(cleanUser || cleanModel);
+  const cleanTranslation = translationTranscript
+    ? translationTranscript
+        .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+    : '';
+
+  const hasContent = Boolean(cleanUser || cleanModel || cleanTranslation);
   if (!hasContent) return null;
 
   return (
@@ -54,6 +62,18 @@ export function SubtitleOverlay({
           </span>
           <span className="min-w-0 whitespace-pre-wrap break-words text-zinc-100 font-sans leading-relaxed text-base max-h-56 max-h-[min(70vh,40rem)] overflow-y-auto">
             {cleanModel}
+          </span>
+        </div>
+      )}
+
+      {/* Traducción externa: mantiene su propio panel para no reemplazar la conversación Live. */}
+      {cleanTranslation && (
+        <div className="flex items-start gap-2.5 px-3.5 py-2 rounded-lg bg-cyan-950/90 border border-cyan-400/35 shadow-2xl w-full">
+          <span className="px-1.5 py-0.5 bg-cyan-950 border border-cyan-400/40 text-cyan-200 text-[10px] font-mono font-bold rounded shrink-0">
+            TRADUCCIÓN
+          </span>
+          <span className="min-w-0 whitespace-pre-wrap break-words text-zinc-100 font-sans leading-relaxed text-base max-h-56 max-h-[min(70vh,40rem)] overflow-y-auto">
+            {cleanTranslation}
           </span>
         </div>
       )}

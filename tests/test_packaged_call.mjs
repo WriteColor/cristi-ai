@@ -122,6 +122,47 @@ try {
   assert.equal(sseSmoke.disconnected?.success, true, 'MCP SSE libera EventSource en desconexión');
   report.checks.push('Real MCP SSE endpoint; discovery, tools/call and close');
 
+  // This is deliberately a local page: it proves the production main process
+  // loads Playwright from app.asar and launches Brave.exe, without touching a
+  // user profile or a public website.
+  const braveFixture = http.createServer((request, response) => {
+    if (request.url !== '/form') {
+      response.writeHead(404);
+      response.end();
+      return;
+    }
+    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    response.end(`<!doctype html><title>Cristi Brave fixture</title>
+      <label>Mensaje <input id="message" /></label>
+      <button id="confirm" type="button" onclick="document.querySelector('#result').textContent = document.querySelector('#message').value">Confirmar</button>
+      <output id="result"></output>`);
+  });
+  await new Promise((resolve, reject) => { braveFixture.once('error', reject); braveFixture.listen(0, '127.0.0.1', resolve); });
+  const braveAddress = braveFixture.address();
+  try {
+    const playwrightSmoke = await page.evaluate(async (url) => {
+      const launched = await window.electronAPI.playwrightExecute('launch', { headless: true, url });
+      if (!launched?.success) return { launched };
+      const filled = await window.electronAPI.playwrightExecute('fill', { selector: '#message', value: 'Brave empaquetado funciona' });
+      const clicked = await window.electronAPI.playwrightExecute('click', { selector: '#confirm' });
+      const content = await window.electronAPI.playwrightExecute('get_content', { selector: '#result' });
+      const screenshot = await window.electronAPI.playwrightExecute('screenshot', { fullPage: false });
+      const closed = await window.electronAPI.playwrightExecute('close');
+      return { launched, filled, clicked, content, screenshot: { success: screenshot?.success, size: screenshot?.size }, closed };
+    }, `http://127.0.0.1:${braveAddress.port}/form`);
+    report.playwrightSmoke = playwrightSmoke;
+    assert.equal(playwrightSmoke.launched?.success, true, 'El ejecutable empaquetado carga Playwright y abre Brave.exe');
+    assert.equal(playwrightSmoke.filled?.success, true);
+    assert.equal(playwrightSmoke.clicked?.success, true);
+    assert.equal(playwrightSmoke.content?.content, 'Brave empaquetado funciona');
+    assert.equal(playwrightSmoke.screenshot?.success, true);
+    assert.ok(playwrightSmoke.screenshot?.size > 100);
+    assert.equal(playwrightSmoke.closed?.success, true);
+    report.checks.push('Packaged Playwright launches Brave.exe and completes a local DOM workflow');
+  } finally {
+    await new Promise(resolve => braveFixture.close(resolve));
+  }
+
   // Exercise the optional privileged WASAPI transport included in the
   // Windows package. The default render endpoint may be silent in CI, so the
   // contract requires a clean start/status/stop lifecycle rather than audio

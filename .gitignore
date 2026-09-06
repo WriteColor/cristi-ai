@@ -25,6 +25,7 @@ neutralinojs.log
 tests/screenshots/
 tests/videos/
 tests/output/electron-probe-*/
+tests/output/playwright-package-audit-*/
 tests/output/native-vision-profile-*/
 tests/output/native-vision-latest.jpg
 tests/output/live-native-vision-lifecycle.json

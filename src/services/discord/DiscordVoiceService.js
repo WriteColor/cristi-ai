@@ -2,6 +2,16 @@ import { electronBridge } from '../desktop/ElectronBridge.js';
 import { eventBus, EVENTS } from '../eventBus.js';
 import { audioRoutingService } from '../translation/AudioRoutingService.js';
 
+const STATUS_BY_TRANSPORT_EVENT = Object.freeze({
+  ready: 'connected',
+  disconnect: 'reconnecting',
+  reconnecting: 'reconnecting',
+  reconnect_error: 'reconnecting',
+  reconnect_failed: 'disconnected',
+  disconnected: 'disconnected',
+  destroyed: 'disconnected'
+});
+
 /**
  * Voice-channel adapter. Discord transport remains in Electron main; this
  * service only owns source labels, loop prevention and renderer integration.
@@ -14,7 +24,8 @@ export class DiscordVoiceService {
     this.session = null;
     this.unsubscribeAudio = bridge?.onDiscordVoiceAudio?.((frame) => this.handleAudio(frame));
     this.unsubscribeEvent = bridge?.onDiscordVoiceEvent?.((event) => {
-      this.status = event?.type === 'ready' ? 'connected' : event?.type === 'disconnected' || event?.type === 'destroyed' ? 'disconnected' : this.status;
+      const nextStatus = STATUS_BY_TRANSPORT_EVENT[event?.type];
+      if (nextStatus) this.status = nextStatus;
       this.bus.emitDomain(`discord.voice_${event?.type || 'event'}`, event || {}, {
         source: 'discord_voice', privacy: 'internal', sessionId: this.session?.sessionId || null
       });
@@ -34,23 +45,33 @@ export class DiscordVoiceService {
 
   async join({ guildId, channelId } = {}) {
     if (!guildId || !channelId) return { success: false, error: 'guildId y channelId son obligatorios.' };
+    this.status = 'connecting';
     const result = await this.bridge.discordVoiceJoin?.({ guildId, channelId });
     if (result?.success) {
       this.status = 'connected';
       this.session = { guildId, channelId, sessionId: `discord_voice_${guildId}_${channelId}` };
+    } else {
+      this.status = 'disconnected';
+      this.session = null;
     }
     return result || { success: false, error: 'La API de voz de Electron no está disponible.' };
   }
 
   async leave() {
-    const result = await this.bridge.discordVoiceLeave?.();
-    this.status = 'disconnected';
-    this.session = null;
-    return result || { success: true };
+    try {
+      const result = await this.bridge.discordVoiceLeave?.();
+      return result || { success: true };
+    } finally {
+      this.status = 'disconnected';
+      this.session = null;
+    }
   }
 
   async sendAudio({ data, frameId = null } = {}) {
     if (!data) return { success: false, error: 'Audio vacío.' };
+    if (this.status !== 'connected' || !this.session) {
+      return { success: false, error: 'La conexión de voz de Discord no está lista para enviar audio.' };
+    }
     const id = frameId || `cristi_discord_voice_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     audioRoutingService.markGenerated(id, 'cristi_discord_voice');
     const result = await this.bridge.discordVoiceSendAudio?.({ data, frameId: id });
@@ -58,7 +79,7 @@ export class DiscordVoiceService {
   }
 
   handleAudio(frame) {
-    if (!frame?.data || !frame.userId) return null;
+    if (this.status !== 'connected' || !frame?.data || !frame.userId) return null;
     const sourceId = `discord_voice:${frame.guildId || 'unknown'}:${frame.userId}`;
     const routed = audioRoutingService.acceptFrame({
       frameId: frame.frameId,
