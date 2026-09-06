@@ -23,7 +23,7 @@ export class VisionStreamManager {
         return region === this.screenRegion ? frame : null;
       },
       onFrame: frame => this.frameDispatcher.enqueue(frame, 'screen'),
-      shouldCapture: () => !this.isAiSpeaking && this.socketRef?.current?.isConnected
+      shouldCapture: () => this.socketRef?.current?.isConnected
         && (this.socketRef.current.websocket?.bufferedAmount || 0) <= 65536,
       onError: error => logger.warn('VISION', 'Error capturando pantalla:', error.message)
     });
@@ -43,7 +43,8 @@ export class VisionStreamManager {
         return this.cameraCanvas.toDataURL('image/jpeg', 0.7).split(',')[1];
       },
       onFrame: frame => this.frameDispatcher.enqueue(frame, 'camera'),
-      shouldCapture: () => !this.isAiSpeaking,
+      shouldCapture: () => this.socketRef?.current?.isConnected
+        && (this.socketRef.current.websocket?.bufferedAmount || 0) <= 65536,
       onError: error => logger.warn('VISION', 'Error capturando cámara:', error.message)
     });
     this.cameraStream = null;
@@ -59,7 +60,9 @@ export class VisionStreamManager {
       gender: null
     };
 
-    // Speech Protection: Pause image streaming while Cristi is speaking to prevent audio stuttering
+    // Audio state triggers a prompt fresh frame once speech ends. The shared
+    // dispatcher keeps a low-rate visual budget during speech instead of
+    // starving Gemini of context for the entire response.
     this.isAiSpeaking = false;
     this.unsubAudioStart = eventBus.on(EVENTS.AUDIO_START, () => {
       this.isAiSpeaking = true;

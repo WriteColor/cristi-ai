@@ -50,11 +50,13 @@ export class DiscordCompanionService {
       const item = { ...message, receivedAt: Date.now() };
       this.recentMessages.push(item);
       if (this.recentMessages.length > this.maxRecentMessages) this.recentMessages.shift();
-      const autoReplyEligible = this.isAutoReplyEligible(message.channelId);
+      const autoReplyEligible = this.isAutoReplyEligible(message.channelId, message);
+      const correlationId = message?.id ? `discord_${message.id}` : undefined;
       this.bus.emitDomain(EVENTS.DISCORD_MESSAGE, { ...item, autoReplyEligible }, {
         source: 'discord',
         privacy: 'external',
-        sessionId: `discord_${message.channelId || 'unknown'}`
+        sessionId: `discord_${message.channelId || 'unknown'}`,
+        correlationId
       });
     });
     this.unsubscribeEvent = this.bridge?.onDiscordEvent?.((event) => {
@@ -123,10 +125,27 @@ export class DiscordCompanionService {
     return { ...this.config };
   }
 
-  isAutoReplyEligible(channelId) {
+  isAutoReplyEligible(channelIdOrMessage, maybeMessage = null) {
     if (!this.config.autoReply) return false;
-    const id = String(channelId || '').trim();
-    return Boolean(id && this.config.monitoredChannels.includes(id));
+    const message = (typeof channelIdOrMessage === 'object' && channelIdOrMessage !== null)
+      ? channelIdOrMessage
+      : maybeMessage;
+    const channelId = String(
+      (typeof channelIdOrMessage === 'string' ? channelIdOrMessage : '') ||
+      message?.channelId ||
+      ''
+    ).trim();
+
+    if (message?.isMentioned === true || message?.isDirectMessage === true) {
+      return true;
+    }
+    if (message?.content && this.config.prefix && message.content.startsWith(this.config.prefix)) {
+      return true;
+    }
+    if (this.config.monitoredChannels && this.config.monitoredChannels.length > 0) {
+      return Boolean(channelId && this.config.monitoredChannels.includes(channelId));
+    }
+    return Boolean(channelId);
   }
 
   async connect(token = null) {

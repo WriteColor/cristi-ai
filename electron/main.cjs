@@ -1770,6 +1770,18 @@ ipcMain.handle('minecraft-connect', async (event, opts = {}) => {
         }
       });
 
+      bot.on('health', () => {
+        notifyMinecraftEvent('health', { health: bot.health, food: bot.food });
+      });
+      bot.on('death', () => {
+        notifyMinecraftEvent('death', { message: 'El bot ha muerto en el juego.' });
+      });
+      bot.on('entityHurt', (entity) => {
+        if (entity === bot.entity) {
+          notifyMinecraftEvent('hurt', { health: bot.health });
+        }
+      });
+
       bot.on('kicked', (reason) => notifyMinecraftEvent('kicked', { reason: String(reason || '') }));
       bot.on('end', (reason) => {
         if (!releaseMinecraftBot(bot, connectionId)) return;
@@ -1821,14 +1833,43 @@ ipcMain.handle('minecraft-get-status', () => {
   try {
     const pos = mcBot.entity?.position || { x: 0, y: 0, z: 0 };
     const players = Object.keys(mcBot.players || {}).filter(p => p !== mcBot.username);
+
+    const nearbyEntities = [];
+    if (mcBot.entities) {
+      for (const entity of Object.values(mcBot.entities)) {
+        if (!entity || entity === mcBot.entity || !entity.position) continue;
+        const dist = Math.hypot(entity.position.x - pos.x, entity.position.y - pos.y, entity.position.z - pos.z);
+        if (dist <= 24) {
+          nearbyEntities.push({
+            id: entity.id,
+            name: entity.name || entity.username || 'unknown',
+            type: entity.type || 'entity',
+            distance: Math.round(dist * 10) / 10,
+            isHostile: Boolean(entity.kind === 'Hostile' || ['creeper', 'zombie', 'skeleton', 'spider', 'witch', 'enderman', 'phantom', 'drowned'].includes((entity.name || '').toLowerCase()))
+          });
+        }
+      }
+    }
+    nearbyEntities.sort((a, b) => a.distance - b.distance);
+
+    const inventory = (mcBot.inventory?.items?.() || []).map(i => ({
+      name: i.name,
+      count: i.count,
+      slot: i.slot
+    }));
+
     return {
       status: 'connected',
       connectionId: mcConnectionId,
-      health: mcBot.health || 20,
-      food: mcBot.food || 20,
+      health: mcBot.health ?? 20,
+      food: mcBot.food ?? 20,
       position: { x: Math.round(pos.x), y: Math.round(pos.y), z: Math.round(pos.z) },
       dimension: mcBot.game?.dimension || 'overworld',
-      nearbyPlayers: players
+      timeOfDay: mcBot.time?.timeOfDay,
+      isRaining: Boolean(mcBot.isRaining),
+      nearbyPlayers: players,
+      nearbyEntities: nearbyEntities.slice(0, 20),
+      inventory
     };
   } catch (e) {
     return { status: 'error', error: e.message };
@@ -2158,14 +2199,23 @@ ipcMain.handle('discord-connect', async (event, { token, statusMessage, activity
       client.on('messageCreate', (message) => {
         if (!isCurrentDiscordClient(client, connectionId) || message.author.bot) return;
         if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
+          const isMentioned = Boolean(client.user?.id && (
+            message.mentions?.has?.(client.user.id) ||
+            message.mentions?.users?.has?.(client.user.id)
+          ));
+          const isDirectMessage = Boolean(!message.guildId || message.channel?.isDMBased?.() || message.channel?.type === 1);
           mainWindow.webContents.send('discord-message', {
+            id: message.id,
             channelId: message.channelId,
             channelName: message.channel?.name || 'DM',
             authorId: message.author.id,
             authorName: message.author.username,
             content: message.content,
-            guildId: message.guildId, connectionId,
-            guildName: message.guild?.name || 'Direct Message'
+            guildId: message.guildId,
+            connectionId,
+            guildName: message.guild?.name || 'Direct Message',
+            isMentioned,
+            isDirectMessage
           });
         }
       });

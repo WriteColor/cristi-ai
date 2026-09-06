@@ -156,8 +156,29 @@ runSuite('Voice Hot-Swap & No Microsoft Fallback', 'node tests/test_voice_hotswa
 console.log('\n[28/29] Ejecutando suite de Prevención de Congelamiento y Bucle de Llamada en Cámara...');
 runSuite('Camera Freeze & Reconnect Fix', 'node tests/test_camera_freeze_and_reconnect_fix.mjs', 'DWM pop-up-menu coexistence, 0.5 FPS self-paced camera frames, Speech Shield protection & clean sockets');
 
-console.log('\n[29/29] Ejecutando suite de Barge-In Dual y Coordinación Visión-Voz...');
+console.log('\n[29/36] Ejecutando suite de Barge-In Dual y Coordinación Visión-Voz...');
 runSuite('Barge-In & Vision-Voice Coordination', 'node tests/test_barge_in_and_vision_voice_coordination.mjs', 'Server-confirmed interruption, full-duplex streaming, vision rate gate & autoplay protection');
+
+console.log('\n[30/36] Ejecutando suite de Catálogo de Herramientas y Contratos de Eventos (Pilar 1)...');
+runSuite('Tools Catalog & Event Contracts', 'node tests/test_tools_catalog_and_event_contracts.mjs', '20 core domain event contracts, 17 tools catalog & Gemini Live schema');
+
+console.log('\n[31/36] Ejecutando suite de Memoria Multicapa y Consolidación de Sesión (Pilar 2)...');
+runSuite('Multi-Layer Memory & Consolidation', 'node tests/test_memory_service_enhanced.mjs', 'Cross-session continuity, preference extraction, contradiction lineage & forgetting');
+
+console.log('\n[32/36] Ejecutando suite de Compañero Autónomo de Discord (Pilar 3)...');
+runSuite('Discord Autonomous Companion', 'node --test tests/test_discord_autonomous_companion.mjs', 'Mentions, direct messages, correlationId & async reply pipeline');
+
+console.log('\n[33/36] Ejecutando suite de Percepción y Telemetría de Videojuegos (Pilar 4)...');
+runSuite('Minecraft Perception & Telemetry', 'node --test tests/test_minecraft_companion_advanced.mjs', 'Hostile threat detection, health/damage events, perception summaries & decoupled dispatch');
+
+console.log('\n[34/36] Ejecutando suite de Árbitro Proactivo y Diálogo Espontáneo (Pilar 5)...');
+runSuite('Proactive Arbiter & Breathing Room', 'node --test tests/test_proactive_arbiter.mjs', '15s user-speech cooldown veto, question-chaining prevention & priority threat bypass');
+
+console.log('\n[35/36] Ejecutando suite de Audio In-Game y Blindaje contra Acople (Pilar 6)...');
+runSuite('Game Audio & Feedback Shield', 'node --test tests/test_virtual_audio_output.mjs tests/test_translation_output.mjs', 'Virtual output separation, loopback protection & bidirectional translation');
+
+console.log('\n[36/36] Ejecutando suite Maestra de Integración de los 6 Pilares...');
+runSuite('Full 6-Pillar Architecture Master Integration', 'node tests/test_full_architecture_integration.mjs', 'End-to-end multi-layer verification across all 6 architectural pillars');
 
 // ── In-Process Verifications ────────────────────────────────────────────────
 console.log('\n[IN-PROCESS] Verificando ConfigManager y copias de seguridad...');

@@ -34,7 +34,7 @@ function socket(sent) {
     sendRealtimeMedia(data) { sent.push({ data, time: Date.now() }); return true; } };
 }
 
-test('AUDIO_END immediate frame preserves subsequent periodic captures', async t => {
+test('screen capture remains paced during speech and refreshes immediately after it', async t => {
   setup(t);
   const frames = [];
   const capture = new ScreenCaptureService({ onFrame: frame => frames.push(frame) });
@@ -45,16 +45,16 @@ test('AUDIO_END immediate frame preserves subsequent periodic captures', async t
   assert.equal(frames.length, 1);
   eventBus.emit(EVENTS.AUDIO_START);
   await advance(t, 2000);
-  assert.equal(frames.length, 1);
+  assert.equal(frames.length, 2);
   eventBus.emit(EVENTS.AUDIO_END);
   await advance(t, 120);
-  assert.equal(frames.length, 2);
+  assert.equal(frames.length, 3);
   await advance(t, 2000);
   await advance(t, 2000);
-  assert.equal(frames.length, 4, 'capture must continue beyond the immediate frame');
+  assert.equal(frames.length, 5, 'capture must continue beyond the immediate frame');
   capture.stopAll();
   await advance(t, 10000);
-  assert.equal(frames.length, 4);
+  assert.equal(frames.length, 5);
 });
 
 test('slow IPC cannot overlap immediate capture or publish into a restarted session', async t => {

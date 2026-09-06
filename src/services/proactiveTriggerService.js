@@ -23,13 +23,87 @@ const PROACTIVE_TOPIC_COOLDOWN_MS = 30 * 60 * 1000;
 const MAX_QUEUED_INTERVENTIONS = 3;
 const INTERVENTION_TTL_MS = 60000; // 60s TTL for queued proactive prompts
 
+export class ProactiveArbiter {
+  constructor({
+    minRelevanceThreshold = 0.65,
+    userSpeechCooldownMs = 15000,
+    topicCooldownMs = 30 * 60 * 1000
+  } = {}) {
+    this.minRelevanceThreshold = minRelevanceThreshold;
+    this.userSpeechCooldownMs = userSpeechCooldownMs;
+    this.topicCooldownMs = topicCooldownMs;
+    this.lastUserSpeechEnded = 0;
+    this.lastModelTurnWasQuestion = false;
+    this.userAnsweredSinceLastQuestion = true;
+  }
+
+  recordUserSpeechEnded(timestamp = Date.now()) {
+    this.lastUserSpeechEnded = timestamp;
+    this.userAnsweredSinceLastQuestion = true;
+  }
+
+  recordModelSpoke(text = '', isQuestion = false) {
+    this.lastModelTurnWasQuestion = isQuestion || (typeof text === 'string' && (text.includes('?') || text.includes('¿')));
+    if (this.lastModelTurnWasQuestion) {
+      this.userAnsweredSinceLastQuestion = false;
+    }
+  }
+
+  evaluate({
+    silenceSec = 0,
+    context = [],
+    now = Date.now(),
+    isModelSpeaking = false,
+    isUserSpeaking = false,
+    gameThreat = null
+  } = {}) {
+    if (isModelSpeaking) {
+      return { allowed: false, reason: 'model_speaking', score: 0 };
+    }
+    if (isUserSpeaking) {
+      return { allowed: false, reason: 'user_speaking', score: 0 };
+    }
+    if (this.lastUserSpeechEnded && now - this.lastUserSpeechEnded < this.userSpeechCooldownMs) {
+      return { allowed: false, reason: 'user_speech_cooldown', score: 0, remainingCooldownMs: this.userSpeechCooldownMs - (now - this.lastUserSpeechEnded) };
+    }
+    if (this.lastModelTurnWasQuestion && !this.userAnsweredSinceLastQuestion && !gameThreat) {
+      return { allowed: false, reason: 'question_chaining_veto', score: 0 };
+    }
+
+    let score = 0.5;
+    if (gameThreat) {
+      score += 0.4;
+    }
+    if (Array.isArray(context) && context.length > 0) {
+      score += 0.15;
+      const hasTaskOrProject = context.some((c) => ['task', 'project', 'episodic'].includes(c?.category));
+      const hasConversationOrPref = context.some((c) => ['preference', 'conversation', 'fact'].includes(c?.category));
+      if (hasTaskOrProject) score += 0.15;
+      else if (hasConversationOrPref) score += 0.10;
+      score = Math.min(1.0, score + Math.min(0.2, context.length * 0.05));
+    } else if (!gameThreat) {
+      return { allowed: false, reason: 'no_context', score: 0.2 };
+    }
+
+    if (silenceSec >= 30) score = Math.min(1.0, score + 0.05);
+
+    const allowed = score >= this.minRelevanceThreshold;
+    return {
+      allowed,
+      score: Math.round(score * 100) / 100,
+      reason: allowed ? 'passed' : 'below_threshold'
+    };
+  }
+}
+
 export class ProactiveTriggerService {
-  constructor({ geminiSocket = null, memory = memoryService } = {}) {
+  constructor({ geminiSocket = null, memory = memoryService, arbiter = null } = {}) {
     this.isRunning = false;
     this.activeTriggers = new Map();
     this.intervalId = null;
     this.geminiSocket = geminiSocket;
     this.memory = memory;
+    this.arbiter = arbiter || new ProactiveArbiter();
     this.unsubscribers = [];
 
     // Focus & Pomodoro State
@@ -113,7 +187,14 @@ export class ProactiveTriggerService {
     this.unsubscribers.push(
       eventBus.on(EVENTS.USER_STOPPED_SPEAKING, () => {
         this.isUserSpeaking = false;
+        this.arbiter.recordUserSpeechEnded(Date.now());
         this.recordDialogueActivity();
+      })
+    );
+
+    this.unsubscribers.push(
+      eventBus.on('game.threat_alert', (threat) => {
+        this.handleGameThreatAlert(threat?.payload || threat);
       })
     );
 
@@ -242,30 +323,38 @@ export class ProactiveTriggerService {
       limit: 4,
       excludeMemoryIds: [...this.recentProactiveMemoryIds.keys()]
     }) || [];
+
+    const evaluation = this.arbiter.evaluate({
+      silenceSec,
+      context,
+      now,
+      isModelSpeaking: this.isModelSpeaking,
+      isUserSpeaking: this.isUserSpeaking
+    });
+
+    if (!evaluation.allowed) {
+      return { sent: false, reason: evaluation.reason, score: evaluation.score };
+    }
+
     eventBus.emitDomain(EVENTS.USER_SILENCE, {
       silenceSec,
+      score: evaluation.score,
       memoryIds: context.map((memory) => memory.id)
     }, { source: 'proactive', sessionId: this.memory.currentSessionId, privacy: 'internal' });
 
-    // Silence alone is not a reason to interrupt the user. A recent topic or
-    // an open task is required, and that topic cannot be reused for 30 min.
-    if (!context.length) {
-      this.lastAutonomousInterventionTime = now;
-      return { sent: false, reason: 'no_fresh_context' };
-    }
-
     const memoryLines = context.map((memory) => `- [${memory.category}] ${memory.content}`).join('\n');
-    const promptText = `[SISTEMA PROACTIVO - OPORTUNIDAD CONTEXTUAL]\nHan pasado aproximadamente ${Math.round(silenceSec)} segundos sin diálogo. Decide de forma autónoma si vale la pena intervenir. Si intervienes, formula una sola pregunta o comentario natural, breve y específico usando un solo tema del contexto; retoma algo pendiente o muestra curiosidad real. No uses preguntas genéricas ni plantillas repetidas, no encadenes preguntas y guarda información solo si el usuario aporta algo estable. Si no puedes decir algo específico y oportuno sobre este contexto, no respondas.\nContexto recuperado:\n${memoryLines}`;
+    const promptText = `[SISTEMA PROACTIVO - OPORTUNIDAD CONTEXTUAL]\nHan pasado aproximadamente ${Math.round(silenceSec)} segundos sin diálogo (pertinencia calculada: ${evaluation.score}). Decide de forma autónoma si vale la pena intervenir. Si intervienes, formula una sola pregunta o comentario natural, breve y específico usando un solo tema del contexto; retoma algo pendiente o muestra curiosidad real. No uses preguntas genéricas ni plantillas repetidas, no encadenes preguntas y guarda información solo si el usuario aporta algo estable. Si no puedes decir algo específico y oportuno sobre este contexto, no respondas.\nContexto recuperado:\n${memoryLines}`;
 
     this.recordDialogueActivity();
     this.lastAutonomousInterventionTime = now;
+    this.arbiter.recordModelSpoke(promptText, true);
     for (const memory of context) this.recentProactiveMemoryIds.set(memory.id, now);
 
-    logger.info('PROACTIVE', `Iniciando conversación autónoma tras ${Math.round(silenceSec)}s de silencio:`, promptText);
+    logger.info('PROACTIVE', `Iniciando conversación autónoma tras ${Math.round(silenceSec)}s de silencio (score: ${evaluation.score}):`, promptText);
 
     if (this.geminiSocket && typeof this.geminiSocket.sendTextMessage === 'function') {
       this.geminiSocket.sendTextMessage(promptText);
-      return { sent: true, memoryIds: context.map((memory) => memory.id) };
+      return { sent: true, score: evaluation.score, memoryIds: context.map((memory) => memory.id) };
     }
     return { sent: false, reason: 'socket_unavailable' };
   }
@@ -367,6 +456,20 @@ export class ProactiveTriggerService {
 
     // 3. Process queued interventions if conditions are met
     this.processInterventionQueue();
+  }
+
+  /**
+   * Handle urgent in-game threat alerts (low health, death)
+   */
+  handleGameThreatAlert(threat) {
+    const text = threat?.alertType === 'bot_death'
+      ? '[SISTEMA PROACTIVO - ALERTA DE JUEGO]: Acabas de morir en el juego. Comenta con sorpresa o frustración divertida a Jeremy.'
+      : `[SISTEMA PROACTIVO - ALERTA DE JUEGO]: Tu salud está baja (${threat?.health || 5}/20) en el juego. Pídele ayuda o avísale a Jeremy con urgencia natural.`;
+    this.queueIntervention({
+      id: `game_threat_${Date.now()}`,
+      text,
+      priority: 3
+    });
   }
 
   /**

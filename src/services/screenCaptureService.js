@@ -33,7 +33,10 @@ export class ScreenCaptureService {
         return region === this.region ? frame : null;
       },
       onFrame: frame => this.onFrame(frame),
-      shouldCapture: () => !this.isAiSpeaking,
+      // Preserve a single paced capture loop while Cristi speaks. The frame
+      // dispatcher lowers delivery cadence during speech, which avoids both
+      // CPU spikes and the long blind period caused by stopping capture here.
+      shouldCapture: () => true,
       onError: error => logger.warn('VISION', `Error capturando pantalla: ${error.message}`)
     });
 
@@ -42,7 +45,9 @@ export class ScreenCaptureService {
     this.screenW = typeof window !== 'undefined' ? window.screen.width : 1920;
     this.screenH = typeof window !== 'undefined' ? window.screen.height : 1080;
 
-    // AI Speech Shield: suspend video frames while Cristi is speaking to prevent audio stuttering
+    // Audio state is retained to request a fresh frame after speech ends. It
+    // does not pause capture: Gemini must keep a recent visual context during
+    // long spoken answers.
     this.isAiSpeaking = false;
     this.subscribeAudio();
   }

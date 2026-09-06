@@ -299,14 +299,14 @@ export function App() {
   /**
    * Unified, Rate-Gated Vision Frame Dispatcher for Gemini Live
    * Coordinates full-screen sharing, regional vision, and optical camera to prevent socket congestion,
-   * while giving 100% bandwidth and CPU priority to Cristi's incoming voice packets.
+   * while reserving the transport budget required by Cristi's incoming voice packets.
    */
   const sendRealtimeVisionFrame = useCallback((base64Jpeg, source = 'vision', priority = false) => {
     if (!base64Jpeg) return false;
-    // Strict Speech Shield: Cristi's audio stream gets 100% priority. Frames
-    // are retained by the dispatcher and released after AUDIO_END.
-    const speechProtected = !isSpeakingRef.current && !audioOutRef.current?.isPlaying;
-    return visionDispatcherRef.current?.enqueue(base64Jpeg, source, { priority: Boolean(priority && speechProtected) }) || false;
+    // The dispatcher delivers ordinary visual frames at a low cadence during
+    // speech and gives an explicit user snapshot priority. This preserves
+    // audio quality without making a long spoken answer a visual blackout.
+    return visionDispatcherRef.current?.enqueue(base64Jpeg, source, { priority: Boolean(priority) }) || false;
   }, []);
   const handleToggleViewMode = useCallback(() => {
     setViewMode((prev) => {

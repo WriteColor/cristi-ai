@@ -1054,6 +1054,34 @@ export class ToolExecutor {
         return await playwrightService.close();
       }
 
+      // ─────────────────────────────────────────────────────────────────
+      // GESTIÓN DE MEMORIA PERSISTENTE MULTICAPA
+      // ─────────────────────────────────────────────────────────────────
+      case 'manage_memory': {
+        return await memoryService.manageMemory(args);
+      }
+
+      // ─────────────────────────────────────────────────────────────────
+      // TRADUCCIÓN DE VOZ EN TIEMPO REAL HACIA JUEGO
+      // ─────────────────────────────────────────────────────────────────
+      case 'translate_and_speak_in_game': {
+        const { message, target_language, output_route } = args;
+        const result = await translationService.translateText({
+          text: message,
+          targetLanguage: target_language || 'en',
+          sourceId: 'user_translation_command',
+          outputRoute: output_route === 'local' ? 'local' : 'game_voice'
+        });
+        return {
+          status: result?.success ? 'success' : (result?.disabled ? 'disabled' : 'error'),
+          message: result?.success
+            ? `Traducción sintetizada hacia ${output_route || 'game_voice'}: "${result.translation || message}"`
+            : (result?.error || 'No se pudo emitir la traducción hacia el juego.'),
+          translation: result?.translation || null,
+          target_language: target_language || 'en'
+        };
+      }
+
       default: {
         // Check if tool belongs to connected MCP server
         if (mcpClientManager.discoveredTools.has(name)) {

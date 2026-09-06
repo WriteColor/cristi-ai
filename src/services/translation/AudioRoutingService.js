@@ -45,6 +45,10 @@ export class AudioRoutingService {
     return Boolean(frameId && this.generatedFrameIds.has(frameId));
   }
 
+  isGenerated(frameId) {
+    return this.isSelfGenerated(frameId);
+  }
+
   acceptFrame({ frameId, sourceId, data, sampleRate = 16000, timestamp = Date.now() } = {}) {
     if (!sourceId || !data || this.isSelfGenerated(frameId)) return false;
     const route = this.routes.get(sourceId);

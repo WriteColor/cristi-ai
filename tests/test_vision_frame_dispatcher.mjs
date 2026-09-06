@@ -6,15 +6,17 @@ import { eventBus, EVENTS } from '../src/services/eventBus.js';
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 after(() => eventBus.clear?.());
 
-test('vision dispatcher keeps the latest frame and never sends while audio is active', async () => {
+test('vision dispatcher keeps audio priority while delivering one fresh frame during a long answer', async () => {
   const sent = [];
   const socketRef = { current: { isConnected: true, websocket: { readyState: 1, bufferedAmount: 0 }, sendRealtimeMedia: (data) => { sent.push(data); return true; } } };
-  const dispatcher = new VisionFrameDispatcher({ socketRef, minIntervalMs: 25 });
+  const dispatcher = new VisionFrameDispatcher({ socketRef, minIntervalMs: 500, speechIntervalMs: 500 });
   try {
     eventBus.emit(EVENTS.AUDIO_START);
     dispatcher.enqueue('a'.repeat(64));
-    await wait(35);
+    await wait(120);
     assert.equal(sent.length, 0);
+    await wait(460);
+    assert.deepEqual(sent, ['a'.repeat(64)]);
     eventBus.emit(EVENTS.AUDIO_END);
     await wait(100);
     assert.deepEqual(sent, ['a'.repeat(64)]);

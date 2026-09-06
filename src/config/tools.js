@@ -1042,6 +1042,81 @@ export const COMPANION_FUNCTION_DECLARATIONS = [
       type: 'OBJECT',
       properties: {}
     }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────
+  // MEMORIA PERSISTENTE MULTICAPA (AIRI & OPEN-LLM-VTUBER INSPIRED)
+  // ─────────────────────────────────────────────────────────────────────
+  {
+    name: 'manage_memory',
+    description: 'Gestiona la memoria persistente a largo plazo sobre Ariel (tu creador) y tus experiencias. Permite almacenar hechos nuevos, gustos, proyectos, actualizar información o buscar recuerdos relevantes.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        action: {
+          type: 'STRING',
+          enum: ['store', 'update', 'recall', 'invalidate', 'get_recent'],
+          description: 'Acción de memoria a realizar: "store" para guardar un recuerdo nuevo, "update" para actualizarlo, "recall" para buscar información previa, "invalidate" para marcarlo obsoleto.'
+        },
+        key: {
+          type: 'STRING',
+          description: 'Clave o tema conciso del recuerdo (ej: "comida_favorita", "proyecto_actual", "coordenadas_casa").'
+        },
+        content: {
+          type: 'STRING',
+          description: 'Contenido detallado y claro del recuerdo a fijar en la memoria.'
+        },
+        category: {
+          type: 'STRING',
+          enum: ['fact', 'preference', 'relationship', 'task', 'minecraft', 'conversation'],
+          description: 'Categoría del recuerdo (hecho objetivo, preferencia, relación emocional, tarea pendiente, etc.).'
+        },
+        importance: {
+          type: 'NUMBER',
+          description: 'Nivel de relevancia de 0.1 a 1.0 (por defecto 0.8).'
+        },
+        reason: {
+          type: 'STRING',
+          description: 'Motivo o contexto en caso de actualización o invalidación (opcional).'
+        },
+        query: {
+          type: 'STRING',
+          description: 'Término de búsqueda cuando action es "recall".'
+        },
+        id: {
+          type: 'STRING',
+          description: 'Identificador específico del recuerdo (opcional).'
+        }
+      },
+      required: ['action']
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────────────
+  // TRADUCCIÓN DE VOZ BIDIRECCIONAL EN TIEMPO REAL HACIA VIDEOJUEGOS
+  // ─────────────────────────────────────────────────────────────────────
+  {
+    name: 'translate_and_speak_in_game',
+    description: 'Traduce una frase que tú o el usuario deseen comunicar y sintetiza el audio directamente hacia el canal de voz/micrófono virtual del videojuego para que otros jugadores lo escuchen.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        message: {
+          type: 'STRING',
+          description: 'El texto exacto que se desea traducir y pronunciar hacia el juego.'
+        },
+        target_language: {
+          type: 'STRING',
+          description: 'Código de idioma destino ISO (ej: "en" para inglés, "ja" para japonés, "pt" para portugués, "fr" para francés).'
+        },
+        output_route: {
+          type: 'STRING',
+          enum: ['game_voice', 'local'],
+          description: 'Canal de salida: "game_voice" para emitir hacia el micrófono virtual del juego, "local" para altavoces locales.'
+        }
+      },
+      required: ['message', 'target_language']
+    }
   }
 ];
 

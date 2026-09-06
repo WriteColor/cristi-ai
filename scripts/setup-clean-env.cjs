@@ -13,7 +13,7 @@ const ROOT_DIR = path.join(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
 const MODELS_DIR = path.join(PUBLIC_DIR, 'models');
 const LIVE2D_DIR = path.join(MODELS_DIR, 'live2d');
-const RESOURCES_ICONS_DIR = path.join(ROOT_DIR, 'resources', 'icons');
+const ASSETS_ICONS_DIR = path.join(ROOT_DIR, 'assets', 'icons');
 
 console.log('================================================================');
 console.log('🚀 CRISTI AI COMPANION - PREPARACIÓN DE ENTORNO LIMPIO (BOOTSTRAPPER)');
@@ -114,16 +114,15 @@ console.log(`      ${aiModelsCount === EXPECTED_AI_MODELS.length ? '✅' : '⚠�
 // 6. Verify Static High-Res Visual Identity Icons
 console.log('\n[6/7] Verificando iconos e identidad visual estática para Windows y Web...');
 try {
-  const icoPath = path.join(RESOURCES_ICONS_DIR, 'icon.ico');
-  const pngPath = path.join(RESOURCES_ICONS_DIR, 'icon.png');
+  const icoPath = path.join(ASSETS_ICONS_DIR, 'icon.ico');
+  const pngPath = path.join(ASSETS_ICONS_DIR, 'icon.png');
   const publicIcoPath = path.join(PUBLIC_DIR, 'favicon.ico');
-  const publicPngPath = path.join(PUBLIC_DIR, 'icon.png');
   
-  if (fs.existsSync(icoPath) && fs.existsSync(pngPath) && fs.existsSync(publicIcoPath) && fs.existsSync(publicPngPath)) {
+  if (fs.existsSync(icoPath) && fs.existsSync(pngPath) && fs.existsSync(publicIcoPath)) {
     const pngStats = fs.statSync(pngPath);
     console.log(`      ✅ Iconos maestros de alta resolución verificados: ${(pngStats.size / 1024).toFixed(1)} KB (.ico y .png listos)`);
   } else {
-    console.warn('      ⚠️ Advertencia: Algunos iconos estáticos faltan en resources/icons o public/');
+    console.warn('      ⚠️ Advertencia: Algunos iconos estáticos faltan en assets/icons o public/');
   }
 } catch (e) {
   console.error('      ❌ Error al verificar iconos:', e.message);

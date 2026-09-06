@@ -3,19 +3,28 @@ import { logger } from '../logger.js';
 
 /** Single-owner visual transport for Gemini Live. */
 export class VisionFrameDispatcher {
-  constructor({ socketRef, minIntervalMs = 1000, maxAgeMs = 8000 } = {}) {
+  constructor({ socketRef, minIntervalMs = 1000, speechIntervalMs = 2000, maxAgeMs = 8000 } = {}) {
     this.socketRef = socketRef;
     this.minIntervalMs = Math.max(500, minIntervalMs);
+    // Audio still owns the transport, but an indefinite speech shield leaves
+    // Live blind during long answers. Keep one fresh visual observation moving
+    // at a deliberately lower cadence while audio is playing.
+    this.speechIntervalMs = Math.max(this.minIntervalMs, speechIntervalMs);
     this.maxAgeMs = Math.max(this.minIntervalMs, maxAgeMs);
     this.pending = new Map();
     this.timer = null;
     this.timerDueAt = 0;
     this.lastSentAt = -Infinity;
+    this.lastSpeechSentAt = -Infinity;
     this.isSpeaking = false;
     this.destroyed = false;
-    this._unsubStart = eventBus.on(EVENTS.AUDIO_START, () => { this.isSpeaking = true; });
+    this._unsubStart = eventBus.on(EVENTS.AUDIO_START, () => {
+      this.isSpeaking = true;
+      this.lastSpeechSentAt = Date.now();
+    });
     this._unsubEnd = eventBus.on(EVENTS.AUDIO_END, () => {
       this.isSpeaking = false;
+      this.lastSpeechSentAt = -Infinity;
       this.flushSoon(80);
     });
   }
@@ -25,7 +34,10 @@ export class VisionFrameDispatcher {
     if (!this.pending.has(source) && this.pending.size >= 8) return false;
     // Updating a source preserves its queue position so camera cannot starve screen.
     this.pending.set(source, { base64, source, createdAt: Date.now(), priority, socket: this.socketRef?.current });
-    this.flushSoon(Math.max(0, this.minIntervalMs - (Date.now() - this.lastSentAt)));
+    const minDelay = this.isSpeaking && !priority
+      ? Math.max(0, this.speechIntervalMs - (Date.now() - this.lastSpeechSentAt))
+      : Math.max(0, this.minIntervalMs - (Date.now() - this.lastSentAt));
+    this.flushSoon(minDelay);
     return true;
   }
 
@@ -65,7 +77,10 @@ export class VisionFrameDispatcher {
     if (!frame) return false;
     const remaining = this.minIntervalMs - (now - this.lastSentAt);
     if (remaining > 0) { this.flushSoon(remaining); return false; }
-    if (this.isSpeaking && !frame.priority) { this.flushSoon(250); return false; }
+    if (this.isSpeaking && !frame.priority) {
+      const speechRemaining = this.speechIntervalMs - (now - this.lastSpeechSentAt);
+      if (speechRemaining > 0) { this.flushSoon(speechRemaining); return false; }
+    }
     const ws = socket?.websocket;
     const openState = globalThis.WebSocket?.OPEN ?? 1;
     if (!socket?.isConnected || !ws || ws.readyState !== openState) { this.flushSoon(500); return false; }
@@ -75,6 +90,7 @@ export class VisionFrameDispatcher {
       if (sent !== false) {
         if (this.pending.get(frame.source) === frame) this.pending.delete(frame.source);
         this.lastSentAt = Date.now();
+        if (this.isSpeaking && !frame.priority) this.lastSpeechSentAt = this.lastSentAt;
         this.flushSoon(this.minIntervalMs);
         return true;
       }
@@ -88,6 +104,7 @@ export class VisionFrameDispatcher {
   reset() {
     this.pending.clear();
     this.lastSentAt = -Infinity;
+    this.lastSpeechSentAt = -Infinity;
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     this.timerDueAt = 0;

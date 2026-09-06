@@ -125,35 +125,179 @@ export class MemoryService {
     const session = sessionId ? this.sessions.get(sessionId) : null;
     if (!session) return null;
     const turns = session.turns.slice();
-    // Remove before awaiting persistence. A new session can now safely use the
-    // same compatibility pointer while this summary is being saved.
     this.sessions.delete(sessionId);
     if (this.currentSessionId === sessionId) this._selectCompatibilitySession();
-    let stored = null;
-    if (!summary && turns.length > 1) {
-      const userTurns = turns.filter((turn) => turn.role === 'user').slice(-3).map((turn) => turn.text);
-      const modelTurns = turns.filter((turn) => turn.role === 'model' || turn.role === 'assistant').slice(-2).map((turn) => turn.text);
-      const fragments = [...userTurns, ...modelTurns].filter(Boolean);
-      if (fragments.length > 0) summary = fragments.join(' | ').slice(0, 1200);
+
+    let storedSummary = null;
+    if (turns.length > 0) {
+      storedSummary = await this.consolidateSession(turns, { sessionId, explicitSummary: summary, source });
     }
-    if (summary) {
-      stored = await this.remember({
-        key: `session_summary_${sessionId}`,
-        content: summary,
-        category: MEMORY_CATEGORIES.CONVERSATION,
-        importance: 0.55,
-        confidence: 0.65,
-        source,
-        sessionId,
-        context: { turnCount: turns.length }
-      });
-    }
-    eventBus.emitDomain(EVENTS.SESSION_ENDED, { sessionId, turnCount: turns.length, memoryId: stored?.id || null }, {
+
+    eventBus.emitDomain(EVENTS.SESSION_ENDED, { sessionId, turnCount: turns.length, memoryId: storedSummary?.id || null }, {
       source,
       sessionId,
       privacy: 'internal'
     });
-    return stored;
+    return storedSummary;
+  }
+
+  /**
+   * Autonomous Session Consolidation Worker:
+   * Analyzes turns to extract persistent facts, preferences, tasks, and an executive session summary.
+   */
+  async consolidateSession(turns, { sessionId, explicitSummary = null, source = 'conversation' } = {}) {
+    if (!Array.isArray(turns) || turns.length === 0) return null;
+
+    const userTurns = turns.filter((t) => t.role === 'user').map((t) => t.text);
+    const modelTurns = turns.filter((t) => t.role === 'model' || t.role === 'assistant').map((t) => t.text);
+
+    // 1. Autonomous Heuristic Fact & Preference Extraction
+    const extractedItems = this._extractFactsAndPreferences(userTurns, sessionId);
+    for (const item of extractedItems) {
+      try {
+        await this.remember({
+          key: item.key,
+          content: item.content,
+          category: item.category,
+          importance: item.importance,
+          confidence: item.confidence,
+          source: `session_consolidation_${source}`,
+          sessionId
+        });
+      } catch (err) {
+        logger.warn('MEMORY', `Error al consolidar hecho extraído "${item.key}":`, err.message);
+      }
+    }
+
+    // 2. Synthesize Coherent Multi-turn Narrative Summary
+    let narrativeSummary = explicitSummary;
+    if (!narrativeSummary) {
+      narrativeSummary = this._synthesizeNarrativeSummary(turns);
+    }
+
+    // 3. Store the session summary with high importance for continuity
+    const summaryMemory = await this.remember({
+      key: `session_summary_${sessionId}`,
+      content: narrativeSummary,
+      category: MEMORY_CATEGORIES.CONVERSATION,
+      importance: 0.88,
+      confidence: 0.90,
+      source,
+      sessionId,
+      context: {
+        turnCount: turns.length,
+        extractedCount: extractedItems.length,
+        endedAt: new Date().toISOString()
+      }
+    });
+
+    logger.info('MEMORY', `✓ Sesión ${sessionId} consolidada exitosamente (${extractedItems.length} hechos extraídos, resumen registrado).`);
+    return summaryMemory;
+  }
+
+  _extractFactsAndPreferences(userTexts = [], sessionId = null) {
+    const extracted = [];
+    const seenKeys = new Set();
+
+    const patterns = [
+      // Explicit memory directives
+      {
+        regex: /(?:recuerda\s+que|no\s+olvides\s+que|acu[eé]rdate\s+de\s+que|anota\s+que|guarda\s+que)\s+([^.!?\n]{5,120})/i,
+        category: MEMORY_CATEGORIES.FACT,
+        importance: 0.95,
+        makeKey: (match) => `recuerdo_${match.slice(0, 20).replace(/\s+/g, '_').toLowerCase()}`
+      },
+      // Favorite things
+      {
+        regex: /(?:mi\s+(?:comida|juego|videojuego|m[uú]sica|canci[oó]n|color|pel[ií]cula|serie|bebida|anime|deporte)\s+favorit[oa]\s+es)\s+([^.!?\n]{3,80})/i,
+        category: MEMORY_CATEGORIES.PREFERENCE,
+        importance: 0.90,
+        makeKey: (match) => `favorito_${match.slice(0, 20).replace(/\s+/g, '_').toLowerCase()}`
+      },
+      // Likes / Dislikes
+      {
+        regex: /(?:me\s+gusta\s+mucho|me\s+encanta|adoro|disfruto\s+de)\s+([^.!?\n]{3,80})/i,
+        category: MEMORY_CATEGORIES.PREFERENCE,
+        importance: 0.85,
+        makeKey: (match) => `gusta_${match.slice(0, 20).replace(/\s+/g, '_').toLowerCase()}`
+      },
+      {
+        regex: /(?:odio|detesto|no\s+me\s+gusta\s+nada|me\s+desagrada)\s+([^.!?\n]{3,80})/i,
+        category: MEMORY_CATEGORIES.PREFERENCE,
+        importance: 0.85,
+        makeKey: (match) => `disgusta_${match.slice(0, 20).replace(/\s+/g, '_').toLowerCase()}`
+      },
+      // Residence / Location
+      {
+        regex: /(?:vivo\s+en|me\s+mud[eé]\s+a|resido\s+en)\s+([^.!?\n]{3,60})/i,
+        category: MEMORY_CATEGORIES.FACT,
+        importance: 0.95,
+        makeKey: () => 'usuario_residencia'
+      },
+      // Ongoing Projects & Work
+      {
+        regex: /(?:estoy\s+(?:trabajando|desarrollando|creando|empezando)\s+(?:en|un|una)?\s*)([^.!?\n]{5,100})/i,
+        category: MEMORY_CATEGORIES.TASK,
+        importance: 0.90,
+        makeKey: (match) => `proyecto_${match.slice(0, 20).replace(/\s+/g, '_').toLowerCase()}`
+      },
+      {
+        regex: /(?:mi\s+proyecto\s+(?:actual\s+)?es\s+)([^.!?\n]{5,100})/i,
+        category: MEMORY_CATEGORIES.TASK,
+        importance: 0.90,
+        makeKey: () => 'proyecto_actual'
+      },
+      // Upcoming plans / Tasks
+      {
+        regex: /(?:mañana\s+(?:tengo\s+que|voy\s+a)|planeo|tengo\s+planeado)\s+([^.!?\n]{5,100})/i,
+        category: MEMORY_CATEGORIES.TASK,
+        importance: 0.85,
+        makeKey: (match) => `plan_${match.slice(0, 20).replace(/\s+/g, '_').toLowerCase()}`
+      }
+    ];
+
+    for (const text of userTexts) {
+      if (!text || typeof text !== 'string') continue;
+      for (const pattern of patterns) {
+        const match = text.match(pattern.regex);
+        if (match && match[1]) {
+          const content = match[0].trim();
+          const key = pattern.makeKey(match[1]);
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            extracted.push({
+              key,
+              content: content.length > 150 ? content.slice(0, 150) + '...' : content,
+              category: pattern.category,
+              importance: pattern.importance,
+              confidence: 0.85
+            });
+          }
+        }
+      }
+    }
+
+    return extracted;
+  }
+
+  _synthesizeNarrativeSummary(turns = []) {
+    if (turns.length <= 2) {
+      return turns.map((t) => `${t.role}: ${t.text}`).join(' | ').slice(0, 500);
+    }
+    const userUtterances = turns.filter((t) => t.role === 'user').map((t) => t.text);
+    const modelUtterances = turns.filter((t) => t.role === 'model' || t.role === 'assistant').map((t) => t.text);
+
+    const firstTopic = userUtterances[0] || 'conversación general';
+    const middleTopics = userUtterances.slice(1, -1).slice(0, 3);
+    const lastTopic = userUtterances[userUtterances.length - 1] || '';
+
+    const summaryParts = [
+      `Ariel conversó sobre: "${firstTopic.slice(0, 100)}"`,
+      middleTopics.length ? `También trataron temas como: ${middleTopics.map((m) => `"${m.slice(0, 60)}"`).join(', ')}` : null,
+      lastTopic ? `La conversación concluyó con: "${lastTopic.slice(0, 80)}"` : null
+    ].filter(Boolean);
+
+    return summaryParts.join('. ').slice(0, 1200);
   }
 
   async loadMemories() {
@@ -287,6 +431,80 @@ export class MemoryService {
   }
 
   /**
+   * Unified memory management interface for Gemini Live tool calls
+   */
+  async manageMemory({ action = 'store', key = '', content = '', category = MEMORY_CATEGORIES.FACT, importance = 0.8, reason = '', query = '', id = null } = {}) {
+    const act = String(action || 'store').toLowerCase();
+    switch (act) {
+      case 'store':
+      case 'remember': {
+        const item = await this.remember({
+          key,
+          content: content || key,
+          category,
+          importance: Number(importance) || 0.8,
+          context: reason ? { initialReason: reason } : {}
+        });
+        return {
+          status: 'success',
+          action: 'store',
+          memory: item,
+          message: `Recuerdo guardado: [${item.category}] "${item.key}"`
+        };
+      }
+      case 'update': {
+        const item = await this.remember({
+          key,
+          content,
+          category,
+          importance: Number(importance) || 0.8,
+          context: { updateReason: reason || 'actualización explícita' }
+        });
+        return {
+          status: 'success',
+          action: 'update',
+          memory: item,
+          message: `Recuerdo actualizado: [${item.category}] "${item.key}"`
+        };
+      }
+      case 'recall':
+      case 'search': {
+        const q = String(query || key || content || '').trim();
+        const results = this.retrieveRelevant(q, { limit: 6 });
+        return {
+          status: 'success',
+          action: 'recall',
+          query: q,
+          count: results.length,
+          results: results.map((m) => ({ id: m.id, key: m.key, content: m.content, category: m.category, importance: m.importance }))
+        };
+      }
+      case 'invalidate':
+      case 'forget': {
+        const target = id || key;
+        const ok = await this.invalidateMemory(target, reason || 'solicitado por el usuario');
+        return {
+          status: ok ? 'success' : 'not_found',
+          action: 'invalidate',
+          idOrKey: target,
+          message: ok ? `Recuerdo "${target}" invalidado.` : `Recuerdo "${target}" no encontrado.`
+        };
+      }
+      case 'get_recent': {
+        const top = this.getTopMemories(8);
+        return {
+          status: 'success',
+          action: 'get_recent',
+          count: top.length,
+          memories: top.map((m) => ({ id: m.id, key: m.key, content: m.content, category: m.category }))
+        };
+      }
+      default:
+        return { status: 'error', message: `Acción de memoria no reconocida: "${action}".` };
+    }
+  }
+
+  /**
    * Search relevant memories by query string with keyword relevance scoring
    */
   search(query, { limit = 6, minScore = 0.1 } = {}) {
@@ -411,45 +629,55 @@ export class MemoryService {
     return true;
   }
 
+  destroy() {
+    this.sessions.clear();
+    this.memories = [];
+    this.semanticIndex.clear();
+  }
+
   /**
-   * Generates a context block for system prompt injection in Gemini Live
+   * Generates a structured context block for system prompt injection in Gemini Live
    */
-  getSystemPromptContext({ query = '', limit = 12, maxConversationSummaries = 3, maxChars = 5000 } = {}) {
+  getSystemPromptContext({ query = '', limit = 14, maxConversationSummaries = 2, maxChars = 6000 } = {}) {
     if (this.memories.length === 0) return '';
 
-    const active = this.memories.filter((memory) => memory.status === 'active' && (!memory.validUntil || new Date(memory.validUntil).getTime() >= Date.now()));
+    const active = this.memories.filter((m) => m.status === 'active' && (!m.validUntil || new Date(m.validUntil).getTime() >= Date.now()));
     const byRecency = (left, right) => new Date(right.updatedAt || right.createdAt).getTime() - new Date(left.updatedAt || left.createdAt).getTime();
-    const safeLimit = Math.max(1, Math.floor(Number(limit) || 12));
-    const summaryLimit = Math.min(Math.max(0, Math.floor(Number(maxConversationSummaries) || 0)), Math.max(0, safeLimit - 1));
-    const normalizedQuery = String(query || '').trim();
-    const selected = normalizedQuery
-      ? this._selectPromptMemoriesForQuery(normalizedQuery, safeLimit)
-      : [
-          // Stable facts make the companion consistent, while recent session
-          // summaries preserve continuity after a Live call is closed.
-          ...active.filter((memory) => memory.category !== MEMORY_CATEGORIES.CONVERSATION)
-            .sort((left, right) => (right.importance - left.importance) || byRecency(left, right))
-            .slice(0, safeLimit - summaryLimit),
-          ...active.filter((memory) => memory.category === MEMORY_CATEGORIES.CONVERSATION)
-            .sort(byRecency)
-            .slice(0, summaryLimit)
-        ];
-    const seen = new Set();
-    const lines = [];
-    let used = 0;
-    for (const memory of selected) {
-      if (!memory?.id || seen.has(memory.id)) continue;
-      seen.add(memory.id);
-      const content = String(memory.content || '').replace(/\s+/g, ' ').trim();
-      if (!content) continue;
-      const line = `- [${String(memory.category || 'fact').toUpperCase()}] ${memory.key || 'recuerdo'}: ${content}`;
-      if (lines.length && used + line.length > Math.max(600, Number(maxChars) || 5000)) break;
-      lines.push(line);
-      used += line.length + 1;
-    }
-    if (!lines.length) return '';
 
-    return `\n\n=== RECUERDOS Y MEMORIA PERMANENTE DE CRISTI ===\nRecuerdas activamente los siguientes hechos y preferencias del usuario:\n${lines.join('\n')}\nUtiliza estos recuerdos de manera natural y afectuosa en tus respuestas cuando sean relevantes.`;
+    // 1. Group active memories by category
+    const facts = active.filter((m) => m.category === MEMORY_CATEGORIES.FACT || m.category === MEMORY_CATEGORIES.RELATIONSHIP)
+      .sort((a, b) => (b.importance - a.importance) || byRecency(a, b)).slice(0, 5);
+    const preferences = active.filter((m) => m.category === MEMORY_CATEGORIES.PREFERENCE)
+      .sort((a, b) => (b.importance - a.importance) || byRecency(a, b)).slice(0, 4);
+    const tasks = active.filter((m) => m.category === MEMORY_CATEGORIES.TASK)
+      .sort((a, b) => (b.importance - a.importance) || byRecency(a, b)).slice(0, 3);
+    const recentConversations = active.filter((m) => m.category === MEMORY_CATEGORIES.CONVERSATION)
+      .sort(byRecency).slice(0, maxConversationSummaries);
+
+    const sections = [];
+
+    if (facts.length > 0) {
+      sections.push('[HECHOS SOBRE ARIEL]\n' + facts.map((m) => `- ${m.key}: ${m.content}`).join('\n'));
+    }
+
+    if (preferences.length > 0) {
+      sections.push('[GUSTOS Y PREFERENCIAS]\n' + preferences.map((m) => `- ${m.key}: ${m.content}`).join('\n'));
+    }
+
+    if (tasks.length > 0) {
+      sections.push('[PROYECTOS Y TAREAS EN CURSO]\n' + tasks.map((m) => `- ${m.key}: ${m.content}`).join('\n'));
+    }
+
+    if (recentConversations.length > 0) {
+      const latestSummary = recentConversations[0];
+      const hoursAgo = Math.max(0, Math.round((Date.now() - new Date(latestSummary.updatedAt || latestSummary.createdAt).getTime()) / 3600000));
+      const timeLabel = hoursAgo === 0 ? 'hace un momento' : hoursAgo === 1 ? 'hace 1 hora' : `hace ${hoursAgo} horas`;
+      sections.push(`[CONTINUIDAD DE LA ÚLTIMA SESIÓN (${timeLabel})]\n- ${latestSummary.content}\n(Directiva de continuidad: Si Ariel te saluda o hace una pausa, puedes retomar amablemente algún tema de esta conversación previa).`);
+    }
+
+    if (sections.length === 0) return '';
+
+    return `\n\n=== RECUERDOS Y MEMORIA PERMANENTE DE CRISTI ===\n${sections.join('\n\n')}\nUtiliza estos recuerdos de manera natural, afectuosa y sutil en tus respuestas cuando sean relevantes.`;
   }
 
   _selectPromptMemoriesForQuery(query, limit) {

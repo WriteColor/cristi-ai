@@ -50,9 +50,31 @@ export class MinecraftCompanionService {
       // Retired Mineflayer instances can emit `end` after their replacement
       // is already connected. Ignore those events before they affect state.
       if (event?.connectionId && event.connectionId !== this.transportConnectionId) return;
+
+      if (event?.type === 'health') {
+        if (event.health !== undefined) this.botState.health = event.health;
+        if (event.food !== undefined) this.botState.food = event.food;
+      } else if (event?.type === 'death') {
+        this.botState.health = 0;
+      } else if (event?.type === 'hurt') {
+        if (event.health !== undefined) this.botState.health = event.health;
+      }
+
+      const perception = this.getPerceptionSummary();
       this.bus.emitDomain(EVENTS.GAME_EVENT, {
-        game: 'minecraft', eventType: event?.type || 'unknown', payload: event || {}, sessionId: this.sessionId
+        game: 'minecraft', eventType: event?.type || 'unknown', payload: event || {}, perception, sessionId: this.sessionId
       }, { source: 'minecraft', sessionId: this.sessionId, privacy: 'external' });
+
+      if (event?.type === 'health' && (event.health ?? 20) <= 6 && (event.health ?? 20) > 0) {
+        this.bus.emitDomain('game.threat_alert', {
+          game: 'minecraft', alertType: 'low_health', health: event.health, perception, sessionId: this.sessionId
+        }, { source: 'minecraft', priority: 'high', privacy: 'external' });
+      } else if (event?.type === 'death') {
+        this.bus.emitDomain('game.threat_alert', {
+          game: 'minecraft', alertType: 'bot_death', perception, sessionId: this.sessionId
+        }, { source: 'minecraft', priority: 'high', privacy: 'external' });
+      }
+
       if (['end', 'kicked', 'error', 'disconnect'].includes(event?.type)) {
         this.status = 'error';
         this.scheduleReconnect(this.config, event?.message || event?.reason || 'desconexión inesperada');
@@ -85,6 +107,64 @@ export class MinecraftCompanionService {
 
   getBotState() {
     return { ...this.botState };
+  }
+
+  getPerceptionSummary() {
+    const { health, food, position, dimension, nearbyPlayers, nearbyEntities, inventory } = this.botState;
+    const threats = (nearbyEntities || []).filter((e) => e.isHostile || ['creeper', 'zombie', 'skeleton', 'spider', 'witch', 'enderman', 'phantom', 'drowned'].includes((e.name || '').toLowerCase()));
+    const items = (inventory || []).slice(0, 10).map((i) => `${i.name} (${i.count})`);
+
+    const parts = [
+      `Salud: ${health ?? 20}/20`,
+      `Comida: ${food ?? 20}/20`,
+      `Posición: [${position?.x ?? 0}, ${position?.y ?? 0}, ${position?.z ?? 0}] (${dimension || 'overworld'})`
+    ];
+
+    if (nearbyPlayers && nearbyPlayers.length > 0) {
+      parts.push(`Jugadores cerca: ${nearbyPlayers.join(', ')}`);
+    }
+
+    if (threats.length > 0) {
+      const threatDesc = threats.slice(0, 3).map((t) => `${t.name} a ${t.distance}m`).join(', ');
+      parts.push(`¡Amenazas!: ${threatDesc}`);
+    } else {
+      parts.push('Sin amenazas inmediatas');
+    }
+
+    if (items.length > 0) {
+      parts.push(`Inventario: ${items.join(', ')}`);
+    }
+
+    const narrative = parts.join(' | ');
+
+    return {
+      status: this.status,
+      health: health ?? 20,
+      food: food ?? 20,
+      isLowHealth: (health ?? 20) <= 6,
+      position: position || { x: 0, y: 0, z: 0 },
+      dimension: dimension || 'overworld',
+      threats,
+      nearbyPlayers: nearbyPlayers || [],
+      inventorySummary: items,
+      narrative
+    };
+  }
+
+  updateBotState(partialState = {}) {
+    this.botState = { ...this.botState, ...partialState };
+    const perception = this.getPerceptionSummary();
+    this.bus.emitDomain(EVENTS.GAME_STATE_CHANGED, {
+      game: 'minecraft',
+      state: this.botState,
+      perception,
+      sessionId: this.sessionId
+    }, {
+      source: 'minecraft',
+      sessionId: this.sessionId,
+      privacy: 'external'
+    });
+    return this.botState;
   }
 
   saveConfig(newConfig = {}) {
@@ -190,11 +270,12 @@ export class MinecraftCompanionService {
         const liveStatus = await this.bridge.minecraftGetStatus();
         if (liveStatus) {
           if (liveStatus.connectionId && liveStatus.connectionId !== this.transportConnectionId) {
-            return { status: this.status, sessionId: this.sessionId, bot: this.botState, staleStatusIgnored: true };
+            return { status: this.status, sessionId: this.sessionId, bot: this.botState, perception: this.getPerceptionSummary(), staleStatusIgnored: true };
           }
           this.botState = { ...this.botState, ...liveStatus };
           this.status = liveStatus.status || this.status;
-          this.bus.emitDomain(EVENTS.GAME_STATE_CHANGED, { game: 'minecraft', state: this.botState, sessionId: this.sessionId }, {
+          const perception = this.getPerceptionSummary();
+          this.bus.emitDomain(EVENTS.GAME_STATE_CHANGED, { game: 'minecraft', state: this.botState, perception, sessionId: this.sessionId }, {
             source: 'minecraft', sessionId: this.sessionId, privacy: 'external'
           });
         }
@@ -202,10 +283,11 @@ export class MinecraftCompanionService {
       return {
         status: this.status,
         sessionId: this.sessionId,
-        bot: this.botState
+        bot: this.botState,
+        perception: this.getPerceptionSummary()
       };
     } catch (err) {
-      return { status: this.status, bot: this.botState, error: err.message };
+      return { status: this.status, bot: this.botState, perception: this.getPerceptionSummary(), error: err.message };
     }
   }
 

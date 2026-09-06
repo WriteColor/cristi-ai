@@ -80,9 +80,9 @@ console.log(`  ✅ Servidor MCP Playwright conectado con ${playwrightServer.tool
 console.log('\n🔍 [4/5] Verificando ejecución de herramientas de Spotify...');
 
 // Test spotify_play with query
-const playResult = await toolExecutor.executeTool('spotify_play', { query: 'Deftones' });
+const playResult = await toolExecutor.executeTool('spotify_play', { query: 'Irmãos Verdades' });
 assert(playResult.status === 'success', 'spotify_play debe retornar status: success');
-console.log('  ✓ spotify_play("Deftones"):', playResult.message || playResult.status);
+console.log('  ✓ spotify_play("Irmãos Verdades"):', playResult.message || playResult.status);
 
 // Test spotify_pause
 const pauseResult = await toolExecutor.executeTool('spotify_pause', {});
