@@ -7,12 +7,33 @@ import { electronBridge } from '../desktop/ElectronBridge.js';
 import { logger } from '../logger.js';
 import { eventBus, EVENTS } from '../eventBus.js';
 
+function normalizeDiscordConfig(value = {}) {
+  const input = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const monitoredChannels = Array.isArray(input.monitoredChannels)
+    ? [...new Set(input.monitoredChannels
+      .map((channelId) => String(channelId || '').trim())
+      .filter((channelId) => /^\d{5,32}$/.test(channelId)))].slice(0, 100)
+    : [];
+  return {
+    botToken: typeof input.botToken === 'string' ? input.botToken.trim() : '',
+    autoReply: input.autoReply === true,
+    monitoredChannels,
+    statusMessage: typeof input.statusMessage === 'string' && input.statusMessage.trim()
+      ? input.statusMessage.trim().slice(0, 128)
+      : 'Conectada con Jeremy | Cristi AI',
+    activityType: ['Playing', 'Listening', 'Watching'].includes(input.activityType) ? input.activityType : 'Playing',
+    prefix: typeof input.prefix === 'string' && input.prefix.trim() ? input.prefix.trim().slice(0, 32) : '!cristi'
+  };
+}
+
 export class DiscordCompanionService {
-  constructor() {
+  constructor({ bridge = electronBridge, bus = eventBus } = {}) {
+    this.bridge = bridge;
+    this.bus = bus;
     this.storageKey = 'cristi_discord_config';
     this.config = {
       botToken: '',
-      autoReply: true,
+      autoReply: false,
       monitoredChannels: [], // array of channel IDs
       statusMessage: 'Conectada con Jeremy | Cristi AI',
       activityType: 'Playing', // 'Playing' | 'Listening' | 'Watching'
@@ -21,26 +42,41 @@ export class DiscordCompanionService {
 
     this.status = 'disconnected'; // 'disconnected' | 'connecting' | 'connected' | 'error'
     this.botInfo = null;
+    this.transportConnectionId = null;
     this.recentMessages = [];
     this.maxRecentMessages = 200;
-    this.unsubscribeMessage = electronBridge?.onDiscordMessage?.((message) => {
+    this.unsubscribeMessage = this.bridge?.onDiscordMessage?.((message) => {
+      if (message?.connectionId && message.connectionId !== this.transportConnectionId) return;
       const item = { ...message, receivedAt: Date.now() };
       this.recentMessages.push(item);
       if (this.recentMessages.length > this.maxRecentMessages) this.recentMessages.shift();
-      eventBus.emitDomain(EVENTS.DISCORD_MESSAGE, item, {
+      const autoReplyEligible = this.isAutoReplyEligible(message.channelId);
+      this.bus.emitDomain(EVENTS.DISCORD_MESSAGE, { ...item, autoReplyEligible }, {
         source: 'discord',
         privacy: 'external',
         sessionId: `discord_${message.channelId || 'unknown'}`
       });
     });
-    this.unsubscribeEvent = electronBridge?.onDiscordEvent?.((event) => {
-      eventBus.emitDomain(`discord.${event?.type || 'event'}`, event || {}, {
+    this.unsubscribeEvent = this.bridge?.onDiscordEvent?.((event) => {
+      if (event?.connectionId && event.connectionId !== this.transportConnectionId) return;
+      this.bus.emitDomain(`discord.${event?.type || 'event'}`, event || {}, {
         source: 'discord', privacy: 'internal'
       });
-      if (event?.type === 'disconnect' || event?.type === 'error') this.status = 'error';
+      if (event?.type === 'disconnect' || event?.type === 'reconnecting') this.status = 'reconnecting';
+      if (event?.type === 'ready') this.status = 'connected';
+      if (event?.type === 'error') this.status = 'error';
+    });
+
+    this.unsubscribeConfig = this.bridge?.onConfigUpdated?.((config) => {
+      if (config?.discord) this.applyConfig(config.discord, { preserveToken: true });
     });
 
     this.loadConfig();
+    if (this.bridge?.isElectron && this.bridge.getAppConfig) {
+      void this.bridge.getAppConfig()
+        .then((config) => { if (config?.discord) this.applyConfig(config.discord, { preserveToken: true }); })
+        .catch(() => {});
+    }
   }
 
   loadConfig() {
@@ -51,11 +87,7 @@ export class DiscordCompanionService {
           const parsed = JSON.parse(stored);
           // Older builds used `token`; normalize it once at the boundary so
           // every caller can rely on the canonical `botToken` field.
-          this.config = {
-            ...this.config,
-            ...parsed,
-            botToken: parsed.botToken || parsed.token || this.config.botToken
-          };
+          this.applyConfig({ ...parsed, botToken: parsed.botToken || parsed.token || this.config.botToken });
         }
       }
     } catch (e) {
@@ -64,24 +96,43 @@ export class DiscordCompanionService {
   }
 
   saveConfig(newConfig = {}) {
-    this.config = { ...this.config, ...newConfig };
+    this.applyConfig(newConfig);
     const { botToken, ...safeConfig } = this.config;
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.setItem(this.storageKey, JSON.stringify(safeConfig));
       }
-      if (electronBridge?.isElectron) {
-        electronBridge.saveDiscordConfig?.(safeConfig);
+      if (this.bridge?.isElectron && this.bridge.getAppConfig && this.bridge.saveAppConfig) {
+        void this.bridge.getAppConfig()
+          .then((current) => this.bridge.saveAppConfig({ ...(current || {}), discord: safeConfig }))
+          .catch(() => {});
       }
     } catch (e) {
       console.warn('[Discord] Error saving config:', e);
     }
   }
 
+  applyConfig(nextConfig = {}, { preserveToken = false } = {}) {
+    const merged = normalizeDiscordConfig({ ...this.config, ...nextConfig });
+    this.config = {
+      ...merged,
+      botToken: preserveToken ? this.config.botToken : (typeof nextConfig.botToken === 'string' ? nextConfig.botToken.trim() : this.config.botToken)
+    };
+    const { botToken, ...safeConfig } = this.config;
+    this.bus.emitDomain('discord.configuration_changed', safeConfig, { source: 'discord', privacy: 'internal' });
+    return { ...this.config };
+  }
+
+  isAutoReplyEligible(channelId) {
+    if (!this.config.autoReply) return false;
+    const id = String(channelId || '').trim();
+    return Boolean(id && this.config.monitoredChannels.includes(id));
+  }
+
   async connect(token = null) {
     let activeToken = token || this.config.botToken;
-    if (!activeToken && electronBridge?.isElectron) {
-      activeToken = await electronBridge.getSecureSecret('discord.botToken');
+    if (!activeToken && this.bridge?.isElectron) {
+      activeToken = await this.bridge.getSecureSecret('discord.botToken');
     }
     if (!activeToken) {
       return { status: 'error', message: 'Por favor ingresa un Bot Token de Discord válido en la configuración.' };
@@ -93,13 +144,14 @@ export class DiscordCompanionService {
 
     this.status = 'connecting';
     logger.info('DISCORD', 'Iniciando conexión con Discord Gateway...');
-    if (electronBridge?.isElectron) {
-      await electronBridge.setSecureSecret('discord.botToken', activeToken);
+    if (this.bridge?.isElectron) {
+      await this.bridge.setSecureSecret('discord.botToken', activeToken);
     }
 
     try {
-      if (electronBridge?.isElectron) {
-        const res = await electronBridge.discordConnect({
+      if (this.bridge?.isElectron) {
+        this.transportConnectionId = null;
+        const res = await this.bridge.discordConnect({
           token: activeToken,
           statusMessage: this.config.statusMessage,
           activityType: this.config.activityType
@@ -107,8 +159,9 @@ export class DiscordCompanionService {
 
         if (res && res.success) {
           this.status = 'connected';
+          this.transportConnectionId = res.connectionId || null;
           this.botInfo = res.botInfo;
-          eventBus.emitDomain(EVENTS.DISCORD_CONNECTED, { bot: res.botInfo }, {
+          this.bus.emitDomain(EVENTS.DISCORD_CONNECTED, { bot: res.botInfo, connectionId: this.transportConnectionId }, {
             source: 'discord', privacy: 'internal'
           });
           logger.info('DISCORD', `✓ Conectado exitosamente como ${res.botInfo?.tag || 'Cristi Bot'}`);
@@ -132,12 +185,13 @@ export class DiscordCompanionService {
   async disconnect() {
     this.status = 'disconnected';
     this.botInfo = null;
+    this.transportConnectionId = null;
     logger.info('DISCORD', 'Desconectando bot de Discord...');
     try {
-      if (electronBridge?.isElectron) {
-        await electronBridge.discordDisconnect();
+      if (this.bridge?.isElectron) {
+        await this.bridge.discordDisconnect();
       }
-      eventBus.emitDomain(EVENTS.DISCORD_DISCONNECTED, {}, { source: 'discord', privacy: 'internal' });
+      this.bus.emitDomain(EVENTS.DISCORD_DISCONNECTED, {}, { source: 'discord', privacy: 'internal' });
       return { status: 'success', message: 'Bot de Discord desconectado.' };
     } catch (err) {
       return { status: 'error', message: err.message };
@@ -151,8 +205,8 @@ export class DiscordCompanionService {
 
     logger.info('DISCORD', `Enviando mensaje al canal ${channelId}: "${content}"`);
     try {
-      if (electronBridge?.isElectron) {
-        return await electronBridge.discordSendMessage({ channelId, content });
+      if (this.bridge?.isElectron) {
+        return await this.bridge.discordSendMessage({ channelId, content });
       }
       return { status: 'success', message: `Mensaje enviado al canal ${channelId}.` };
     } catch (err) {
@@ -162,8 +216,8 @@ export class DiscordCompanionService {
 
   async getRecentMessages(channelId, limit = 10) {
     try {
-      if (electronBridge?.isElectron) {
-        return await electronBridge.discordGetMessages({ channelId, limit });
+      if (this.bridge?.isElectron) {
+        return await this.bridge.discordGetMessages({ channelId, limit });
       }
       return { status: 'success', messages: [] };
     } catch (err) {
@@ -177,8 +231,8 @@ export class DiscordCompanionService {
     this.saveConfig();
 
     try {
-      if (electronBridge?.isElectron) {
-        await electronBridge.discordSetStatus({ statusText, activityType });
+      if (this.bridge?.isElectron) {
+        await this.bridge.discordSetStatus({ statusText, activityType });
       }
       return { status: 'success', message: `Estado actualizado a "${statusText}"` };
     } catch (err) {
@@ -198,6 +252,8 @@ export class DiscordCompanionService {
     this.unsubscribeMessage = null;
     this.unsubscribeEvent?.();
     this.unsubscribeEvent = null;
+    this.unsubscribeConfig?.();
+    this.unsubscribeConfig = null;
   }
 }
 

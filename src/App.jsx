@@ -47,6 +47,7 @@ import {
   logger,
   VisionFrameDispatcher,
   interactionOrchestrator,
+  externalReplyService,
   translationService,
   GeminiTranslationProvider,
   desktopLoopbackCaptureService,
@@ -360,12 +361,25 @@ export function App() {
     visionDispatcherRef.current = new VisionFrameDispatcher({ socketRef: socketRef, minIntervalMs: 1000 });
     interactionOrchestrator.start();
     interactionOrchestrator.setExternalSender('discord', (channelId, text) => discordCompanion.sendMessage(channelId, text));
+    externalReplyService.start();
+    const syncDiscordReplyPolicy = (event) => {
+      const options = event?.payload || event || discordCompanion.config;
+      interactionOrchestrator.configure({ allowExternalAutoReply: options?.autoReply === true });
+    };
+    syncDiscordReplyPolicy(discordCompanion.config);
+    const unsubscribeDiscordConfig = eventBus.on('discord.configuration_changed', syncDiscordReplyPolicy);
     return () => {
       visionDispatcherRef.current?.destroy();
       visionDispatcherRef.current = null;
       interactionOrchestrator.stop();
+      externalReplyService.stop();
+      unsubscribeDiscordConfig();
     };
   }, []);
+
+  useEffect(() => {
+    externalReplyService.configure({ apiKey: config?.apiKey, systemPrompt: config?.systemPrompt });
+  }, [config?.apiKey, config?.systemPrompt]);
 
   // --- Vision frame dispatcher is the only path that sends camera/screen JPEGs ---
   useEffect(() => () => {

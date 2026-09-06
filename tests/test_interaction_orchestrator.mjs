@@ -63,7 +63,7 @@ test('external replies require their exact correlation and never use the shared 
   const event = {
     type: EVENTS.DISCORD_MESSAGE,
     correlationId: 'corr-1',
-    payload: { channelId: 'c1', authorId: 'u1', content: '¿Sigues ahí?' }
+    payload: { channelId: 'c1', authorId: 'u1', content: '¿Sigues ahí?', autoReplyEligible: true }
   };
   await orchestrator.handle(event);
   assert.equal(sharedSocket.sent, 0);

@@ -151,6 +151,23 @@ export default function SettingsApp({ isModal = false, onClose = null }) {
   const [discordStatus, setDiscordStatus] = useState(() => {
     try { return discordCompanion.status || 'disconnected'; } catch (_) { return 'disconnected'; }
   });
+  const [discordAutoReply, setDiscordAutoReply] = useState(() => Boolean(discordCompanion.config?.autoReply));
+  const [discordMonitoredChannels, setDiscordMonitoredChannels] = useState(() => (
+    Array.isArray(discordCompanion.config?.monitoredChannels) ? discordCompanion.config.monitoredChannels.join(', ') : ''
+  ));
+
+  const saveDiscordReplyOptions = useCallback((patch = {}) => {
+    const channelIds = patch.monitoredChannels ?? discordMonitoredChannels
+      .split(/[\s,]+/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const saved = discordCompanion.saveConfig({
+      autoReply: patch.autoReply ?? discordAutoReply,
+      monitoredChannels: channelIds
+    });
+    setDiscordAutoReply(Boolean(saved.autoReply));
+    setDiscordMonitoredChannels(saved.monitoredChannels.join(', '));
+  }, [discordAutoReply, discordMonitoredChannels]);
 
   // Spotify State
   const [spotifyStatus, setSpotifyStatus] = useState({ isRunning: false, isPlaying: false, track: null, artist: null });
@@ -1377,7 +1394,7 @@ export default function SettingsApp({ isModal = false, onClose = null }) {
                     Discord Companion Bot
                   </span>
                   <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-none ${
-                    discordStatus === 'ready' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-zinc-800 text-zinc-400'
+                    discordStatus === 'connected' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-zinc-800 text-zinc-400'
                   }`}>
                     {discordStatus.toUpperCase()}
                   </span>
@@ -1394,19 +1411,60 @@ export default function SettingsApp({ isModal = false, onClose = null }) {
                   />
                 </div>
 
-                <button
-                  type="button"
-                  onClick={async () => {
-                    soundFxService.playClick();
-                    try {
-                      await discordCompanion.connect(discordToken);
-                      setDiscordStatus(discordCompanion.status);
-                    } catch (_) {}
-                  }}
-                  className="px-3 py-1.5 text-xs font-mono bg-zinc-800 hover:bg-zinc-700 text-white rounded-sm border border-zinc-700 transition-colors"
-                >
-                  Conectar Bot de Discord
-                </button>
+                <label className="flex items-start gap-2 text-xs text-zinc-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={discordAutoReply}
+                    onChange={(event) => saveDiscordReplyOptions({ autoReply: event.target.checked })}
+                    className="mt-0.5 accent-emerald-500"
+                  />
+                  <span>
+                    Respuesta automática en canales permitidos
+                    <span className="block mt-0.5 text-[10px] text-zinc-500">Cristi usa una solicitud Gemini separada; no publica la siguiente respuesta de tu llamada Live.</span>
+                  </span>
+                </label>
+
+                <div>
+                  <label className="text-[10px] font-mono text-zinc-400 block mb-1">IDs de canales permitidos (separados por coma):</label>
+                  <input
+                    type="text"
+                    value={discordMonitoredChannels}
+                    onChange={(event) => setDiscordMonitoredChannels(event.target.value)}
+                    onBlur={() => saveDiscordReplyOptions()}
+                    placeholder="123456789012345678, 987654321098765432"
+                    className="w-full px-2.5 py-1 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm"
+                  />
+                  <p className="mt-1 text-[10px] text-zinc-500">Con la lista vacía, el bot puede leer mensajes pero no responde automáticamente.</p>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      soundFxService.playClick();
+                      try {
+                        await discordCompanion.connect(discordToken);
+                        setDiscordStatus(discordCompanion.status);
+                      } catch (_) {}
+                    }}
+                    className="px-3 py-1.5 text-xs font-mono bg-zinc-800 hover:bg-zinc-700 text-white rounded-sm border border-zinc-700 transition-colors"
+                  >
+                    Conectar Bot de Discord
+                  </button>
+                  {discordStatus !== 'disconnected' && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        soundFxService.playClick();
+                        await discordCompanion.disconnect();
+                        setDiscordStatus(discordCompanion.status);
+                      }}
+                      className="px-3 py-1.5 text-xs font-mono bg-rose-950/60 hover:bg-rose-900/60 text-rose-200 rounded-sm border border-rose-800 transition-colors"
+                    >
+                      Desconectar
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>

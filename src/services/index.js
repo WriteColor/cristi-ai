@@ -40,6 +40,7 @@ export { DesktopLoopbackCaptureService, desktopLoopbackCaptureService } from './
 export { VirtualAudioOutputService, virtualAudioOutputService } from './translation/VirtualAudioOutputService.js';
 export { TranslationOutputCoordinator } from './translation/TranslationOutputCoordinator.js';
 export { InteractionOrchestrator, interactionOrchestrator } from './interaction/InteractionOrchestrator.js';
+export { ExternalReplyService, externalReplyService } from './interaction/ExternalReplyService.js';
 export { DiscordCompanionService, discordCompanion } from './discord/DiscordCompanionService.js';
 export { DiscordVoiceService, discordVoiceService } from './discord/DiscordVoiceService.js';
 export { VisionStreamManager, visionStreamManager } from './vision/VisionStreamManager.js';

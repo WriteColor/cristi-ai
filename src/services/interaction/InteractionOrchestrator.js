@@ -84,7 +84,7 @@ export class InteractionOrchestrator {
         text: message.content,
         memories: memories.map((memory) => ({ id: memory.id, content: memory.content, category: memory.category }))
       }, { source: 'interaction_orchestrator', sessionId: event.sessionId, privacy: 'external' });
-      if (this.policy.allowExternalAutoReply && event.correlationId) {
+      if (this.policy.allowExternalAutoReply && message.autoReplyEligible === true && event.correlationId) {
         this.pendingExternalReplies.set(event.correlationId, {
           correlationId: event.correlationId,
           channelId: message.channelId,
@@ -132,7 +132,8 @@ export class InteractionOrchestrator {
     }
     const sender = this.senders[pending.source];
     if (!sender) return { success: false, error: `No existe emisor para ${pending.source}.` };
-    await sender(pending.channelId, text);
+    const delivery = await sender(pending.channelId, text);
+    if (delivery?.success === false) throw new Error(delivery.error || 'El canal externo rechazó la respuesta.');
     this.pendingExternalReplies.delete(correlationId);
     this.bus.emitDomain('interaction.external_response', {
       channelId: pending.channelId, text, source: pending.source

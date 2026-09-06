@@ -9,7 +9,9 @@ import { logger } from '../logger.js';
 import { eventBus, EVENTS } from '../eventBus.js';
 
 export class MinecraftCompanionService {
-  constructor() {
+  constructor({ bridge = electronBridge, bus = eventBus } = {}) {
+    this.bridge = bridge;
+    this.bus = bus;
     this.storageKey = 'cristi_minecraft_config';
     this.config = {
       host: 'localhost',
@@ -43,8 +45,12 @@ export class MinecraftCompanionService {
     this.reconnectAttempts = 0;
     this.reconnectTimer = null;
     this.sessionId = null;
-    this.unsubscribeEvent = electronBridge?.onMinecraftEvent?.((event) => {
-      eventBus.emitDomain(EVENTS.GAME_EVENT, {
+    this.transportConnectionId = null;
+    this.unsubscribeEvent = this.bridge?.onMinecraftEvent?.((event) => {
+      // Retired Mineflayer instances can emit `end` after their replacement
+      // is already connected. Ignore those events before they affect state.
+      if (event?.connectionId && event.connectionId !== this.transportConnectionId) return;
+      this.bus.emitDomain(EVENTS.GAME_EVENT, {
         game: 'minecraft', eventType: event?.type || 'unknown', payload: event || {}, sessionId: this.sessionId
       }, { source: 'minecraft', sessionId: this.sessionId, privacy: 'external' });
       if (['end', 'kicked', 'error', 'disconnect'].includes(event?.type)) {
@@ -52,11 +58,12 @@ export class MinecraftCompanionService {
         this.scheduleReconnect(this.config, event?.message || event?.reason || 'desconexión inesperada');
       }
     });
-    this.unsubscribeChat = electronBridge?.onMinecraftChat?.((message) => {
+    this.unsubscribeChat = this.bridge?.onMinecraftChat?.((message) => {
+      if (message?.connectionId && message.connectionId !== this.transportConnectionId) return;
       const item = { ...message, receivedAt: Date.now() };
       this.chatHistory.push(item);
       if (this.chatHistory.length > this.maxChatHistory) this.chatHistory.shift();
-      eventBus.emitDomain(EVENTS.GAME_EVENT, {
+      this.bus.emitDomain(EVENTS.GAME_EVENT, {
         game: 'minecraft', eventType: 'chat_message', payload: item, sessionId: this.sessionId
       }, { source: 'minecraft', sessionId: this.sessionId, privacy: 'external' });
     });
@@ -86,8 +93,8 @@ export class MinecraftCompanionService {
       if (typeof window !== 'undefined' && window.localStorage) {
         localStorage.setItem(this.storageKey, JSON.stringify(this.config));
       }
-      if (electronBridge?.isElectron) {
-        electronBridge.saveMinecraftConfig?.(this.config);
+      if (this.bridge?.isElectron) {
+        this.bridge.saveMinecraftConfig?.(this.config);
       }
     } catch (e) {
       console.warn('[Minecraft] Error saving config:', e);
@@ -108,12 +115,14 @@ export class MinecraftCompanionService {
     logger.info('MINECRAFT', `Conectando al servidor ${opts.host}:${opts.port} con usuario "${opts.username}"...`);
 
     try {
-      if (electronBridge?.isElectron) {
-        const res = await electronBridge.minecraftConnect(opts);
+      if (this.bridge?.isElectron) {
+        this.transportConnectionId = null;
+        const res = await this.bridge.minecraftConnect(opts);
         if (res && res.success) {
           this.status = 'connected';
+          this.transportConnectionId = res.connectionId || null;
           this.reconnectAttempts = 0;
-          eventBus.emitDomain(EVENTS.GAME_CONNECTED, { game: 'minecraft', host: opts.host, port: opts.port, sessionId: this.sessionId }, {
+          this.bus.emitDomain(EVENTS.GAME_CONNECTED, { game: 'minecraft', host: opts.host, port: opts.port, sessionId: this.sessionId, connectionId: this.transportConnectionId }, {
             source: 'minecraft', sessionId: this.sessionId, privacy: 'internal'
           });
           logger.info('MINECRAFT', '✓ Conexión establecida con el servidor de Minecraft.');
@@ -127,7 +136,7 @@ export class MinecraftCompanionService {
       }
 
       this.status = 'connected';
-      eventBus.emitDomain(EVENTS.GAME_CONNECTED, { game: 'minecraft', host: opts.host, port: opts.port, sessionId: this.sessionId }, {
+      this.bus.emitDomain(EVENTS.GAME_CONNECTED, { game: 'minecraft', host: opts.host, port: opts.port, sessionId: this.sessionId, connectionId: null }, {
         source: 'minecraft', sessionId: this.sessionId, privacy: 'internal'
       });
       return { status: 'success', sessionId: this.sessionId, message: 'Simulación de Minecraft Companion activa.' };
@@ -144,13 +153,14 @@ export class MinecraftCompanionService {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
     this.status = 'disconnected';
+    this.transportConnectionId = null;
     const sessionId = this.sessionId;
     logger.info('MINECRAFT', 'Desconectando bot de Minecraft...');
     try {
-      if (electronBridge?.isElectron) {
-        await electronBridge.minecraftDisconnect();
+      if (this.bridge?.isElectron) {
+        await this.bridge.minecraftDisconnect();
       }
-      eventBus.emitDomain(EVENTS.GAME_DISCONNECTED, { game: 'minecraft', sessionId }, {
+      this.bus.emitDomain(EVENTS.GAME_DISCONNECTED, { game: 'minecraft', sessionId }, {
         source: 'minecraft', sessionId, privacy: 'internal'
       });
       this.sessionId = null;
@@ -164,8 +174,8 @@ export class MinecraftCompanionService {
     if (!message) return;
     logger.info('MINECRAFT', `Enviando chat in-game: "${message}"`);
     try {
-      if (electronBridge?.isElectron) {
-        await electronBridge.minecraftChat(message);
+      if (this.bridge?.isElectron) {
+        await this.bridge.minecraftChat(message);
       }
       this.chatHistory.push({ sender: this.config.username, message, time: new Date().toLocaleTimeString() });
       return { status: 'success', message: `Mensaje enviado al chat: "${message}"` };
@@ -176,12 +186,15 @@ export class MinecraftCompanionService {
 
   async getStatus() {
     try {
-      if (electronBridge?.isElectron) {
-        const liveStatus = await electronBridge.minecraftGetStatus();
+      if (this.bridge?.isElectron) {
+        const liveStatus = await this.bridge.minecraftGetStatus();
         if (liveStatus) {
+          if (liveStatus.connectionId && liveStatus.connectionId !== this.transportConnectionId) {
+            return { status: this.status, sessionId: this.sessionId, bot: this.botState, staleStatusIgnored: true };
+          }
           this.botState = { ...this.botState, ...liveStatus };
           this.status = liveStatus.status || this.status;
-          eventBus.emitDomain(EVENTS.GAME_STATE_CHANGED, { game: 'minecraft', state: this.botState, sessionId: this.sessionId }, {
+          this.bus.emitDomain(EVENTS.GAME_STATE_CHANGED, { game: 'minecraft', state: this.botState, sessionId: this.sessionId }, {
             source: 'minecraft', sessionId: this.sessionId, privacy: 'external'
           });
         }
@@ -226,8 +239,8 @@ export class MinecraftCompanionService {
   async moveTo(x, y, z) {
     logger.info('MINECRAFT', `Navegando a coordenadas: X=${x}, Y=${y}, Z=${z}`);
     try {
-      if (electronBridge?.isElectron) {
-        return await electronBridge.minecraftMoveTo({ x, y, z });
+      if (this.bridge?.isElectron) {
+        return await this.bridge.minecraftMoveTo({ x, y, z });
       }
       return { status: 'success', message: `Moviéndose a ${x}, ${y}, ${z}` };
     } catch (err) {
@@ -239,8 +252,8 @@ export class MinecraftCompanionService {
     const target = playerName || 'creator';
     logger.info('MINECRAFT', `Siguiendo al jugador: ${target}`);
     try {
-      if (electronBridge?.isElectron) {
-        return await electronBridge.minecraftFollow(target);
+      if (this.bridge?.isElectron) {
+        return await this.bridge.minecraftFollow(target);
       }
       return { status: 'success', message: `Siguiendo a ${target}.` };
     } catch (err) {
@@ -251,8 +264,8 @@ export class MinecraftCompanionService {
   async stop() {
     logger.info('MINECRAFT', 'Deteniendo movimiento y acciones del bot.');
     try {
-      if (electronBridge?.isElectron) {
-        return await electronBridge.minecraftStop();
+      if (this.bridge?.isElectron) {
+        return await this.bridge.minecraftStop();
       }
       return { status: 'success', message: 'Bot detenido.' };
     } catch (err) {
@@ -263,8 +276,8 @@ export class MinecraftCompanionService {
   async mineBlock(x, y, z) {
     logger.info('MINECRAFT', `Minando bloque en ${x}, ${y}, ${z}`);
     try {
-      if (electronBridge?.isElectron) {
-        return await electronBridge.minecraftMineBlock({ x, y, z });
+      if (this.bridge?.isElectron) {
+        return await this.bridge.minecraftMineBlock({ x, y, z });
       }
       return { status: 'success', message: `Bloque minado en ${x}, ${y}, ${z}.` };
     } catch (err) {
@@ -275,8 +288,8 @@ export class MinecraftCompanionService {
   async placeBlock(x, y, z, blockName) {
     logger.info('MINECRAFT', `Colocando bloque ${blockName} en ${x}, ${y}, ${z}`);
     try {
-      if (electronBridge?.isElectron) {
-        return await electronBridge.minecraftPlaceBlock({ x, y, z, blockName });
+      if (this.bridge?.isElectron) {
+        return await this.bridge.minecraftPlaceBlock({ x, y, z, blockName });
       }
       return { status: 'success', message: `Bloque colocado en ${x}, ${y}, ${z}.` };
     } catch (err) {
@@ -287,8 +300,8 @@ export class MinecraftCompanionService {
   async attackEntity(entityName) {
     logger.info('MINECRAFT', `Atacando entidad objetivo: ${entityName}`);
     try {
-      if (electronBridge?.isElectron) {
-        return await electronBridge.minecraftAttack(entityName);
+      if (this.bridge?.isElectron) {
+        return await this.bridge.minecraftAttack(entityName);
       }
       return { status: 'success', message: `Atacando a ${entityName}.` };
     } catch (err) {

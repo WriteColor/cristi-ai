@@ -1700,13 +1700,34 @@ ipcMain.handle('spotify-control', async (event, action, params = {}) => {
 
 // ── Minecraft Companion Native Engine (AIRI Inspired) ────────────────────────
 let mcBot = null;
+let mcConnectionId = null;
+let mcConnectionSequence = 0;
+
+function isCurrentMinecraftBot(bot, connectionId) {
+  return mcBot === bot && mcConnectionId === connectionId;
+}
+
+function releaseMinecraftBot(bot, connectionId) {
+  if (!isCurrentMinecraftBot(bot, connectionId)) return false;
+  mcBot = null;
+  mcConnectionId = null;
+  return true;
+}
+
+function disposeMinecraftBot(reason = 'replaced') {
+  const bot = mcBot;
+  // Mineflayer emits `end` asynchronously. Clear this identity first so an
+  // event from a retired bot cannot affect its replacement.
+  mcBot = null;
+  mcConnectionId = null;
+  if (!bot) return false;
+  try { bot.quit(reason); } catch (_) {}
+  return true;
+}
 
 ipcMain.handle('minecraft-connect', async (event, opts = {}) => {
   try {
-    if (mcBot) {
-      try { mcBot.quit(); } catch (_) {}
-      mcBot = null;
-    }
+    disposeMinecraftBot('connection_replaced');
 
     const mineflayer = require('mineflayer');
     const { pathfinder } = require('mineflayer-pathfinder');
@@ -1718,41 +1739,50 @@ ipcMain.handle('minecraft-connect', async (event, opts = {}) => {
       version: opts.version || false
     };
 
-    mcBot = mineflayer.createBot(botOptions);
-    mcBot.loadPlugin(pathfinder);
+    const bot = mineflayer.createBot(botOptions);
+    const connectionId = `minecraft_transport_${Date.now()}_${++mcConnectionSequence}`;
+    mcBot = bot;
+    mcConnectionId = connectionId;
+    bot.loadPlugin(pathfinder);
 
     return new Promise((resolve) => {
       let resolved = false;
-
-      mcBot.once('spawn', () => {
-        if (!resolved) {
-          resolved = true;
-          resolve({ success: true, username: mcBot.username });
-        }
-        if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('minecraft-event', { type: 'spawn', username: mcBot.username });
-        }
-      });
-
-      mcBot.on('chat', (username, message) => {
-        if (username === mcBot.username) return;
-        if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('minecraft-chat', { username, message });
-        }
-      });
-
       const notifyMinecraftEvent = (type, payload = {}) => {
+        if (!isCurrentMinecraftBot(bot, connectionId)) return;
         if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('minecraft-event', { type, ...payload });
+          mainWindow.webContents.send('minecraft-event', { type, connectionId, ...payload });
         }
       };
-      mcBot.on('kicked', (reason) => notifyMinecraftEvent('kicked', { reason: String(reason || '') }));
-      mcBot.on('end', (reason) => notifyMinecraftEvent('end', { reason: String(reason || '') }));
-      mcBot.on('error', (err) => notifyMinecraftEvent('error', { message: err?.message || String(err) }));
 
-      mcBot.once('error', (err) => {
+      bot.once('spawn', () => {
+        if (!isCurrentMinecraftBot(bot, connectionId)) return;
         if (!resolved) {
           resolved = true;
+          resolve({ success: true, username: bot.username, connectionId });
+        }
+        notifyMinecraftEvent('spawn', { username: bot.username });
+      });
+
+      bot.on('chat', (username, message) => {
+        if (!isCurrentMinecraftBot(bot, connectionId) || username === bot.username) return;
+        if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('minecraft-chat', { username, message, connectionId });
+        }
+      });
+
+      bot.on('kicked', (reason) => notifyMinecraftEvent('kicked', { reason: String(reason || '') }));
+      bot.on('end', (reason) => {
+        if (!releaseMinecraftBot(bot, connectionId)) return;
+        if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('minecraft-event', { type: 'end', connectionId, reason: String(reason || '') });
+        }
+      });
+      bot.on('error', (err) => notifyMinecraftEvent('error', { message: err?.message || String(err) }));
+
+      bot.once('error', (err) => {
+        if (!resolved) {
+          resolved = true;
+          releaseMinecraftBot(bot, connectionId);
           resolve({ success: false, error: err.message });
         }
       });
@@ -1770,10 +1800,7 @@ ipcMain.handle('minecraft-connect', async (event, opts = {}) => {
 });
 
 ipcMain.handle('minecraft-disconnect', () => {
-  if (mcBot) {
-    try { mcBot.quit(); } catch (_) {}
-    mcBot = null;
-  }
+  disposeMinecraftBot('renderer_request');
   return { success: true };
 });
 
@@ -1790,12 +1817,13 @@ ipcMain.handle('minecraft-chat', (event, message) => {
 });
 
 ipcMain.handle('minecraft-get-status', () => {
-  if (!mcBot) return { status: 'disconnected' };
+  if (!mcBot) return { status: 'disconnected', connectionId: null };
   try {
     const pos = mcBot.entity?.position || { x: 0, y: 0, z: 0 };
     const players = Object.keys(mcBot.players || {}).filter(p => p !== mcBot.username);
     return {
       status: 'connected',
+      connectionId: mcConnectionId,
       health: mcBot.health || 20,
       food: mcBot.food || 20,
       position: { x: Math.round(pos.x), y: Math.round(pos.y), z: Math.round(pos.z) },
@@ -1851,6 +1879,8 @@ ipcMain.handle('minecraft-stop', () => {
 
 // ── Discord Companion Native Engine (AIRI Inspired) ───────────────────────────
 let discordClient = null;
+let discordConnectionId = null;
+let discordConnectionSequence = 0;
 let discordVoiceConnection = null;
 let discordVoicePlayer = null;
 let discordVoiceOutput = null;
@@ -1859,6 +1889,21 @@ let discordVoiceReconnectTimer = null;
 let discordVoiceJoinConfig = null;
 let discordVoiceReconnectAttempts = 0;
 const DISCORD_VOICE_RECONNECT_MAX_ATTEMPTS = 8;
+
+function isCurrentDiscordClient(client, connectionId) {
+  return discordClient === client && discordConnectionId === connectionId;
+}
+
+function disposeDiscordClient() {
+  const client = discordClient;
+  // Clear first because Discord.js can dispatch terminal shard events while
+  // destroy() is unwinding; those events belong to the retired connection.
+  discordClient = null;
+  discordConnectionId = null;
+  if (!client) return false;
+  try { client.destroy(); } catch (_) {}
+  return true;
+}
 
 function notifyDiscordVoiceEvent(type, payload = {}) {
   if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
@@ -2068,13 +2113,11 @@ ipcMain.handle('discord-voice-send-audio', (event, { data } = {}) => {
 
 ipcMain.handle('discord-connect', async (event, { token, statusMessage, activityType }) => {
   try {
-    if (discordClient) {
-      try { discordClient.destroy(); } catch (_) {}
-      discordClient = null;
-    }
+    disconnectDiscordVoice();
+    disposeDiscordClient();
 
     const { Client, GatewayIntentBits, ActivityType } = require('discord.js');
-    discordClient = new Client({
+    const client = new Client({
       intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
@@ -2083,32 +2126,37 @@ ipcMain.handle('discord-connect', async (event, { token, statusMessage, activity
         GatewayIntentBits.DirectMessages
       ]
     });
+    const connectionId = `discord_transport_${Date.now()}_${++discordConnectionSequence}`;
+    discordClient = client;
+    discordConnectionId = connectionId;
 
     return new Promise((resolve) => {
       let resolved = false;
 
-      discordClient.once('ready', () => {
+      client.once('ready', () => {
+        if (!isCurrentDiscordClient(client, connectionId)) return;
         if (!resolved) {
           resolved = true;
           resolve({
             success: true,
+            connectionId,
             botInfo: {
-              id: discordClient.user.id,
-              tag: discordClient.user.tag,
-              username: discordClient.user.username
+              id: client.user.id,
+              tag: client.user.tag,
+              username: client.user.username
             }
           });
         }
 
         try {
-          discordClient.user.setActivity(statusMessage || 'Cristi AI Companion', {
+          client.user.setActivity(statusMessage || 'Cristi AI Companion', {
             type: ActivityType[activityType || 'Playing'] || ActivityType.Playing
           });
         } catch (_) {}
       });
 
-      discordClient.on('messageCreate', (message) => {
-        if (message.author.bot) return;
+      client.on('messageCreate', (message) => {
+        if (!isCurrentDiscordClient(client, connectionId) || message.author.bot) return;
         if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('discord-message', {
             channelId: message.channelId,
@@ -2116,24 +2164,26 @@ ipcMain.handle('discord-connect', async (event, { token, statusMessage, activity
             authorId: message.author.id,
             authorName: message.author.username,
             content: message.content,
-            guildId: message.guildId,
+            guildId: message.guildId, connectionId,
             guildName: message.guild?.name || 'Direct Message'
           });
         }
       });
       const notifyDiscordEvent = (type, payload = {}) => {
+        if (!isCurrentDiscordClient(client, connectionId)) return;
         if (mainWindow?.webContents && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('discord-event', { type, ...payload });
+          mainWindow.webContents.send('discord-event', { type, connectionId, ...payload });
         }
       };
-      discordClient.on('error', (err) => notifyDiscordEvent('error', { message: err?.message || String(err) }));
-      discordClient.on('shardDisconnect', (closeEvent, shardId) => notifyDiscordEvent('disconnect', { shardId, code: closeEvent?.code }));
-      discordClient.on('shardReconnecting', (shardId) => notifyDiscordEvent('reconnecting', { shardId }));
-      discordClient.on('shardReady', (shardId) => notifyDiscordEvent('ready', { shardId }));
+      client.on('error', (err) => notifyDiscordEvent('error', { message: err?.message || String(err) }));
+      client.on('shardDisconnect', (closeEvent, shardId) => notifyDiscordEvent('disconnect', { shardId, code: closeEvent?.code }));
+      client.on('shardReconnecting', (shardId) => notifyDiscordEvent('reconnecting', { shardId }));
+      client.on('shardReady', (shardId) => notifyDiscordEvent('ready', { shardId }));
 
-      discordClient.login(token).catch((err) => {
+      client.login(token).catch((err) => {
         if (!resolved) {
           resolved = true;
+          if (isCurrentDiscordClient(client, connectionId)) disposeDiscordClient();
           resolve({ success: false, error: err.message });
         }
       });
@@ -2141,6 +2191,7 @@ ipcMain.handle('discord-connect', async (event, { token, statusMessage, activity
       setTimeout(() => {
         if (!resolved) {
           resolved = true;
+          if (isCurrentDiscordClient(client, connectionId)) disposeDiscordClient();
           resolve({ success: false, error: 'Tiempo de espera agotado al conectar a Discord.' });
         }
       }, 15000);
@@ -2152,10 +2203,7 @@ ipcMain.handle('discord-connect', async (event, { token, statusMessage, activity
 
 ipcMain.handle('discord-disconnect', () => {
   disconnectDiscordVoice();
-  if (discordClient) {
-    try { discordClient.destroy(); } catch (_) {}
-    discordClient = null;
-  }
+  disposeDiscordClient();
   return { success: true };
 });
 

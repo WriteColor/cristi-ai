@@ -10,6 +10,26 @@ const STORAGE_KEY_CONFIG = 'cristi_ai_settings_v1';
 const STORAGE_KEY_BACKUPS = 'cristi_ai_settings_backups_v1';
 const MAX_BACKUP_HISTORY = 10;
 
+function sanitizeDiscordConfig(value) {
+  const input = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const monitoredChannels = Array.isArray(input.monitoredChannels)
+    ? [...new Set(input.monitoredChannels
+      .map((channelId) => String(channelId || '').trim())
+      .filter((channelId) => /^\d{5,32}$/.test(channelId)))].slice(0, 100)
+    : [];
+  return {
+    autoReply: input.autoReply === true,
+    monitoredChannels,
+    statusMessage: typeof input.statusMessage === 'string'
+      ? input.statusMessage.trim().slice(0, 128)
+      : 'Conectada con Jeremy | Cristi AI',
+    activityType: ['Playing', 'Listening', 'Watching'].includes(input.activityType)
+      ? input.activityType
+      : 'Playing',
+    prefix: typeof input.prefix === 'string' ? input.prefix.trim().slice(0, 32) : '!cristi'
+  };
+}
+
 export class ConfigManager {
   constructor() {
     this.storageKey = STORAGE_KEY_CONFIG;
@@ -115,6 +135,7 @@ export class ConfigManager {
       systemPrompt: typeof config.systemPrompt === 'string' && config.systemPrompt.trim() && !config.systemPrompt.includes('1. Respuestas habladas, fluidas, íntimas y concisas:') && config.systemPrompt.includes('PROHIBICIÓN TOTAL DE COLETILLAS VOCALES') ? config.systemPrompt : SYSTEM_PERSONA_PROMPT,
       spotifyClientId: typeof config.spotifyClientId === 'string' ? config.spotifyClientId.trim() : '',
       spotifyClientSecret: typeof config.spotifyClientSecret === 'string' ? config.spotifyClientSecret.trim() : '',
+      discord: sanitizeDiscordConfig(config.discord),
       externalTranslationEnabled: config.externalTranslationEnabled === true,
       translationTargetLanguage: typeof config.translationTargetLanguage === 'string' && /^[a-z]{2,8}$/i.test(config.translationTargetLanguage.trim())
         ? config.translationTargetLanguage.trim().toLowerCase()
