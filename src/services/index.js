@@ -37,6 +37,7 @@ export { AudioRoutingService, audioRoutingService } from './translation/AudioRou
 export { TranslationService, translationService } from './translation/TranslationService.js';
 export { GeminiTranslationProvider } from './translation/GeminiTranslationProvider.js';
 export { DesktopLoopbackCaptureService, desktopLoopbackCaptureService } from './translation/DesktopLoopbackCaptureService.js';
+export { VirtualAudioOutputService, virtualAudioOutputService } from './translation/VirtualAudioOutputService.js';
 export { TranslationOutputCoordinator } from './translation/TranslationOutputCoordinator.js';
 export { InteractionOrchestrator, interactionOrchestrator } from './interaction/InteractionOrchestrator.js';
 export { DiscordCompanionService, discordCompanion } from './discord/DiscordCompanionService.js';

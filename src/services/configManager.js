@@ -122,6 +122,12 @@ export class ConfigManager {
       translationAggregateMs: typeof config.translationAggregateMs === 'number' && Number.isFinite(config.translationAggregateMs)
         ? Math.max(200, Math.min(1200, Math.round(config.translationAggregateMs)))
         : 400,
+      translationGameAudioDeviceId: typeof config.translationGameAudioDeviceId === 'string'
+        ? config.translationGameAudioDeviceId.trim().slice(0, 512)
+        : '',
+      translationGameAudioDeviceLabel: typeof config.translationGameAudioDeviceLabel === 'string'
+        ? config.translationGameAudioDeviceLabel.trim().slice(0, 512)
+        : '',
       updatedAt: config.updatedAt && typeof config.updatedAt === 'string' ? config.updatedAt : new Date().toISOString()
     };
   }

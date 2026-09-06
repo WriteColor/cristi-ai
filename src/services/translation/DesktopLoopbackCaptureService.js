@@ -66,8 +66,12 @@ export class DesktopLoopbackCaptureService {
     this.nativeUnsubscribe = null;
     this.nativeEventUnsubscribe = null;
     this.speechProtected = false;
+    this.mainAudioActive = false;
+    this.virtualOutputLeases = 0;
     this.audioStartUnsubscribe = null;
     this.audioEndUnsubscribe = null;
+    this.virtualOutputStartUnsubscribe = null;
+    this.virtualOutputEndUnsubscribe = null;
     this.startPromise = null;
     this.restartTimer = null;
     this.restartAttempts = 0;
@@ -267,9 +271,27 @@ export class DesktopLoopbackCaptureService {
   }
 
   _installSpeechProtection() {
-    if (this.audioStartUnsubscribe || this.audioEndUnsubscribe) return;
-    this.audioStartUnsubscribe = eventBus.on(EVENTS.AUDIO_START, () => { this.speechProtected = true; });
-    this.audioEndUnsubscribe = eventBus.on(EVENTS.AUDIO_END, () => { this.speechProtected = false; });
+    if (this.audioStartUnsubscribe || this.audioEndUnsubscribe || this.virtualOutputStartUnsubscribe || this.virtualOutputEndUnsubscribe) return;
+    this.audioStartUnsubscribe = eventBus.on(EVENTS.AUDIO_START, () => {
+      this.mainAudioActive = true;
+      this._updateSpeechProtection();
+    });
+    this.audioEndUnsubscribe = eventBus.on(EVENTS.AUDIO_END, () => {
+      this.mainAudioActive = false;
+      this._updateSpeechProtection();
+    });
+    this.virtualOutputStartUnsubscribe = eventBus.on('translation.virtual_output_started', () => {
+      this.virtualOutputLeases += 1;
+      this._updateSpeechProtection();
+    });
+    this.virtualOutputEndUnsubscribe = eventBus.on('translation.virtual_output_ended', () => {
+      this.virtualOutputLeases = Math.max(0, this.virtualOutputLeases - 1);
+      this._updateSpeechProtection();
+    });
+  }
+
+  _updateSpeechProtection() {
+    this.speechProtected = this.mainAudioActive || this.virtualOutputLeases > 0;
   }
 
   _releaseSpeechProtection() {
@@ -277,6 +299,12 @@ export class DesktopLoopbackCaptureService {
     this.audioEndUnsubscribe?.();
     this.audioStartUnsubscribe = null;
     this.audioEndUnsubscribe = null;
+    this.virtualOutputStartUnsubscribe?.();
+    this.virtualOutputEndUnsubscribe?.();
+    this.virtualOutputStartUnsubscribe = null;
+    this.virtualOutputEndUnsubscribe = null;
+    this.mainAudioActive = false;
+    this.virtualOutputLeases = 0;
     this.speechProtected = false;
   }
 

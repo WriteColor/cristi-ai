@@ -373,6 +373,24 @@ export const COMPANION_FUNCTION_DECLARATIONS = [
     name: 'desktop_audio_capture_status',
     description: 'Devuelve el estado y el número de frames de la captura de audio externo.'
   },
+  {
+    name: 'send_game_voice_translation',
+    description: 'Traduce un mensaje explícito del usuario y lo emite por la salida de audio virtual configurada para que el juego lo reciba como micrófono. No usa los altavoces locales.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        text: {
+          type: 'STRING',
+          description: 'Frase que se debe traducir y enviar al canal de voz del juego.'
+        },
+        target_language: {
+          type: 'STRING',
+          description: 'Idioma destino ISO, por defecto en.'
+        }
+      },
+      required: ['text']
+    }
+  },
 
   // ─────────────────────────────────────────────────────────────────────
   // MEMORIA PERMANENTE

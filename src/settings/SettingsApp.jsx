@@ -29,6 +29,7 @@ import { soundFxService } from '../services/soundFxService.js';
 import { configManager } from '../services/configManager.js';
 import { electronBridge } from '../services/desktop/ElectronBridge.js';
 import { toastService } from '../services/toastService.js';
+import { virtualAudioOutputService } from '../services/translation/VirtualAudioOutputService.js';
 import { ModelPreviewCanvas } from './components/ModelPreviewCanvas.jsx';
 
 const TABS = [
@@ -106,6 +107,9 @@ export default function SettingsApp({ isModal = false, onClose = null }) {
   const [externalTranslationEnabled, setExternalTranslationEnabled] = useState(() => initialConfig.externalTranslationEnabled === true);
   const [translationTargetLanguage, setTranslationTargetLanguage] = useState(() => initialConfig.translationTargetLanguage || 'es');
   const [translationAggregateMs, setTranslationAggregateMs] = useState(() => initialConfig.translationAggregateMs || 400);
+  const [translationGameAudioDeviceId, setTranslationGameAudioDeviceId] = useState(() => initialConfig.translationGameAudioDeviceId || '');
+  const [translationGameAudioDeviceLabel, setTranslationGameAudioDeviceLabel] = useState(() => initialConfig.translationGameAudioDeviceLabel || '');
+  const [translationOutputDevices, setTranslationOutputDevices] = useState([]);
 
   // Avatar Models State (Pure Live2D)
   const [live2dModelId, setLive2dModelId] = useState(() => initialConfig.live2dModelId || 'yanderegirl');
@@ -241,7 +245,9 @@ export default function SettingsApp({ isModal = false, onClose = null }) {
           spotifyClientSecret: spotifyClientSecret.trim(),
           externalTranslationEnabled,
           translationTargetLanguage,
-          translationAggregateMs: Number(translationAggregateMs)
+          translationAggregateMs: Number(translationAggregateMs),
+          translationGameAudioDeviceId,
+          translationGameAudioDeviceLabel
         };
 
         configManager.saveConfig(newConfig);
@@ -264,7 +270,21 @@ export default function SettingsApp({ isModal = false, onClose = null }) {
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
-  }, [apiKey, modelId, voiceName, temperature, systemPrompt, live2dModelId, sceneId, viewMode, spotifyClientId, spotifyClientSecret, externalTranslationEnabled, translationTargetLanguage, translationAggregateMs]);
+  }, [apiKey, modelId, voiceName, temperature, systemPrompt, live2dModelId, sceneId, viewMode, spotifyClientId, spotifyClientSecret, externalTranslationEnabled, translationTargetLanguage, translationAggregateMs, translationGameAudioDeviceId, translationGameAudioDeviceLabel]);
+
+  useEffect(() => {
+    if (activeTab !== 'translation') return undefined;
+    let active = true;
+    virtualAudioOutputService.listOutputDevices()
+      .then((devices) => {
+        if (!active) return;
+        setTranslationOutputDevices(devices);
+        const selected = devices.find((device) => device.deviceId === translationGameAudioDeviceId);
+        if (selected?.label) setTranslationGameAudioDeviceLabel(selected.label);
+      })
+      .catch(() => { if (active) setTranslationOutputDevices([]); });
+    return () => { active = false; };
+  }, [activeTab, translationGameAudioDeviceId]);
 
   // Escape key & global shortcut blocker listener (Capture Phase)
   useEffect(() => {
@@ -655,6 +675,24 @@ export default function SettingsApp({ isModal = false, onClose = null }) {
                     <span className="block text-[10px] text-zinc-500">Menor valor reduce latencia; mayor valor mejora frases largas.</span>
                   </label>
                 </div>
+                <label className="block space-y-1">
+                  <span className="block text-[11px] font-mono text-zinc-400">Salida para voz del juego</span>
+                  <select
+                    value={translationGameAudioDeviceId}
+                    onChange={(e) => {
+                      const deviceId = e.target.value;
+                      setTranslationGameAudioDeviceId(deviceId);
+                      setTranslationGameAudioDeviceLabel(translationOutputDevices.find((device) => device.deviceId === deviceId)?.label || '');
+                    }}
+                    className="w-full px-2.5 py-2 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm"
+                  >
+                    <option value="">No enviar voz al juego</option>
+                    {translationOutputDevices.map((device) => (
+                      <option key={device.deviceId} value={device.deviceId}>{device.label}</option>
+                    ))}
+                  </select>
+                  <span className="block text-[10px] text-zinc-500">Selecciona la salida de reproducción del cable virtual, por ejemplo “CABLE Input”. En el juego usa su micrófono emparejado, normalmente “CABLE Output”.</span>
+                </label>
               </div>
             </div>
           )}

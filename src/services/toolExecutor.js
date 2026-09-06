@@ -14,6 +14,7 @@ import { spotifyService } from './spotify/SpotifyService.js';
 import { playwrightService } from './playwright/PlaywrightService.js';
 import { desktopLoopbackCaptureService } from './translation/DesktopLoopbackCaptureService.js';
 import { translationService } from './translation/TranslationService.js';
+import { virtualAudioOutputService } from './translation/VirtualAudioOutputService.js';
 
 export class ToolExecutor {
   constructor({
@@ -669,6 +670,39 @@ export class ToolExecutor {
 
       case 'desktop_audio_capture_status': {
         return { status: 'success', ...desktopLoopbackCaptureService.getStatus() };
+      }
+
+      case 'send_game_voice_translation': {
+        const text = typeof args.text === 'string' ? args.text.trim() : '';
+        if (!text) return { status: 'invalid_input', message: 'Indica el texto que Cristi debe traducir para el juego.' };
+        if (!translationService.isEnabled()) {
+          return {
+            status: 'translation_disabled',
+            message: 'La traducción externa está desactivada en Ajustes.'
+          };
+        }
+        const outputStatus = virtualAudioOutputService.getStatus();
+        if (!outputStatus.configured) {
+          return {
+            status: 'game_output_not_configured',
+            output: outputStatus,
+            message: 'Selecciona una salida de cable virtual en Ajustes > Traducción de voz antes de enviar voz al juego.'
+          };
+        }
+        const result = await translationService.translateText({
+          text,
+          targetLanguage: typeof args.target_language === 'string' ? args.target_language : 'en',
+          outputRoute: 'game_voice',
+          sourceId: 'user_game_voice'
+        });
+        if (!result.success) return { status: 'translation_failed', ...result };
+        return {
+          status: 'success',
+          translation: result.translation,
+          sourceLanguage: result.sourceLanguage,
+          outputRoute: 'game_voice',
+          queuedForVirtualOutput: Boolean(result.audio?.data)
+        };
       }
 
       // ─────────────────────────────────────────────────────────────────

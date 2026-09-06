@@ -50,6 +50,7 @@ import {
   translationService,
   GeminiTranslationProvider,
   desktopLoopbackCaptureService,
+  virtualAudioOutputService,
   TranslationOutputCoordinator
 } from './services/index.js';
 import {
@@ -142,7 +143,9 @@ export function App() {
       spotifyClientSecret: '',
       externalTranslationEnabled: false,
       translationTargetLanguage: 'es',
-      translationAggregateMs: 400
+      translationAggregateMs: 400,
+      translationGameAudioDeviceId: '',
+      translationGameAudioDeviceLabel: ''
     };
   });
 
@@ -280,6 +283,17 @@ export function App() {
     translationService.configure(provider);
     return undefined;
   }, [config?.apiKey, config?.voiceName, config?.externalTranslationEnabled, config?.translationTargetLanguage, config?.translationAggregateMs]);
+
+  // A game voice route is opt-in and targets only the saved virtual render
+  // device. It never falls back to the user's speakers.
+  useEffect(() => {
+    void virtualAudioOutputService.configure({
+      deviceId: config?.translationGameAudioDeviceId,
+      deviceLabel: config?.translationGameAudioDeviceLabel
+    });
+  }, [config?.translationGameAudioDeviceId, config?.translationGameAudioDeviceLabel]);
+
+  useEffect(() => () => { void virtualAudioOutputService.destroy(); }, []);
 
   /**
    * Unified, Rate-Gated Vision Frame Dispatcher for Gemini Live
@@ -600,19 +614,23 @@ export function App() {
   // path while it is rendered.
   useEffect(() => {
     const coordinator = new TranslationOutputCoordinator({
-      getAudioOutput: () => audioOutRef.current
+      getAudioOutput: () => audioOutRef.current,
+      getGameAudioOutput: () => virtualAudioOutputService
     });
     coordinator.start();
-    const unsubscribe = eventBus.on('translation.local_output', (envelope) => {
+    const handleTranslationOutput = (envelope) => {
       const result = envelope?.payload || envelope;
       if (!result?.translation) return;
       const speaker = result.speakerId ? ` (${result.speakerId})` : '';
       setTranslationTranscript(`TRADUCCIÓN${speaker}: ${result.translation}`);
       if (translationSubtitleTimeoutRef.current) clearTimeout(translationSubtitleTimeoutRef.current);
       translationSubtitleTimeoutRef.current = setTimeout(() => setTranslationTranscript(''), 15000);
-    });
+    };
+    const unsubscribe = eventBus.on('translation.local_output', handleTranslationOutput);
+    const unsubscribeGameVoice = eventBus.on('translation.game_voice_output', handleTranslationOutput);
     return () => {
       unsubscribe?.();
+      unsubscribeGameVoice?.();
       coordinator.destroy();
       if (translationSubtitleTimeoutRef.current) clearTimeout(translationSubtitleTimeoutRef.current);
     };

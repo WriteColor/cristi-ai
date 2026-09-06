@@ -457,6 +457,91 @@ export class TranslationService {
     }
   }
 
+  /**
+   * Translates an explicit user utterance for a selected output route. This is
+   * used when Cristi is asked to say something into a game voice channel; it
+   * deliberately shares the same subtitle-first events as captured speech.
+   */
+  async translateText({
+    text,
+    targetLanguage = 'es',
+    sourceId = 'user_translation',
+    sessionId = null,
+    outputRoute = 'game_voice'
+  } = {}) {
+    if (!this.enabled) return { success: false, disabled: true };
+    const transcript = String(text || '').trim();
+    if (!transcript) return { success: false, error: 'No hay texto para traducir.' };
+    const startedAt = Date.now();
+    const correlationId = `translation_${startedAt}_${Math.random().toString(36).slice(2, 8)}`;
+    const phaseLatencyMs = {};
+    const runPhase = async (name, fn) => {
+      const phaseStartedAt = Date.now();
+      try { return await fn(); }
+      finally { phaseLatencyMs[name] = Date.now() - phaseStartedAt; }
+    };
+    this.metrics.frames += 1;
+    eventBus.emitDomain(EVENTS.TRANSLATION_REQUESTED, { sourceId, targetLanguage, explicitText: true }, {
+      source: 'translation', sessionId, correlationId, privacy: 'external'
+    });
+    try {
+      let detected;
+      let translated;
+      if (typeof this.provider.translateAndDetect === 'function') {
+        translated = await runPhase('translation', () => this.provider.translateAndDetect({ text: transcript, targetLanguage, sourceId, sessionId }));
+        detected = { language: translated?.sourceLanguage || null };
+      } else {
+        detected = await runPhase('language', () => this.provider.detectLanguage({ text: transcript, sourceId }));
+        translated = await runPhase('translation', () => this.provider.translate({
+          text: transcript, sourceLanguage: detected?.language || null, targetLanguage, sourceId, sessionId
+        }));
+      }
+      if (!translated?.text) return { success: false, error: 'No se obtuvo traducción.' };
+      const base = {
+        sourceId,
+        transcript,
+        speakerId: null,
+        sourceLanguage: detected?.language || null,
+        translation: translated.text,
+        outputRoute,
+        correlationId,
+        timestamp: Date.now(),
+        latencyMs: Date.now() - startedAt,
+        phaseLatencyMs: { ...phaseLatencyMs }
+      };
+      this.metrics.textReady += 1;
+      eventBus.emitDomain(EVENTS.TRANSLATION_TEXT_READY, base, {
+        source: 'translation', sessionId, correlationId, privacy: 'external'
+      });
+      let audio = await runPhase('synthesis', () => this.provider.synthesize({ text: translated.text, language: targetLanguage, sourceId, sessionId }));
+      if (audio?.data) {
+        audio = { ...audio, frameId: audio.frameId || `translation_${correlationId}` };
+        audioRoutingService.markGenerated(audio.frameId, 'cristi_translation');
+      }
+      const result = {
+        success: true,
+        ...base,
+        audio,
+        latencyMs: Date.now() - startedAt,
+        phaseLatencyMs
+      };
+      this.metrics.completed += 1;
+      this.metrics.lastLatencyMs = result.latencyMs;
+      this.latencySamples.push(result.latencyMs);
+      if (this.latencySamples.length > this.maxLatencySamples) this.latencySamples.shift();
+      eventBus.emitDomain(EVENTS.TRANSLATION_COMPLETED, result, {
+        source: 'translation', sessionId, correlationId, privacy: 'external'
+      });
+      return result;
+    } catch (error) {
+      this.metrics.failed += 1;
+      eventBus.emitDomain('translation.failed', { sourceId, message: error?.message || String(error) }, {
+        source: 'translation', sessionId, correlationId, privacy: 'internal'
+      });
+      return { success: false, error: error?.message || String(error) };
+    }
+  }
+
   getMetrics() {
     const latency = [...this.latencySamples].sort((left, right) => left - right);
     const percentile = (value) => {
