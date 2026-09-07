@@ -1,6 +1,7 @@
 # 🏛️ Arquitectura del Sistema e Ingeniería de Rendimiento — Cristi AI Companion
+> **Autor:** Write_Color | **Versión:** 1.0.0 | **Stack:** Electron 32 + React 19 + Vite 8 + PixiJS 7 + Live2D Cubism + Gemini Live API
 
-Documento exhaustivo de ingeniería de software, arquitectura de sistemas y diseño de flujo de datos de **Cristi AI (Cristi AI Companion)**.
+Documento exhaustivo de ingeniería de software, arquitectura de sistemas y diseño de flujo de datos de **Cristi AI Companion**.
 
 ---
 
@@ -8,21 +9,30 @@ Documento exhaustivo de ingeniería de software, arquitectura de sistemas y dise
 
 ```
 +---------------------------------------------------------------------------------------------------+
-|                              CRISTI AI COMPANION UI & ENGINE LAYER                                |
+|                              CRISTI AI COMPANION UI & RENDERER LAYER                              |
 |         React 19 + Vite 8 + PixiJS 7 + pixi-live2d-display (Cubism 4/5 Core) + Lucide Icons       |
 +---------------------------------------------------------------------------------------------------+
        |                                |                                   |
        v                                v                                   v
 +------------------------+   +------------------------+   +------------------------------------+
 | Live2D Kinetic Engine  |   | Gemini Multimodal Live |   | Sensory Vision & Voice Biometrics  |
-| - Model Registry (8x)  |   | - WebSocket S2S Client |   | - Face-API (128D Multi-Sample)     |
+| - 13 Model Registry    |   | - WebSocket S2S Client |   | - Face-API (128D Multi-Sample)     |
 | - Adaptive 30/60 Ticker|   | - 24kHz PCM Lip-Sync   |   | - MoveNet Multi-Pose Keypoints     |
-| - Texture Zero-Leak GC |   | - 25 Tool Declarations |   | - COCO-SSD Object Recognition      |
+| - Texture Zero-Leak GC |   | - 45+ Tool Declarations|   | - COCO-SSD Object Recognition      |
 | - DesktopCursorTracker |   | - Instant Barge-In     |   | - Speaker Recognition (Log-Mel)    |
-| - Dynamic Hit-Testing  |   | - Resilient Backoff    |   | - Win11 Lock Screen Notifications  |
+| - Dynamic Hit-Testing  |   | - Resilient Backoff    |   | - 60 FPS Native Screen Capturer    |
 +------------------------+   +------------------------+   +------------------------------------+
        |                                |                                   |
        +--------------------------------+-----------------------------------+
+                                        |
+                                        v
++---------------------------------------------------------------------------------------------------+
+|                     DOMAIN ORCHESTRATION & EVENT-DRIVEN CORE (6 PILARES)                          |
+|  - EventBus (Typed Domain Envelopes)          - InteractionOrchestrator (15s Breathing Room)     |
+|  - Multi-Layer Memory (SQLite + Hash Vectors) - AudioRoutingService & Feedback Shield             |
+|  - Minecraft Companion (Mineflayer Adapter)   - Discord Gateway & Voice Transport (@discordjs)    |
+|  - Dynamic MCP Servers (stdio / sse)          - Playwright Automation (Brave Browser)             |
++---------------------------------------------------------------------------------------------------+
                                         |
                                         v
 +---------------------------------------------------------------------------------------------------+
@@ -37,34 +47,122 @@ Documento exhaustivo de ingeniería de software, arquitectura de sistemas y dise
 |                             ELECTRON NATIVE DESKTOP SHELL (WINDOWS 11)                            |
 |  - Transparent Frameless Window (win.setIgnoreMouseEvents with selective { forward: true })       |
 |  - Anti-Throttling Chromium Flags (disable-background-timer-throttling, SharedArrayBuffer)         |
-|  - Virtual Desktop Continuity (mainWindow.setVisibleOnAllWorkspaces for Win+Tab switching)        |
-|  - Full OS Privileges (PowerShell Command Executor, File System, Clipboard, Screen Capture)       |
-|  - Windows System Tray Integration & Global Shortcuts Dispatcher (Ctrl+Shift+C, M, S)            |
+|  - Windows WASAPI Loopback Helper (native/CristiWasapiLoopback.exe Core Audio Capture)            |
+|  - Secure Storage (safeStorage API for tokens) & Isolated ContextBridge IPC                       |
+|  - Global Shortcuts Dispatcher (Ctrl+Shift+C, H, P, A, M, S)                                      |
 +---------------------------------------------------------------------------------------------------+
 ```
 
 ---
 
-## 2. Electron Native Desktop Shell & Click-Through Selectivo
+## 2. Los 6 Pilares de la Arquitectura de Cristi AI Companion
 
-El modo de ventana compañera flotante aprovecha la API de bajo nivel de Electron para ofrecer interacción simultánea con el asistente y con las ventanas del sistema operativo:
+Cristi AI está construida sobre seis pilares arquitectónicos que aseguran modularidad, escalabilidad y tolerancia a fallos:
 
-### A. Inicialización de Ventana
-* La ventana principal (`mainWindow`) se crea como transparente (`transparent: true`), sin bordes (`frame: false`), ocupando el monitor primario y con nivel de elevación `alwaysOnTop: 'screen-saver'`.
+### 🏛️ Pilar 1: Catálogo de Herramientas Agénticas y Contratos de Eventos
+* **Contratos de Dominio Fuertemente Tipados:** Toda comunicación entre subsistemas ocurre a través de `eventBus.emitDomain()`, que emite sobres estandarizados con:
+  ```typescript
+  interface DomainEventEnvelope<T = any> {
+    type: string;          // Identificador semántico (ej: 'minecraft.threat_detected', 'discord.message')
+    source: string;        // Origen del evento ('minecraft', 'discord', 'system', 'voice')
+    sessionId: string;     // ID de sesión activa para evitar mezclar estados
+    correlationId: string; // Trazabilidad de solicitudes y respuestas
+    priority: number;      // Nivel de urgencia (0 = normal, 1 = prioritario, 2 = emergencia)
+    privacy: string;       // Etiqueta de privacidad ('local', 'shared', 'sensitive')
+    payload: T;            // Datos específicos del evento
+  }
+  ```
+* **Declaración Universal de Herramientas (`COMPANION_FUNCTION_DECLARATIONS`):** Más de 45 herramientas expuestas a la API de Gemini Live v1beta (manipulación de Live2D, comandos de PowerShell, control de ventanas, portapapeles, Spotify, Minecraft, Discord, visión y automatización web con Playwright).
+* **Gestión Dinámica de Servidores MCP:** Soporte para servidores locales (`stdio` JSON-RPC 2.0) y remotos (`sse`) administrados exclusivamente en el proceso principal de Electron. Las herramientas se namespacean por servidor (`mcp__<server>__<tool>`) y pueden ejecutarse inmediatamente mediante `mcp_call_tool`.
+
+### 🧠 Pilar 2: Memoria Persistente Multicapa y Consolidación
+* **Persistencia Híbrida y Desacoplada (`MemoryService` & `MemoryRepository`):**
+  * Almacenamiento primario en **SQLite** nativo a través de IPC de Electron cuando `node:sqlite` está disponible.
+  * Respaldo y fallback automático a **JSON transaccional atómico** con escrituras seguras en disco para máxima portabilidad.
+* **Indexación Semántica Local (`MemoryIndex`):**
+  * Emplea un motor de vectores hash locales y postings invertidos acotados para recuperar paráfrasis y similitudes sin necesidad de descargar modelos pesados ni realizar llamadas de red adicionales.
+  * Recuperación top-$k$ acotada para alimentar el contexto del modelo sin saturar el buffer de tokens de Gemini Live.
+* **Consolidación y Resolución de Contradicciones:** Clasificación por categorías (`fact`, `preference`, `relationship`, `task`, `minecraft`), marcas de confianza por fuente, versiones históricas y capacidad de invalidación programática.
+
+### 💬 Pilar 3: Compañero Autónomo de Discord
+* **Integración Gateway (`discord.js` v14):**
+  * Escucha activa de canales de texto, menciones y mensajes directos.
+  * Publicación de respuestas asíncronas preservando el `correlationId` para asociar cada consulta con su contexto de origen.
+* **Transporte de Voz de Ultra-Baja Latencia (`@discordjs/voice`):**
+  * Conexión a canales de voz y stages de servidores Discord.
+  * Recepción de streams de audio Opus y decodificación a PCM mono a 16 kHz.
+  * Soporte de reintento (`rejoin`) con backoff exponencial ante desconexiones inesperadas del socket de voz.
+
+### ⛏️ Pilar 4: Percepción y Telemetría en Minecraft
+* **Puerto Abstraído (`GameAdapter`):** Permite conectar indistintamente clientes Mineflayer, interfaces RCON o adaptadores de mods sin acoplar la lógica conversacional al juego.
+* **Agente de Navegación Inteligente (`MinecraftCompanionService`):**
+  * Implementado con `mineflayer` y `mineflayer-pathfinder` en el proceso de Electron.
+  * Operaciones autónomas: seguimiento inteligente de jugadores, minería de bloques, colocación de estructuras y combate defensivo contra criaturas hostiles.
+* **Detección de Amenazas y Telemetría Espacial:**
+  * Supervisión continua de salud, hambre, posición XYZ y entorno.
+  * Emisión de eventos de alerta cuando la vida cae por debajo de umbrales críticos o cuando entidades hostiles se acercan en un radio de proximidad.
+
+### ⚖️ Pilar 5: Árbitro Proactivo y Orquestación Contextual (Breathing Room)
+* **`InteractionOrchestrator` como Filtro Central:**
+  * Ninguna integración (Discord, Minecraft, telemetría) habla directamente con Gemini Live; todos los eventos pasan por el orquestador.
+  * Evalúa relevancia, estado de conversación actual y necesidad de intervención.
+* **Ventana de Enfriamiento ("Breathing Room" de 15 segundos):**
+  * Aplica un cooldown estricto para evitar saturar al usuario con intervenciones excesivas o fuera de momento.
+  * Algoritmo anti-encadenamiento que bloquea bucles de retroalimentación infinita entre bots.
+* **Bypass de Alerta de Emergencia:** Eventos marcados con prioridad máxima (daño in-game crítico, caídas de servidor o alertas del sistema) omiten el enfriamiento para alertar inmediatamente al usuario.
+
+### 🛡️ Pilar 6: Blindaje de Audio, Audio DSP y Loopback WASAPI
+* **Aislamiento Estricto y Prevención de Acople (`AudioRoutingService`):**
+  * Cada frame de audio conserva su `sourceId`, `sessionId` y `correlationId`.
+  * La función `markGenerated` etiqueta el audio sintetizado por Cristi y rechaza su reingreso al pipeline de reconocimiento, eliminando bucles de eco de raíz.
+* **Pipeline de Captura de Micrófono (16 kHz):**
+  * `AudioWorklet` dedicado (`cristi-pcm-processor`) para captura Int16 Little-Endian a 16 kHz.
+  * Filtro paso-alto (HPF @ 80 Hz) para eliminar ruidos de baja frecuencia y vibraciones mecánicas.
+* **Pipeline de Salida y Lip-Sync Orgánico (24 kHz):**
+  * Desempaquetado de PCM streaming a 24,000 Hz con buffer de jitter adaptativo de 35 ms.
+  * Cálculo de energía espectral en bandas bajas (80–450 Hz) para apertura de boca y bandas altas (450–3500 Hz) para forma labial sin sobrecargar el hilo de React.
+* **Loopback Nativo de Windows WASAPI (`native/CristiWasapiLoopback.exe`):**
+  * Helper nativo en C# utilizando Core Audio APIs de Windows.
+  * Captura directa de la mezcla del dispositivo de salida predeterminado en PCM16 estructurado, transmitido por IPC seguro a Electron sin requerir cables virtuales ni controladores externos de audio. Fallback a `getDisplayMedia` de Chromium para entornos restringidos.
+* **Salida Virtual Aislada (`game_voice`):** Permite a Cristi enviar audio traducido en tiempo real al canal de voz de un videojuego sin reproducirlo en los altavoces locales del usuario.
+
+---
+
+## 3. Motor Live2D Adaptativo y Ciclo de Vida con Cero Fugas
+
+### A. Ticker Cinemático Adaptativo
+Para reducir el consumo energético en sesiones prolongadas sin sacrificar fluidez:
+* **Modo Activo (Interacción / Conversación):** 60 FPS con sincronización labial espectral y físicas pendulares completas.
+* **Modo Inactivo (>4.5s sin interacción ni audio):** Capping adaptativo a 30 FPS con cálculo de delta-time continuo. Esto reduce el uso de GPU en un ~65% en reposo.
+* **Boss Key / Oculto:** Detención total de `app.ticker` y cancelación de requestAnimationFrame (0% CPU/GPU).
+
+### B. Destrucción Limpia de Memoria WebGL
+Para evitar acumulaciones de memoria al cambiar entre los **13 modelos oficiales**:
+1. Se destruyen las texturas y baseTextures recursivamente: `model.destroy({ children: true, texture: true, baseTexture: true })`.
+2. Se invoca `PIXI.utils.clearTextureCache()` para purgar las referencias internas de WebGL.
+3. Se desregistran todos los listeners de puntero y eventos de pérdida de contexto WebGL (`webglcontextlost` / `webglcontextrestored`).
+4. Las cargas de modelos se serializan en cola para evitar condiciones de carrera en caché de texturas.
+
+### C. Desktop-Wide Cursor Tracking y Hit-Testing Dinámico
+* Un contenedor invisible (`.live2d-hit-target`) sincroniza su posición y dimensiones con el `model.getBounds()` del avatar Live2D en cada cuadro.
+* Permite arrastre nativo (`setPointerCapture`) y zoom con la rueda del ratón (`0.25x` a `4.0x`) con respuesta instantánea.
+
+---
+
+## 4. Electron Native Desktop Shell & Click-Through Selectivo
+
+### A. Inicialización de Ventana Transparente
+* La ventana principal (`mainWindow`) se crea como transparente (`transparent: true`), sin bordes (`frame: false`), ocupando el monitor primario y con elevación `alwaysOnTop: 'screen-saver'`.
 * Se inicializa con `mainWindow.setIgnoreMouseEvents(true, { forward: true })`.
-* El parámetro `{ forward: true }` indica a Windows que redirija los eventos de clic al escritorio o a las aplicaciones detrás, pero **continúa enviando los eventos `mousemove` y `pointermove` a la ventana web**.
+* El parámetro `{ forward: true }` indica al Compositor de Windows que redirija los eventos de clic al escritorio o a las aplicaciones detrás, pero **continúa enviando los eventos `mousemove` y `pointermove` a la ventana web**.
 
 ### B. Hook React `useClickThrough`
 * Cada componente interactivo (avatar Live2D, menú contextual, modal de ajustes, widgets y botones) implementa `const { interactiveProps } = useClickThrough()`.
 * **`mouseenter`** $\rightarrow$ `electronBridge.setIgnoreMouseEvents(false)`: el componente captura clics de ratón inmediatamente.
 * **`mouseleave`** $\rightarrow$ `electronBridge.setIgnoreMouseEvents(true, { forward: true })`: el fondo vuelve a permitir clics sobre las aplicaciones del sistema.
-* **Hit-Target Dinámico Live2D:** Un contenedor invisible (`.live2d-hit-target`) sincroniza su posición y dimensiones con el `model.getBounds()` del avatar Live2D en cada cuadro, permitiendo arrastre nativo (`setPointerCapture`) y zoom con la rueda del ratón.
 
----
-
-## 3. Prevención de Throttling & Continuidad en Windows 11
-
-Por defecto, Chromium ralentiza los procesos de renderizado y timers cuando una ventana pierde el foco. Cristi AI Companion elimina este comportamiento mediante:
+### C. Prevención de Throttling en Windows 11
+Chromium ralentiza por defecto los procesos de renderizado cuando una ventana pierde el foco. Cristi AI elimina esta degradación mediante:
 
 ```javascript
 // Switches Chromium en electron/main.cjs
@@ -78,92 +176,64 @@ mainWindow.webContents.setBackgroundThrottling(false);
 mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 ```
 
-Esto garantiza **60 FPS constantes** cuando el usuario juega a videojuegos en pantalla completa, utiliza programas en otras ventanas o cambia de escritorio virtual (`Win + Tab`).
+Esto garantiza **60 FPS constantes** mientras se juegan videojuegos 3D en pantalla completa, se programa o se cambia de escritorio virtual (`Win + Tab`).
 
 ---
 
-## 4. Motor Live2D Adaptativo y Ciclo de Vida con Cero Fugas
+## 5. Protocolo Google Gemini Multimodal Live (`BidiGenerateContent`)
 
-### A. Ticker Cinemático Adaptativo
-Para reducir el consumo energético en sesiones prolongadas sin sacrificar fluidez:
-* **Modo Activo (Interacción / Conversación):** 60 FPS con sincronización labial espectral y físicas pendulares.
-* **Modo Inactivo (>4.5s sin interacción ni audio):** Capping adaptativo a 30 FPS con cálculo de delta-time continuo. Esto reduce el uso de GPU en un ~65% en reposo.
-* **Boss Key / Oculto:** Detención total de `app.ticker` y cancelación de requestAnimationFrame (0% CPU/GPU).
+Cristi opera mediante **WebSocket bidireccional S2S** con la API en tiempo real de Google Gemini:
 
-### B. Destrucción Limpia de Memoria WebGL
-Para evitar acumulaciones de memoria al cambiar de personaje:
-1. Se destruyen las texturas y baseTextures recursivamente: `model.destroy({ children: true, texture: true, baseTexture: true })`.
-2. Se invoca `PIXI.utils.clearTextureCache()` para purgar las referencias internas de WebGL.
-3. Se desregistran todos los listeners de puntero y eventos de pérdida de contexto WebGL (`webglcontextlost` / `webglcontextrestored`).
-
----
-
-## 5. DSP de Audio, Sincronización Labial y Biometría Vocal
-
-### A. Pipeline de Captura (AudioWorklet @ 16 kHz)
-* El micrófono captura audio mediante un hilo aislado `AudioWorkletNode` (`cristi-pcm-processor`), convirtiendo las muestras a PCM Int16 Little-Endian a 16 kHz.
-* Incorpora un filtro paso-alto (HPF @ 80 Hz) para eliminar vibraciones mecánicas y ruido de ventiladores.
-
-### B. Pipeline de Salida & Lip-Sync (@ 24 kHz)
-* El streaming entrante de Gemini Live se procesa con un buffer de Jitter de 35ms.
-* La apertura de la boca se calcula mediante la energía de bajas frecuencias (80–450 Hz) y la anchura de labios con altas frecuencias (450–3500 Hz).
-* Al terminar cada fragmento, `source.onended` invoca `source.disconnect()` para liberar los buffers de Float32 de la memoria de inmediato.
-
-### C. Biometría Vocal (*Voice ID*)
-* Extracción de 80 filtros Log-Mel y 40 coeficientes DCT-II para proyectar un embedding de 192 dimensiones.
-* Si el coeficiente de similitud de coseno respecto a las muestras del dueño está por debajo del umbral (`rejectThreshold`), Cristi silencia su respuesta por seguridad.
+* **Modelos Oficiales:**
+  * `gemini-3.1-flash-live-preview`: Diálogo de ultra-baja latencia (~300ms), razonamiento espacial, visión continua y control total de PC.
+  * `gemini-2.5-flash-native-audio-preview-12-2025`: Síntesis de audio nativa afectiva y alta estabilidad de conversación.
+* **Propietario Único del Transporte (`GeminiLiveSocket`):** Gestiona el ciclo de vida del WebSocket, keepalive, reintentos con backoff y resumption tokens sin duplicación de llamadas.
+* **Detección de Interrupción (Barge-In):** VAD neuronal del servidor de Gemini confirma interrupciones; al detectarse una interrupción, el cliente silencia y vacía los buffers de reproducción localmente en < 50ms.
+* **Despachador de Visión con Backpressure (`VisionFrameDispatcher`):**
+  * Mantiene exclusivamente el fotograma más reciente en cola acotada.
+  * Aplica pausa y degradación elegante mientras el modelo está emitiendo voz para no saturar el canal de subida.
+* **Subtítulos con Commit Atómico:**
+  * La transcripción de la voz del usuario se muestra de inmediato con el primer delta recibido.
+  * La respuesta textual de Cristi se acumula en un buffer y se vuelca completa a la interfaz al recibir el evento `turnComplete`, evitando que el texto visual se adelante a la cadencia natural de su voz hablada.
 
 ---
 
-## 6. Enterprise Observability & Telemetry HUD (`F3`)
+## 6. Automatización Web con Playwright (Brave Browser)
 
-El sistema incluye un analizador de rendimiento de ultra-bajo overhead (`PerformanceProfilerService.js`):
-* **TPS (Ticks Per Second):** Monitorea la frecuencia del bucle principal de actualización.
-* **FPS & P99 Frame Time:** Mide la consistencia de fotogramas y detecta micro-tirones (*frame drops*).
-* **Memoria V8 Heap vs. Proceso RSS:** Monitoreo dual del heap de JavaScript y de la memoria nativa de Windows vía IPC.
-* **Atribución de Tiempos:** Medición en microsegundos de cada subsistema (`live2d`, `audioDsp`, `visionSensory`, `uiReact`).
-* **Buffers Circulares:** Almacena métricas históricas a 60 segundos, 5 minutos y 30 minutos sin realizar reasignaciones dinámicas de arrays.
+Para navegación autónoma, extracción de contenido y reproducción web:
+* **Ejecutable de Brave:** Se utiliza de forma nativa la ruta oficial de Brave Browser (`C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe`), cumpliendo con la ausencia de Chrome.
+* **Control Completo:** Navegación, clics en selectores, rellenado de formularios, capturas de pantalla de página completa y evaluación de JavaScript.
 
 ---
 
-## 7. Contratos escalables de interacción
+## 7. Enterprise Observability & Telemetry HUD (`F3`)
 
-```text
-Micrófono ───────────────► GeminiLiveSocket ─► AudioOutputService ─► Live2D/lipsync
-Pantalla/cámara ─► VisionFrameDispatcher ───► realtimeInput.video
-Discord/Minecraft ─► EventBus ─► InteractionOrchestrator ─► GeminiLiveSocket
-Audio externo ─► AudioRoutingService ─► TranslationService ─► proveedor STT/MT/TTS
-Memoria ─► MemoryRepository ─► MemoryService/MemoryIndex ─► contexto limitado del socket
+Analizador de rendimiento de ultra-bajo impacto (`PerformanceProfilerService.js`):
+* **TPS (Ticks Per Second):** Monitorea la consistencia del bucle de actualización principal.
+* **FPS & P99 Frame Time:** Mide la estabilidad de fotogramas y micro-tirones.
+* **Memoria V8 Heap vs. Proceso RSS:** Monitoreo dual del heap de JavaScript y de la memoria nativa del proceso de Windows vía IPC.
+* **Atribución de Coste por Subsistema:** Medición en microsegundos de `live2d`, `audioDsp`, `visionSensory` y `uiReact`.
+* **Buffers Circulares de Cero Asignación:** Estructuras de anillo de tamaño fijo para almacenar métricas a 60 segundos, 5 minutos y 30 minutos sin generar recolección de basura (GC).
+
+---
+
+## 8. Reglas de Arquitectura para Nuevas Integraciones
+
+1. **Adaptadores de Transporte Aislados:** Cada integración externa debe implementar un adaptador desacoplado que publique eventos hacia el `EventBus` con su propio `sourceId`.
+2. **Centralización en el Orquestador:** Las integraciones no deben generar diálogo o respuestas autónomas directas; deben pasar por `InteractionOrchestrator` para respetar cooldowns y contexto.
+3. **Blindaje de Audio:** Todo audio sintetizado o generado debe marcarse con `AudioRoutingService.markGenerated` antes de su emisión para imposibilitar su reentrada al micrófono.
+4. **Cero Timers Permanentes:** Todo flujo de captura o procesamiento debe usar backpressure, buffers acotados y limpieza garantizada de recursos al desmontarse.
+
+---
+
+## 9. Verificación de Código y Compilación
+
+Para validar la integridad del código y generar el paquete distribuible:
+
+```powershell
+# Análisis estático de código sin errores de linter
+pnpm exec eslint src electron
+
+# Compilación de producción y generación del instalador NSIS
+pnpm app:build
 ```
-
-Cada fuente conserva `sourceId`, `sessionId` y `correlationId`. El router rechaza frames marcados como generados para impedir que una respuesta vuelva a entrar como instrucción.
-
-- **Gemini Live:** `GeminiLiveSocket` es el único dueño de WebSocket, reconexión, keepalive y resumption. La UI sólo recibe callbacks y nunca crea un segundo socket para la misma llamada.
-- **Audio:** `AudioOutputService` es el único dueño del `AudioContext` y de la cola PCM. Una reconexión detiene la reproducción anterior antes de aceptar audio nuevo.
-- **Visión:** `VisionFrameDispatcher` mantiene sólo el frame más reciente, aplica backpressure y pausa frames no prioritarios mientras Cristi habla. Las capturas nativas de Electron se mantienen separadas de la cámara.
-- **Eventos:** las integraciones publican envelopes mediante `eventBus.emitDomain`. `InteractionOrchestrator` decide si un evento es relevante y aplica cooldowns; Discord y los juegos no contienen lógica de respuesta propia.
-- **Memoria:** `MemoryService` aplica reglas de actualización, contradicción, caducidad e índice semántico. `MemoryRepository` permite cambiar SQLite por otro backend sin tocar el dominio.
-- **Traducción:** `TranslationService` recibe frames etiquetados, agrega audio por utterance y conecta proveedores mediante métodos (`transcribe`, `detectLanguage`, `translate`, `synthesize`). Los hablantes Discord se agregan en colas independientes.
-- **MCP/navegador:** `MCPClientManager` descubre herramientas y `PlaywrightService` ejecuta en Brave. En Electron, los servidores MCP `stdio` y SSE viven en el proceso principal y hablan mediante transportes JSON-RPC oficiales a través de IPC seguro; cada herramienta se namespacea por servidor antes de llegar a Gemini. Las herramientas nuevas se declaran en `src/config/tools.js` y se resuelven en `ToolExecutor`.
-
-La traducción externa está desactivada por defecto. Al activarla desde Ajustes o con `translate: true`, el lote configurable de 200–1200 ms limita coste, CPU y latencia. Discord remuestrea el PCM TTS de Gemini a 16 kHz y Electron ignora el identificador del propio bot para impedir bucles.
-
-## 8. Reglas para futuras integraciones
-
-1. Crear un adaptador de transporte que publique eventos y conserve su `sourceId`.
-2. Reutilizar `InteractionOrchestrator` para contexto, memoria, cooldown y respuesta.
-3. No enviar audio generado al mismo pipeline de reconocimiento sin marcarlo con `AudioRoutingService.markGenerated`.
-4. No crear timers permanentes por frame: usar backpressure, lotes y un único propietario por recurso.
-5. Añadir una prueba reproducible del transporte antes de conectar un servicio público.
-
-## 9. Verificación
-
-- `pnpm exec eslint src electron`
-- `pnpm test:diagnostics`
-- `pnpm test:minecraft-local`
-- `node tests/test_packaged_call.mjs`
-- `pnpm app:build`
-
-Las pruebas de API real (`tests/probe_live_call.mjs` y `tests/probe_live_vision.mjs`) requieren `VITE_GEMINI_API_KEY` y deben ejecutarse explícitamente.
-
-La matriz de viabilidad, dependencias, límites de plataforma y fases de evolución está en [`docs/VIABILIDAD_Y_PLAN.md`](VIABILIDAD_Y_PLAN.md).

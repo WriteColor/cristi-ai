@@ -22,7 +22,7 @@ Este script automático realiza:
 2. Instalación de todas las dependencias con enlace rápido en almacenamiento virtual.
 3. Descarga y configuración del runtime nativo de Electron.
 4. Generación de iconos multi-resolución de 1024x1024.
-5. Verificación de los 8 modelos oficiales de Live2D y 14 redes neuronales.
+5. Verificación de los 13 modelos oficiales de Live2D y 14 redes neuronales.
 6. Creación automática del archivo `.env` para la API Key de Gemini Live.
 
 ---
@@ -78,7 +78,7 @@ Este script verifica de inmediato:
 * ✅ **Node.js & Plataforma:** Compatibilidad de arquitectura Windows 64-bit y versión de Node.js (v18 - v24).
 * ✅ **Gestor de Paquetes:** Cumplimiento estricto del estándar `pnpm`.
 * ✅ **Núcleo Live2D Cubism:** Presencia del runtime oficial `live2dcubismcore.min.js` en `public/`.
-* ✅ **Catálogo Live2D:** Integridad de los 8 avatares oficiales en `public/models/live2d/`.
+* ✅ **Catálogo Live2D:** Integridad de los 13 avatares oficiales en `public/models/live2d/`.
 * ✅ **Redes Neuronales:** 14 pesos binarios y manifiestos de TensorFlow / Face-API en `public/models/`.
 * ✅ **Identidad Visual:** Sincronización y generación de iconos multi-resolución (`.ico` y `1024x1024 .png`) en `resources/icons/` y `public/`.
 * ✅ **Motor Electron & .env:** Binario de Electron y variables de entorno para Gemini Live API.
@@ -113,32 +113,19 @@ pnpm run app:dev
 
 ---
 
-## 🧪 6. Validación de Salud y Diagnósticos del Sistema
+## 🎮 6. Verificación de Funcionamiento en Vivo
 
-Antes de dar por concluida la instalación, ejecuta la suite maestra de diagnósticos automatizados para verificar que todos los subsistemas responden con un **100% de éxito**:
-
-```powershell
-pnpm run test:diagnostics
-```
-
-Deberás observar las 11 suites aprobadas con éxito:
-* ✅ `Live2D Physics & Kinetics`
-* ✅ `Computer Use & Vision`
-* ✅ `UI/UX Obsidian & Sound FX`
-* ✅ `Audio DSP & Speaker Biometrics`
-* ✅ `Proactive Trigger Engine`
-* ✅ `Proactive Engine & State Management`
-* ✅ `Performance Profiler & Telemetry`
-* ✅ `Memory Lifecycle & Zero-Leak Stability`
-* ✅ `Electron Architecture & IPC`
-* ✅ `Config Persistence & Backup`
-* ✅ `Live2D Asset Integrity`
+Una vez iniciada la aplicación con `pnpm run app:dev`:
+1. **Avatar y Renderizado:** Confirma que el avatar Live2D renderiza con total fluidez a 60 FPS en la pantalla.
+2. **Interactividad:** Prueba el arrastre con clic izquierdo, el zoom con la rueda del ratón y el menú contextual con clic derecho.
+3. **Conexión Live S2S:** Inicia la sesión de llamada WebSocket bidireccional con Gemini Live. Habla por el micrófono y comprueba el Lip-Sync en tiempo real y la síntesis de voz a 24 kHz.
+4. **Telemetría F3:** Presiona la tecla `F3` para abrir el HUD de observabilidad y verificar TPS, FPS, latencia de frame y consumo de memoria V8/RSS.
 
 ---
 
 ## 📦 7. Compilación del Instalador para Producción (.exe)
 
-Para generar el instalador ejecutable de Windows (`Cristi-Desktop-Setup-1.0.0.exe`):
+Para generar el instalador ejecutable de Windows (`Cristi-AI-Companion-Setup-1.0.0.exe`):
 
 ```powershell
 pnpm run app:build

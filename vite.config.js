@@ -53,10 +53,7 @@ export default defineConfig({
   server: {
     port: 5173,
     host: 'localhost',
-    strictPort: false,
-    watch: {
-      ignored: ['**/tests/videos/**', '**/tests/screenshots/**']
-    }
+    strictPort: false
   },
   build: {
     outDir: 'dist',

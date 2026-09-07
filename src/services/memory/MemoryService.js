@@ -433,14 +433,16 @@ export class MemoryService {
   /**
    * Unified memory management interface for Gemini Live tool calls
    */
-  async manageMemory({ action = 'store', key = '', content = '', category = MEMORY_CATEGORIES.FACT, importance = 0.8, reason = '', query = '', id = null } = {}) {
+  async manageMemory({ action = 'store', key = '', content = '', value = '', category = MEMORY_CATEGORIES.FACT, importance = 0.8, reason = '', query = '', id = null } = {}) {
     const act = String(action || 'store').toLowerCase();
+    const effectiveContent = content || value || key;
     switch (act) {
       case 'store':
-      case 'remember': {
+      case 'remember':
+      case 'save': {
         const item = await this.remember({
           key,
-          content: content || key,
+          content: effectiveContent,
           category,
           importance: Number(importance) || 0.8,
           context: reason ? { initialReason: reason } : {}
@@ -455,7 +457,7 @@ export class MemoryService {
       case 'update': {
         const item = await this.remember({
           key,
-          content,
+          content: effectiveContent,
           category,
           importance: Number(importance) || 0.8,
           context: { updateReason: reason || 'actualización explícita' }
@@ -468,8 +470,9 @@ export class MemoryService {
         };
       }
       case 'recall':
-      case 'search': {
-        const q = String(query || key || content || '').trim();
+      case 'search':
+      case 'get': {
+        const q = String(query || key || effectiveContent || '').trim();
         const results = this.retrieveRelevant(q, { limit: 6 });
         return {
           status: 'success',
@@ -490,7 +493,8 @@ export class MemoryService {
           message: ok ? `Recuerdo "${target}" invalidado.` : `Recuerdo "${target}" no encontrado.`
         };
       }
-      case 'get_recent': {
+      case 'get_recent':
+      case 'list': {
         const top = this.getTopMemories(8);
         return {
           status: 'success',

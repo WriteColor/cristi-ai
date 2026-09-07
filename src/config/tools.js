@@ -392,32 +392,7 @@ export const COMPANION_FUNCTION_DECLARATIONS = [
     }
   },
 
-  // ─────────────────────────────────────────────────────────────────────
-  // MEMORIA PERMANENTE
-  // ─────────────────────────────────────────────────────────────────────
-  {
-    name: 'manage_memory',
-    description: 'Guarda o recupera un recuerdo, nota o preferencia del usuario en la memoria local permanente.',
-    parameters: {
-      type: 'OBJECT',
-      properties: {
-        action: {
-          type: 'STRING',
-          enum: ['save', 'get', 'list'],
-          description: '"save" para guardar, "get" para recuperar, "list" para listar recuerdos.'
-        },
-        key: {
-          type: 'STRING',
-          description: 'Clave o concepto a recordar (ej: "nombre_mascota").'
-        },
-        value: {
-          type: 'STRING',
-          description: 'Información a almacenar cuando action es "save".'
-        }
-      },
-      required: ['action']
-    }
-  },
+
 
   // ─────────────────────────────────────────────────────────────────────
   // WIDGETS TÁCTICOS Y NOTIFICACIONES

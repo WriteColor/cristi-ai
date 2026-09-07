@@ -1,4 +1,4 @@
-﻿# ================================================================
+# ================================================================
 #  🌸 CRISTI AI COMPANION - SCRIPT DE INSTALACIÓN AUTOMÁTICA
 #  Autor: Write_Color
 # ================================================================
@@ -52,6 +52,5 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "`n================================================================" -ForegroundColor Green
 Write-Host " ✨ ¡INSTALACIÓN COMPLETADA CON ÉXITO!" -ForegroundColor Green
 Write-Host "    • Modo Desarrollo:       pnpm run app:dev" -ForegroundColor White
-Write-Host "    • Pruebas Diagnósticas:  pnpm run test:diagnostics" -ForegroundColor White
 Write-Host "    • Empaquetar Instalador: pnpm run app:build" -ForegroundColor White
 Write-Host "================================================================`n" -ForegroundColor Green

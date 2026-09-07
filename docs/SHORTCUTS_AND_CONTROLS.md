@@ -51,7 +51,7 @@ La interacción física con el personaje Live2D aprovecha el hook `useClickThrou
 El menú contextual categorizado ofrece control rápido sobre todas las capacidades del sistema:
 
 ### 1. 🎭 Categoría: Personaje Live2D
-* **Selector Rápido de Avatar**: Conmuta entre los 8 modelos oficiales (`Cristi Gótica`, `Ice Girl`, `Hiyori`, `Miara`, `Toki`, `Ellen Joe`, `Jane Doe`, `Ruan Mei`).
+* **Selector Rápido de Avatar**: Conmuta entre los 13 modelos oficiales (`Cristi Gótica`, `Ice Girl`, `Hiyori`, `Miara`, `Toki`, `Ellen Joe`, `Jane Doe`, `Ruan Mei`, `Belle`, `Sparkle`, `Huohuo`, `Vivian`, `Goth Loli Maid`).
 * **Chips de Expresiones Directas**: Dispara expresiones faciales instantáneas (`Sonrojo`, `Corazones`, `Yandere`, `Wink`, `Enojada`, `Sorprendida`).
 
 ### 2. 🌌 Categoría: Fondo & Escena
@@ -65,8 +65,8 @@ El menú contextual categorizado ofrece control rápido sobre todas las capacida
   * `Wallpaper Personalizado` (Carga cualquier imagen de fondo local).
 
 ### 3. 🧠 Categoría: Inteligencia Artificial
-* **Selector de Modelo Gemini**: Conmuta entre `Gemini 2.5 Flash`, `Gemini 2.0 Flash`, `Gemini 2.0 Pro Experimental` y `Gemini 1.5 Pro`.
-* **Selector de Voces Neuronales**: Conmuta entre las 16 voces oficiales (Aoede, Zephyr, Kore, Leda, Lyra, etc.).
+* **Selector de Modelo Gemini**: Conmuta entre `Gemini 3.1 Flash Live` (ultra-baja latencia y control de PC) y `Gemini 2.5 Flash Native Audio` (audio nativo y diálogo continuo).
+* **Selector de Voces Neuronales**: Conmuta entre las 16 voces oficiales generadas nativamente a 24 kHz (Aoede, Zephyr, Kore, Leda, Lyra, Puck, Fenrir, etc.).
 
 ### 4. 🛠️ Categoría: Herramientas Tácticas
 * **Capturar Región**: Abre el selector de coordenadas para que Cristi analice visualmente un área específica de tu pantalla.
@@ -84,11 +84,13 @@ El menú contextual categorizado ofrece control rápido sobre todas las capacida
 
 ## 🎙️ 5. Comandos de Voz y Control por Lenguaje Natural
 
-Cristi cuenta con 25 herramientas integradas que se activan automáticamente mediante conversación natural por voz:
+Cristi cuenta con un robusto catálogo de herramientas integradas que se activan automáticamente mediante conversación natural por voz con Gemini Live:
 
 * *"Cristi, muévete a la esquina superior derecha"* $\rightarrow$ Ejecuta `move_avatar(position: "top-right")`.
 * *"Ponte feliz y haz un baile"* $\rightarrow$ Ejecuta `trigger_companion_gesture(gesture: "dance")`.
-* *"Abre mi carpeta de descargas"* $\rightarrow$ Ejecuta `open_file_or_folder(path: "C:\\Users\\...\\Downloads")`.
+* *"Abre mi carpeta de proyectos"* $\rightarrow$ Ejecuta `open_file_or_folder(path: "C:\\React-Nextjs-Projects")`.
+* *"Pon la canción Starboy en Spotify"* $\rightarrow$ Ejecuta `spotify_play(query: "Starboy")`.
+* *"Entra al servidor de Minecraft y ven hacia mí"* $\rightarrow$ Ejecuta `minecraft_connect()` y `minecraft_follow_player()`.
+* *"Traduce y dile en inglés al equipo que defiendan el punto B"* $\rightarrow$ Ejecuta `translate_and_speak_in_game()`.
 * *"¿Cómo va el rendimiento de mi PC?"* $\rightarrow$ Ejecuta `system_diagnostics()`.
-* *"Inicia un temporizador de concentración de 25 minutos"* $\rightarrow$ Ejecuta `start_focus_timer(durationMinutes: 25)`.
 * *"¿Qué estoy viendo en pantalla?"* $\rightarrow$ Toma captura contextual y analiza el contenido visual.

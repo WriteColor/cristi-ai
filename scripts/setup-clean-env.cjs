@@ -32,13 +32,41 @@ if (isNodeCompatible) {
   console.warn(`      ⚠️ Aviso: Se recomienda Node.js v18.x - v24.x LTS. Versión actual: ${nodeVersion}`);
 }
 
-// 2. Verify pnpm Package Manager
+// 2. Verify pnpm Package Manager & Dependencies
+console.log('\n[2/7] Verificando gestor de paquetes pnpm y dependencias...');
 try {
   const pnpmVersion = execSync('pnpm --version', { encoding: 'utf8' }).trim();
-  console.log(`[2/7] ✅ Gestor de paquetes: pnpm v${pnpmVersion} (Cumplimiento de directiva estricta)`);
+  console.log(`      ✅ Gestor de paquetes: pnpm v${pnpmVersion} (Cumplimiento de directiva estricta)`);
 } catch (e) {
-  console.error(`[2/7] ❌ Error: pnpm no detectado en PATH. Cristi requiere pnpm exclusivamente.`);
+  console.error(`      ❌ Error: pnpm no detectado en PATH. Cristi requiere pnpm exclusivamente.`);
   allChecksPassed = false;
+}
+
+const nodeModulesDir = path.join(ROOT_DIR, 'node_modules');
+if (fs.existsSync(nodeModulesDir)) {
+  const criticalPkgs = ['react', 'react-dom', 'electron', '@tensorflow/tfjs-core', 'pixi.js', 'lucide-react'];
+  const missingPkgs = criticalPkgs.filter(pkg => !fs.existsSync(path.join(nodeModulesDir, ...pkg.split('/'))));
+  if (missingPkgs.length === 0) {
+    console.log('      ✅ Dependencias clave del proyecto instaladas y verificadas en node_modules.');
+  } else {
+    console.warn(`      ⚠️ Dependencias clave faltantes: ${missingPkgs.join(', ')}. Ejecutando pnpm install...`);
+    try {
+      execSync('pnpm install', { stdio: 'inherit', cwd: ROOT_DIR });
+      console.log('      ✅ Dependencias instaladas con éxito tras restauración.');
+    } catch (_) {
+      console.error('      ❌ Error al restaurar dependencias con pnpm.');
+      allChecksPassed = false;
+    }
+  }
+} else {
+  console.warn('      ⚠️ node_modules no encontrado. Ejecutando pnpm install...');
+  try {
+    execSync('pnpm install', { stdio: 'inherit', cwd: ROOT_DIR });
+    console.log('      ✅ Dependencias instaladas correctamente.');
+  } catch (_) {
+    console.error('      ❌ Error al instalar dependencias con pnpm.');
+    allChecksPassed = false;
+  }
 }
 
 // 3. Verify Live2D Cubism Core Engine
@@ -193,7 +221,6 @@ console.log('\n================================================================'
 if (allChecksPassed) {
   console.log('✨ ¡ENTORNO DE CRISTI AI COMPANION 100% REPRODUCIBLE Y LISTO!');
   console.log('   • Desarrollo local:      pnpm run app:dev');
-  console.log('   • Pruebas diagnósticas:  pnpm run test:diagnostics');
   console.log('   • Empaquetar instalador: pnpm run app:build');
 } else {
   console.warn('⚠️ Se encontraron advertencias durante la preparación del entorno.');

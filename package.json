@@ -14,14 +14,7 @@
     "app:build": "node scripts/prebuild-electron.cjs && vite build && electron-builder --config electron-builder.config.cjs",
     "setup:env": "node scripts/setup-clean-env.cjs",
     "postinstall": "node scripts/postinstall-setup.cjs",
-    "test:diagnostics": "node tests/run_all_diagnostics.mjs",
-    "test:live-apm": "node scripts/diagnostics/run-live-audit.cjs",
-    "test:spark": "node scripts/diagnostics/spark-profiler.cjs",
-    "test:live": "node tests/test_live_gemini_master_orchestrator.mjs",
-    "test:dual-live": "node tests/test_live_gemini_dual_models_agentic.mjs",
-    "test:realtime": "node tests/test_live_gemini_single_session_realtime.mjs",
-    "test:minecraft-local": "node tests/test_minecraft_local_repro.mjs",
-    "test": "node tests/run_all_diagnostics.mjs"
+    "generate:brand": "electron scripts/generate-brand-assets.cjs"
   },
   "dependencies": {
     "@discordjs/voice": "^0.18.0",

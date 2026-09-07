@@ -3,7 +3,7 @@ import js from '@eslint/js';
 export default [
   js.configs.recommended,
   {
-    files: ['src/**/*.{js,jsx}', 'electron/**/*.{js,cjs}', 'scripts/**/*.{js,cjs}', 'tests/**/*.{js,mjs}'],
+    files: ['src/**/*.{js,jsx}', 'electron/**/*.{js,cjs}', 'scripts/**/*.{js,cjs,mjs}', '*.config.{js,cjs}'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

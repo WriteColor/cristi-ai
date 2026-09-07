@@ -706,46 +706,6 @@ export class ToolExecutor {
       }
 
       // ─────────────────────────────────────────────────────────────────
-      // MEMORIA PERMANENTE
-      // ─────────────────────────────────────────────────────────────────
-      case 'manage_memory': {
-        const action = typeof args.action === 'string' ? args.action : 'list';
-        let memories = {};
-
-        try {
-          if (typeof localStorage !== 'undefined') {
-            memories = JSON.parse(localStorage.getItem(this.memoryKey) || '{}');
-            if (typeof memories !== 'object' || memories === null || Array.isArray(memories)) {
-              memories = {};
-            }
-          }
-        } catch (e) {
-          memories = {};
-        }
-
-        if (action === 'save' && args.key) {
-          const key = String(args.key).trim();
-          memories[key] = args.value !== undefined ? String(args.value) : '';
-          try {
-            if (typeof localStorage !== 'undefined') {
-              localStorage.setItem(this.memoryKey, JSON.stringify(memories));
-            }
-          } catch (_) {}
-          return { status: 'success', memory_action: 'saved', key, value: memories[key] };
-        } else if (action === 'get' && args.key) {
-          const key = String(args.key).trim();
-          return {
-            status: 'success',
-            memory_action: 'retrieved',
-            key,
-            value: memories[key] !== undefined ? memories[key] : 'No encontrado en memoria'
-          };
-        } else {
-          return { status: 'success', memory_action: 'list', all_memories: memories };
-        }
-      }
-
-      // ─────────────────────────────────────────────────────────────────
       // MEMORIA PERMANENTE Y CONTEXTUAL AVANZADA
       // ─────────────────────────────────────────────────────────────────
       case 'remember_fact': {

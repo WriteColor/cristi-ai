@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 setlocal enabledelayedexpansion
 title Cristi AI Companion - Instalador y Configurador de Entorno
 
@@ -64,8 +64,7 @@ echo ================================================================
 echo  ✨ INSTALACION COMPLETADA CON EXITO - LISTO PARA EJECUTAR
 echo ================================================================
 echo   1. Iniciar en modo desarrollo (Desktop): pnpm run app:dev
-echo   2. Ejecutar pruebas de diagnostico:      pnpm run test:diagnostics
-echo   3. Compilar instalador ejecutable:       pnpm run app:build
+echo   2. Compilar instalador ejecutable:       pnpm run app:build
 echo ================================================================
 echo.
 pause
