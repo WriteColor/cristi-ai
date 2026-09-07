@@ -145,8 +145,10 @@ export default function SettingsApp({ isModal = false, onClose = null }) {
       // DiscordCompanionService stores the credential as `botToken`.
       // Keep accepting the legacy `token` field so existing profiles migrate
       // without forcing the user to paste the token again.
-      return discordCompanion.config?.botToken || discordCompanion.config?.token || '';
-    } catch (_) { return ''; }
+      return discordCompanion.config?.botToken || discordCompanion.config?.token || (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DISCORD_BOT_TOKEN) || '';
+    } catch (_) {
+      return (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DISCORD_BOT_TOKEN) || '';
+    }
   });
   const [discordStatus, setDiscordStatus] = useState(() => {
     try { return discordCompanion.status || 'disconnected'; } catch (_) { return 'disconnected'; }
@@ -172,8 +174,8 @@ export default function SettingsApp({ isModal = false, onClose = null }) {
   // Spotify State
   const [spotifyStatus, setSpotifyStatus] = useState({ isRunning: false, isPlaying: false, track: null, artist: null });
   const [spotifyTestQuery, setSpotifyTestQuery] = useState('lofi hip hop');
-  const [spotifyClientId, setSpotifyClientId] = useState(() => initialConfig.spotifyClientId || '');
-  const [spotifyClientSecret, setSpotifyClientSecret] = useState(() => initialConfig.spotifyClientSecret || '');
+  const [spotifyClientId, setSpotifyClientId] = useState(() => initialConfig.spotifyClientId || (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SPOTIFY_CLIENT_ID) || '');
+  const [spotifyClientSecret, setSpotifyClientSecret] = useState(() => initialConfig.spotifyClientSecret || (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SPOTIFY_CLIENT_SECRET) || '');
 
   // Playwright Test State
   const [playwrightStatus, setPlaywrightStatus] = useState({ isRunning: false, url: null, title: null });

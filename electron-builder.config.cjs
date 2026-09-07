@@ -11,11 +11,11 @@ module.exports = {
     "dist/**/*",
     "electron/**/*",
     "native/**/*",
-    "assets/icons/**/*",
+    "public/**/*",
     "package.json"
   ],
   win: {
-    icon: "assets/icons/icon.ico",
+    icon: "public/favicon.ico",
     target: [
       {
         target: "nsis",

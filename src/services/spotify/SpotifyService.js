@@ -12,10 +12,14 @@ import { logger } from '../logger.js';
 
 export class SpotifyService {
   constructor() {
-    // Spotify credentials are supplied by the user through Settings. Never
-    // ship a client secret in the renderer bundle or source repository.
-    this.clientId = '';
-    this.clientSecret = '';
+    const envClientId = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SPOTIFY_CLIENT_ID) ||
+                        (typeof process !== 'undefined' && (process.env?.VITE_SPOTIFY_CLIENT_ID || process.env?.SPOTIFY_CLIENT_ID)) ||
+                        '';
+    const envClientSecret = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SPOTIFY_CLIENT_SECRET) ||
+                           (typeof process !== 'undefined' && (process.env?.VITE_SPOTIFY_CLIENT_SECRET || process.env?.SPOTIFY_CLIENT_SECRET)) ||
+                           '';
+    this.clientId = envClientId.trim();
+    this.clientSecret = envClientSecret.trim();
     this.accessToken = null;
     this.tokenExpiresAt = 0;
     this.currentTrack = null;

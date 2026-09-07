@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src="assets/icons/icon.png" alt="Cristi AI Logo" width="128" style="border-radius: 24px; margin-bottom: 12px; box-shadow: 0 8px 24px rgba(255, 0, 0, 0.25);" />
+<img src="public/icon.png" alt="Cristi AI Logo" width="128" style="border-radius: 24px; margin-bottom: 12px; box-shadow: 0 8px 24px rgba(255, 0, 0, 0.25);" />
 
 ![Cristi AI Companion Banner](docs/assets/cristi-banner.png)
 

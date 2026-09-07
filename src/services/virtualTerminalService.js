@@ -43,7 +43,7 @@ export class VirtualTerminalService {
       },
       'C:\\React-Nextjs-Projects\\Cristi AI\\.env.example': {
         type: 'file',
-        content: 'VITE_GEMINI_API_KEY=AIzaSyYourApiKeyHere\nVITE_DEBUG=true'
+        content: 'VITE_GEMINI_API_KEY=your_gemini_api_key_here\nVITE_DEBUG=true'
       },
       'C:\\React-Nextjs-Projects\\Cristi AI\\.gitignore': {
         type: 'file',

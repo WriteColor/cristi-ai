@@ -31,8 +31,11 @@ export class DiscordCompanionService {
     this.bridge = bridge;
     this.bus = bus;
     this.storageKey = 'cristi_discord_config';
+    const envToken = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DISCORD_BOT_TOKEN) ||
+                     (typeof process !== 'undefined' && (process.env?.VITE_DISCORD_BOT_TOKEN || process.env?.DISCORD_BOT_TOKEN)) ||
+                     '';
     this.config = {
-      botToken: '',
+      botToken: envToken.trim(),
       autoReply: false,
       monitoredChannels: [], // array of channel IDs
       statusMessage: 'Conectada con Jeremy | Cristi AI',

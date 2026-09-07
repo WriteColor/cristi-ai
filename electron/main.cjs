@@ -7,6 +7,29 @@ const { exec, spawn } = require('child_process');
 const { PassThrough } = require('stream');
 const { pathToFileURL } = require('url');
 
+// ── Environment Variables Loader (.env -> process.env) ──────────────────────
+try {
+  const envPath = path.join(__dirname, '../.env');
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    for (const rawLine of envContent.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith('#')) continue;
+      const eqIdx = line.indexOf('=');
+      if (eqIdx > 0) {
+        const key = line.slice(0, eqIdx).trim();
+        let val = line.slice(eqIdx + 1).trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        if (key && !process.env[key]) {
+          process.env[key] = val;
+        }
+      }
+    }
+  }
+} catch (_) {}
+
 // ── Register Privileged Custom Protocol for Production Asset Serving ─────────
 protocol.registerSchemesAsPrivileged([
   {
@@ -184,16 +207,14 @@ function sanitizeAndValidatePath(inputPath) {
 
 function getAppIcon() {
   const candidates = [
-    path.join(__dirname, '../assets/icons/icon.ico'),
-    path.join(__dirname, '../assets/icons/icon.png'),
-    path.join(__dirname, '../resources/icons/icon.ico'),
-    path.join(__dirname, '../resources/icons/icon.png'),
-    path.join(__dirname, '../dist/favicon.ico'),
-    path.join(__dirname, '../dist/icon.png'),
     path.join(__dirname, '../public/icon.png'),
-    path.join(process.resourcesPath, 'resources/icons/icon.ico'),
-    path.join(process.resourcesPath, 'resources/icons/icon.png'),
-    path.join(process.resourcesPath, 'icons/icon.ico')
+    path.join(__dirname, '../public/favicon.ico'),
+    path.join(__dirname, '../dist/icon.png'),
+    path.join(__dirname, '../dist/favicon.ico'),
+    path.join(process.resourcesPath, 'public/icon.png'),
+    path.join(process.resourcesPath, 'public/favicon.ico'),
+    path.join(process.resourcesPath, 'icon.png'),
+    path.join(process.resourcesPath, 'favicon.ico')
   ];
   return candidates.find((p) => {
     try {
@@ -2904,21 +2925,14 @@ function createProceduralTrayIcon() {
 
 function getTrayIcon() {
   const candidates = [
-    path.join(__dirname, '../assets/icons/icon.ico'),
-    path.join(__dirname, '../assets/icons/icon.png'),
-    path.join(__dirname, '../resources/icons/icon.ico'),
-    path.join(__dirname, '../resources/icons/tray-icon.png'),
-    path.join(__dirname, '../resources/icons/icon.png'),
-    path.join(__dirname, '../dist/tray-icon.png'),
-    path.join(__dirname, '../dist/favicon.ico'),
-    path.join(__dirname, '../dist/favicon.png'),
-    path.join(__dirname, '../dist/icon.png'),
     path.join(__dirname, '../public/tray-icon.png'),
     path.join(__dirname, '../public/icon.png'),
-    path.join(process.resourcesPath, 'resources/icons/icon.ico'),
-    path.join(process.resourcesPath, 'resources/icons/tray-icon.png'),
-    path.join(process.resourcesPath, 'resources/icons/icon.png'),
-    path.join(process.resourcesPath, 'icons/icon.ico')
+    path.join(__dirname, '../dist/tray-icon.png'),
+    path.join(__dirname, '../dist/icon.png'),
+    path.join(process.resourcesPath, 'public/tray-icon.png'),
+    path.join(process.resourcesPath, 'public/icon.png'),
+    path.join(process.resourcesPath, 'tray-icon.png'),
+    path.join(process.resourcesPath, 'icon.png')
   ];
 
   for (const candidate of candidates) {

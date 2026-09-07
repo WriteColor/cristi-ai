@@ -6,8 +6,8 @@ const projectRoot = path.join(__dirname, '..');
 const logoSourcePath = 'C:\\Users\\jerem\\Downloads\\ChatGPT Image 5 sept 2026, 19_55_57.png';
 const bannerSourcePath = 'C:\\Users\\jerem\\Downloads\\ChatGPT Image 5 sept 2026, 20_42_20.png';
 
-const iconsDir = path.join(projectRoot, 'assets', 'icons');
-const faviconPath = path.join(projectRoot, 'public', 'favicon.ico');
+const publicDir = path.join(projectRoot, 'public');
+const faviconPath = path.join(publicDir, 'favicon.ico');
 const iconSizes = [16, 24, 32, 48, 64, 128, 256];
 
 function createIco(images) {
@@ -36,41 +36,31 @@ function createIco(images) {
 }
 
 app.whenReady().then(() => {
-  // 1. Process New Red Logo
+  // 1. Process Logo into Canonical public/ Directory (Zero Duplication)
   const logoSource = nativeImage.createFromPath(logoSourcePath);
   if (logoSource.isEmpty()) throw new Error(`No se pudo cargar el logo fuente: ${logoSourcePath}`);
 
-  if (!fs.existsSync(iconsDir)) {
-    fs.mkdirSync(iconsDir, { recursive: true });
+  if (!fs.existsSync(publicDir)) {
+    fs.mkdirSync(publicDir, { recursive: true });
   }
 
-  // High quality copy to assets/icons/icon.png
-  fs.copyFileSync(logoSourcePath, path.join(iconsDir, 'icon.png'));
-  
-  // Tray icons (64x64)
+  // Canonical full-res copy to public/icon.png
+  fs.copyFileSync(logoSourcePath, path.join(publicDir, 'icon.png'));
+
+  // Tray icon (64x64 HiDPI)
   const trayPng = logoSource.resize({ width: 64, height: 64, quality: 'best' }).toPNG();
-  fs.writeFileSync(path.join(iconsDir, 'tray-icon.png'), trayPng);
-  fs.writeFileSync(path.join(projectRoot, 'public', 'tray-icon.png'), trayPng);
+  fs.writeFileSync(path.join(publicDir, 'tray-icon.png'), trayPng);
 
-  // App icon for web / public (512x512)
-  const appIconPng = logoSource.resize({ width: 512, height: 512, quality: 'best' }).toPNG();
-  fs.writeFileSync(path.join(projectRoot, 'public', 'icon.png'), appIconPng);
-
-  // Favicon PNG (32x32)
-  const favicon32 = logoSource.resize({ width: 32, height: 32, quality: 'best' }).toPNG();
-  fs.writeFileSync(path.join(projectRoot, 'public', 'favicon.png'), favicon32);
-
-  // Multi-resolution ICO (16, 24, 32, 48, 64, 128, 256)
+  // Multi-resolution ICO (16, 24, 32, 48, 64, 128, 256) for Windows and Web
   const ico = createIco(iconSizes.map((size) => ({
     size,
     data: logoSource.resize({ width: size, height: size, quality: 'best' }).toPNG()
   })));
-  fs.writeFileSync(path.join(iconsDir, 'icon.ico'), ico);
   fs.writeFileSync(faviconPath, ico);
 
-  console.log('✅ Logo e iconos maestros (diseño rojo) generados con éxito.');
+  console.log('✅ Logo e iconos maestros (diseño rojo) generados exclusivamente en public/ (sin duplicación).');
 
-  // 2. Process New Global Banner
+  // 2. Process Banner into docs/assets/ (Single Source for Documentation & GitHub)
   const bannerSource = nativeImage.createFromPath(bannerSourcePath);
   if (bannerSource.isEmpty()) throw new Error(`No se pudo cargar el banner fuente: ${bannerSourcePath}`);
 
@@ -87,21 +77,15 @@ app.whenReady().then(() => {
   if (fs.existsSync(distDir)) {
     try {
       fs.writeFileSync(path.join(distDir, 'favicon.ico'), ico);
-      fs.writeFileSync(path.join(distDir, 'favicon.png'), favicon32);
-      fs.writeFileSync(path.join(distDir, 'icon.png'), appIconPng);
+      fs.writeFileSync(path.join(distDir, 'icon.png'), fs.readFileSync(logoSourcePath));
       fs.writeFileSync(path.join(distDir, 'tray-icon.png'), trayPng);
-
-      const distAssetsDir = path.join(distDir, 'assets');
-      if (!fs.existsSync(distAssetsDir)) fs.mkdirSync(distAssetsDir, { recursive: true });
-      fs.writeFileSync(path.join(distAssetsDir, 'cristi-banner.png'), bannerPngBuffer);
-      fs.writeFileSync(path.join(distAssetsDir, 'cristi-banner.jpg'), bannerJpgBuffer);
-      console.log('✅ Sincronizados logos y banner en dist/');
+      console.log('✅ Sincronizados logos en dist/');
     } catch (e) {
       console.warn('Aviso sincronizando dist:', e.message);
     }
   }
 
-  console.log('🎉 Identidad de marca (Logo rojo + Banner global) procesada con éxito!');
+  console.log('🎉 Identidad de marca unificada (sin archivos duplicados) procesada con éxito!');
   app.quit();
 }).catch((error) => {
   console.error('Error generando brand assets:', error);

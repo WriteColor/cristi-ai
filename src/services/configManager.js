@@ -12,12 +12,22 @@ const MAX_BACKUP_HISTORY = 10;
 
 function sanitizeDiscordConfig(value) {
   const input = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const envBotToken = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DISCORD_BOT_TOKEN) ||
+                      (typeof process !== 'undefined' && (process.env?.VITE_DISCORD_BOT_TOKEN || process.env?.DISCORD_BOT_TOKEN)) ||
+                      '';
+  const envClientId = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DISCORD_CLIENT_ID) ||
+                      (typeof process !== 'undefined' && (process.env?.VITE_DISCORD_CLIENT_ID || process.env?.DISCORD_CLIENT_ID)) ||
+                      '';
+  const rawBotToken = typeof input.botToken === 'string' ? input.botToken.trim() : '';
+  const rawClientId = typeof input.clientId === 'string' ? input.clientId.trim() : '';
   const monitoredChannels = Array.isArray(input.monitoredChannels)
     ? [...new Set(input.monitoredChannels
       .map((channelId) => String(channelId || '').trim())
       .filter((channelId) => /^\d{5,32}$/.test(channelId)))].slice(0, 100)
     : [];
   return {
+    botToken: rawBotToken || envBotToken.trim(),
+    clientId: rawClientId || envClientId.trim(),
     autoReply: input.autoReply === true,
     monitoredChannels,
     statusMessage: typeof input.statusMessage === 'string'
@@ -122,6 +132,17 @@ export class ConfigManager {
     const rawApiKey = typeof config.apiKey === 'string' ? config.apiKey.trim() : '';
     const safeApiKey = rawApiKey || envApiKey.trim();
 
+    const envSpotifyClientId = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SPOTIFY_CLIENT_ID) ||
+                               (typeof process !== 'undefined' && (process.env?.VITE_SPOTIFY_CLIENT_ID || process.env?.SPOTIFY_CLIENT_ID)) ||
+                               '';
+    const envSpotifyClientSecret = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SPOTIFY_CLIENT_SECRET) ||
+                                   (typeof process !== 'undefined' && (process.env?.VITE_SPOTIFY_CLIENT_SECRET || process.env?.SPOTIFY_CLIENT_SECRET)) ||
+                                   '';
+    const rawSpotifyClientId = typeof config.spotifyClientId === 'string' ? config.spotifyClientId.trim() : '';
+    const rawSpotifyClientSecret = typeof config.spotifyClientSecret === 'string' ? config.spotifyClientSecret.trim() : '';
+    const safeSpotifyClientId = rawSpotifyClientId || envSpotifyClientId.trim();
+    const safeSpotifyClientSecret = rawSpotifyClientSecret || envSpotifyClientSecret.trim();
+
     const validModelIds = Object.values(GEMINI_MODELS).map(m => m.id);
     const requestedModel = typeof config.modelId === 'string' ? config.modelId.trim() : '';
     const safeModelId = validModelIds.includes(requestedModel) ? requestedModel : DEFAULT_MODEL_ID;
@@ -133,8 +154,8 @@ export class ConfigManager {
       voiceName: typeof config.voiceName === 'string' && config.voiceName.trim() ? config.voiceName.trim() : 'Aoede',
       temperature: typeof config.temperature === 'number' && !isNaN(config.temperature) ? Math.max(0, Math.min(2, config.temperature)) : 0.75,
       systemPrompt: typeof config.systemPrompt === 'string' && config.systemPrompt.trim() && !config.systemPrompt.includes('1. Respuestas habladas, fluidas, íntimas y concisas:') && config.systemPrompt.includes('PROHIBICIÓN TOTAL DE COLETILLAS VOCALES') ? config.systemPrompt : SYSTEM_PERSONA_PROMPT,
-      spotifyClientId: typeof config.spotifyClientId === 'string' ? config.spotifyClientId.trim() : '',
-      spotifyClientSecret: typeof config.spotifyClientSecret === 'string' ? config.spotifyClientSecret.trim() : '',
+      spotifyClientId: safeSpotifyClientId,
+      spotifyClientSecret: safeSpotifyClientSecret,
       discord: sanitizeDiscordConfig(config.discord),
       externalTranslationEnabled: config.externalTranslationEnabled === true,
       translationTargetLanguage: typeof config.translationTargetLanguage === 'string' && /^[a-z]{2,8}$/i.test(config.translationTargetLanguage.trim())

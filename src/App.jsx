@@ -116,6 +116,8 @@ export function App() {
   // --- Persistent App Configuration ---
   const [config, setConfig] = useState(() => {
     const envApiKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GEMINI_API_KEY) || '';
+    const envSpotifyClientId = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SPOTIFY_CLIENT_ID) || '';
+    const envSpotifyClientSecret = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SPOTIFY_CLIENT_SECRET) || '';
     try {
       const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
       if (saved) {
@@ -130,6 +132,15 @@ export function App() {
         if (!parsed.systemPrompt || parsed.systemPrompt.includes('1. Respuestas habladas, fluidas, íntimas y concisas:') || !parsed.systemPrompt.includes('PROHIBICIÓN TOTAL DE COLETILLAS VOCALES')) {
           parsed.systemPrompt = SYSTEM_PERSONA_PROMPT;
         }
+        if (!parsed.apiKey && envApiKey) {
+          parsed.apiKey = envApiKey;
+        }
+        if (!parsed.spotifyClientId && envSpotifyClientId) {
+          parsed.spotifyClientId = envSpotifyClientId;
+        }
+        if (!parsed.spotifyClientSecret && envSpotifyClientSecret) {
+          parsed.spotifyClientSecret = envSpotifyClientSecret;
+        }
         return parsed;
       }
     } catch (e) {}
@@ -140,8 +151,8 @@ export function App() {
       voiceName: 'Aoede',
       temperature: 0.75,
       systemPrompt: SYSTEM_PERSONA_PROMPT,
-      spotifyClientId: '',
-      spotifyClientSecret: '',
+      spotifyClientId: envSpotifyClientId,
+      spotifyClientSecret: envSpotifyClientSecret,
       externalTranslationEnabled: false,
       translationTargetLanguage: 'es',
       translationAggregateMs: 400,
