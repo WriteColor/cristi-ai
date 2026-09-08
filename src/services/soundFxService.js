@@ -120,6 +120,11 @@ export class SoundFxService {
     } catch (_) {}
   }
 
+  /** Alias for playConnect */
+  playConnectedBleep() {
+    this.playConnect();
+  }
+
   /** Disconnection chime (descending tone) */
   playDisconnect() {
     if (!this.isEnabled) return;

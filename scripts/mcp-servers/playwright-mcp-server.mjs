@@ -1,22 +1,31 @@
 /**
- * Cristi AI - Official Playwright MCP Server
- * Model Context Protocol (MCP) Server for comprehensive browser automation using Playwright and Brave.
+ * Cristi AI Companion — Official Playwright MCP Server
+ * Model Context Protocol (MCP) Server for web automation and browser interaction.
+ * Built with @modelcontextprotocol/sdk and Playwright.
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { chromium } from 'playwright';
-import fs from 'fs';
+import { z } from 'zod';
+import fs from 'node:fs';
+import path from 'node:path';
 
-const BRAVE_PATH_CANDIDATES = [
+const BROWSER_EXECUTABLE_CANDIDATES = [
   'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
   'C:\\Program Files (x86)\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
-  'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\chrome_proxy.exe'
+  path.join(process.env.LOCALAPPDATA || '', 'BraveSoftware\\Brave-Browser\\Application\\brave.exe'),
+  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+  'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+  'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+  'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
 ];
 
-function getBravePath() {
-  for (const candidate of BRAVE_PATH_CANDIDATES) {
-    if (fs.existsSync(candidate)) return candidate;
+function resolveBrowserExecutable() {
+  for (const candidate of BROWSER_EXECUTABLE_CANDIDATES) {
+    if (candidate && fs.existsSync(candidate)) {
+      return candidate;
+    }
   }
   return null;
 }
@@ -27,20 +36,27 @@ let page = null;
 
 async function ensurePage() {
   if (!browser || !browser.isConnected()) {
-    const bravePath = getBravePath();
-    if (!bravePath) {
-      throw new Error('Brave.exe no está instalado; el MCP no iniciará otro navegador.');
-    }
-    browser = await chromium.launch({
-      executablePath: bravePath,
+    const executablePath = resolveBrowserExecutable();
+    const launchOptions = {
       headless: false,
-      args: ['--disable-blink-features=AutomationControlled', '--start-maximized', '--no-default-browser-check']
-    });
+      args: [
+        '--disable-blink-features=AutomationControlled',
+        '--start-maximized',
+        '--no-default-browser-check'
+      ]
+    };
+
+    if (executablePath) {
+      launchOptions.executablePath = executablePath;
+    }
+
+    browser = await chromium.launch(launchOptions);
     context = await browser.newContext({ viewport: null });
     page = await context.newPage();
   } else if (!page || page.isClosed()) {
     page = await context.newPage();
   }
+
   return page;
 }
 
@@ -52,9 +68,9 @@ const server = new McpServer({
 // 1. Navigate
 server.tool(
   'playwright_navigate',
-  'Navega a cualquier URL o aplicación web en el navegador Brave.',
+  'Navega a cualquier URL o aplicación web en el navegador.',
   {
-    url: { type: 'string', description: 'La URL completa a la que se desea navegar (ej: https://open.spotify.com o https://github.com)' }
+    url: z.string().describe('La URL completa a la que se desea navegar (ej: https://open.spotify.com o https://github.com)')
   },
   async ({ url }) => {
     try {
@@ -67,7 +83,10 @@ server.tool(
         content: [{ type: 'text', text: `Navegación completada a "${target}". Título: "${title}"` }]
       };
     } catch (err) {
-      return { content: [{ type: 'text', text: `Error al navegar: ${err.message}` }], isError: true };
+      return {
+        content: [{ type: 'text', text: `Error al navegar: ${err.message}` }],
+        isError: true
+      };
     }
   }
 );
@@ -77,15 +96,20 @@ server.tool(
   'playwright_click',
   'Hace clic en un elemento, botón, enlace o campo de la página.',
   {
-    selector: { type: 'string', description: 'Selector CSS, texto o XPath del elemento a clickear' }
+    selector: z.string().describe('Selector CSS, texto o XPath del elemento a clickear')
   },
   async ({ selector }) => {
     try {
       const p = await ensurePage();
       await p.click(selector, { timeout: 10000 });
-      return { content: [{ type: 'text', text: `Clic exitoso en "${selector}".` }] };
+      return {
+        content: [{ type: 'text', text: `Clic exitoso en "${selector}".` }]
+      };
     } catch (err) {
-      return { content: [{ type: 'text', text: `Error al hacer clic en "${selector}": ${err.message}` }], isError: true };
+      return {
+        content: [{ type: 'text', text: `Error al hacer clic en "${selector}": ${err.message}` }],
+        isError: true
+      };
     }
   }
 );
@@ -95,16 +119,21 @@ server.tool(
   'playwright_fill',
   'Escribe o llena un campo de entrada (input, textarea) en la página.',
   {
-    selector: { type: 'string', description: 'Selector CSS o selector de texto del campo' },
-    value: { type: 'string', description: 'El texto a ingresar en el campo' }
+    selector: z.string().describe('Selector CSS o selector de texto del campo'),
+    value: z.string().describe('El texto a ingresar en el campo')
   },
   async ({ selector, value }) => {
     try {
       const p = await ensurePage();
       await p.fill(selector, value, { timeout: 10000 });
-      return { content: [{ type: 'text', text: `Texto ingresado exitosamente en "${selector}".` }] };
+      return {
+        content: [{ type: 'text', text: `Texto ingresado exitosamente en "${selector}".` }]
+      };
     } catch (err) {
-      return { content: [{ type: 'text', text: `Error al llenar "${selector}": ${err.message}` }], isError: true };
+      return {
+        content: [{ type: 'text', text: `Error al llenar "${selector}": ${err.message}` }],
+        isError: true
+      };
     }
   }
 );
@@ -114,16 +143,21 @@ server.tool(
   'playwright_press',
   'Presiona una tecla del teclado (Enter, Escape, Tab, ArrowDown, etc.).',
   {
-    key: { type: 'string', description: 'Tecla a presionar (ej: "Enter", "Tab", "Escape")' },
-    selector: { type: 'string', description: 'Selector opcional en el que presionar la tecla' }
+    key: z.string().describe('Tecla a presionar (ej: "Enter", "Tab", "Escape")'),
+    selector: z.string().optional().describe('Selector opcional en el que presionar la tecla')
   },
   async ({ key, selector }) => {
     try {
       const p = await ensurePage();
       await p.press(selector || 'body', key);
-      return { content: [{ type: 'text', text: `Tecla "${key}" presionada con éxito.` }] };
+      return {
+        content: [{ type: 'text', text: `Tecla "${key}" presionada con éxito.` }]
+      };
     } catch (err) {
-      return { content: [{ type: 'text', text: `Error al presionar tecla: ${err.message}` }], isError: true };
+      return {
+        content: [{ type: 'text', text: `Error al presionar tecla: ${err.message}` }],
+        isError: true
+      };
     }
   }
 );
@@ -144,7 +178,10 @@ server.tool(
         ]
       };
     } catch (err) {
-      return { content: [{ type: 'text', text: `Error al capturar pantalla: ${err.message}` }], isError: true };
+      return {
+        content: [{ type: 'text', text: `Error al capturar pantalla: ${err.message}` }],
+        isError: true
+      };
     }
   }
 );
@@ -154,7 +191,7 @@ server.tool(
   'playwright_get_content',
   'Obtiene el contenido de texto legible o HTML de la página web actual o de un elemento.',
   {
-    selector: { type: 'string', description: 'Selector opcional para extraer solo ese bloque' }
+    selector: z.string().optional().describe('Selector opcional para extraer solo ese bloque')
   },
   async ({ selector }) => {
     try {
@@ -169,7 +206,10 @@ server.tool(
         content: [{ type: 'text', text: text.slice(0, 4000) }]
       };
     } catch (err) {
-      return { content: [{ type: 'text', text: `Error al leer contenido: ${err.message}` }], isError: true };
+      return {
+        content: [{ type: 'text', text: `Error al leer contenido: ${err.message}` }],
+        isError: true
+      };
     }
   }
 );
@@ -179,7 +219,7 @@ server.tool(
   'playwright_evaluate',
   'Ejecuta un script de JavaScript en el contexto de la página web.',
   {
-    script: { type: 'string', description: 'Expresión o función JavaScript a ejecutar' }
+    script: z.string().describe('Expresión o función JavaScript a ejecutar')
   },
   async ({ script }) => {
     try {
@@ -189,7 +229,10 @@ server.tool(
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
       };
     } catch (err) {
-      return { content: [{ type: 'text', text: `Error al evaluar script: ${err.message}` }], isError: true };
+      return {
+        content: [{ type: 'text', text: `Error al evaluar script: ${err.message}` }],
+        isError: true
+      };
     }
   }
 );
@@ -207,9 +250,14 @@ server.tool(
         context = null;
         page = null;
       }
-      return { content: [{ type: 'text', text: 'Navegador Playwright cerrado exitosamente.' }] };
+      return {
+        content: [{ type: 'text', text: 'Navegador Playwright cerrado exitosamente.' }]
+      };
     } catch (err) {
-      return { content: [{ type: 'text', text: `Error al cerrar navegador: ${err.message}` }], isError: true };
+      return {
+        content: [{ type: 'text', text: `Error al cerrar navegador: ${err.message}` }],
+        isError: true
+      };
     }
   }
 );
@@ -217,7 +265,7 @@ server.tool(
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('[MCP Playwright] Servidor iniciado en stdio.');
+  console.error('[MCP Playwright] Servidor MCP iniciado en transporte Stdio.');
 }
 
 main().catch((err) => {

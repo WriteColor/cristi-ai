@@ -22,26 +22,12 @@ neutralinojs.log
 .env*.local
 
 # Temporary Test Artifacts & Videos
-tests/screenshots/
-tests/videos/
-tests/output/electron-probe-*/
-tests/output/playwright-package-audit-*/
-tests/output/native-vision-profile-*/
-tests/output/native-vision-latest.jpg
-tests/output/live-native-vision-lifecycle.json
-tests/output/live-native-vision-companion.json
-tests/output/live-call-probe.json
-tests/output/live-vision-probe.json
-tests/output/packaged-call-report.json
-tests/output/packaged-subtitles.png
-tests/output/refactor-lint-*.json
-tests/artifacts/
-tests/output/call-probe.wav
-tests/output/vision-probe-*.jpg
+tests/* 
+
 *.rar
 *.zip
 *.tar.gz
-scratch_screenshot.png
+
 .tmp/
 tmp/
 

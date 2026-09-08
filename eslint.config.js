@@ -1,9 +1,22 @@
 import js from '@eslint/js';
+import tseslint from 'typescript-eslint';
 
 export default [
-  js.configs.recommended,
   {
-    files: ['src/**/*.{js,jsx}', 'electron/**/*.{js,cjs}', 'scripts/**/*.{js,cjs,mjs}', '*.config.{js,cjs}'],
+    ignores: [
+      'dist/**',
+      'release/**',
+      'public/**',
+      'node_modules/**',
+      '*.zip',
+      'native/**',
+      'electron/dist/**',
+    ],
+  },
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
+  {
+    files: ['src/**/*.{js,jsx,ts,tsx}', 'electron/**/*.{js,cjs,ts}', 'scripts/**/*.{js,cjs,mjs}', '*.config.{js,cjs}'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -58,7 +71,12 @@ export default [
       }
     },
     rules: {
-      'no-undef': 'error',
+      'no-undef': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-empty-object-type': 'off',
+      '@typescript-eslint/ban-ts-comment': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
       'no-dupe-keys': 'error',
       'no-dupe-class-members': 'error',
       'no-unused-vars': 'off',

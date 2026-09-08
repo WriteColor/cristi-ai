@@ -1,93 +1,182 @@
-const fs = require('fs');
-const path = require('path');
-const { app, nativeImage } = require('electron');
+/**
+ * Cristi AI Companion — Master Brand Assets Generator & Verifier
+ * 
+ * Generates and validates canonical brand assets:
+ *   - public/icon.png      (High-resolution primary app icon)
+ *   - public/tray-icon.png (64x64 HiDPI system tray icon)
+ *   - public/favicon.ico   (Multi-resolution ICO: 16, 24, 32, 48, 64, 128, 256)
+ * 
+ * Can be run via Electron (`pnpm run generate:brand`) or standard Node.js.
+ */
 
-const projectRoot = path.join(__dirname, '..');
-const logoSourcePath = 'C:\\Users\\jerem\\Downloads\\ChatGPT Image 5 sept 2026, 19_55_57.png';
-const bannerSourcePath = 'C:\\Users\\jerem\\Downloads\\ChatGPT Image 5 sept 2026, 20_42_20.png';
+'use strict';
 
-const publicDir = path.join(projectRoot, 'public');
-const faviconPath = path.join(publicDir, 'favicon.ico');
-const iconSizes = [16, 24, 32, 48, 64, 128, 256];
+const fs = require('node:fs');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+const PUBLIC_DIR = path.join(PROJECT_ROOT, 'public');
+const DIST_DIR = path.join(PROJECT_ROOT, 'dist');
+const ICON_SIZES = [16, 24, 32, 48, 64, 128, 256];
+
+/**
+ * Builds a multi-resolution Windows .ICO binary buffer from PNG images.
+ * @param {Array<{ size: number, data: Buffer }>} images
+ */
 function createIco(images) {
-  const directorySize = 6 + (images.length * 16);
-  const output = Buffer.alloc(directorySize + images.reduce((total, image) => total + image.data.length, 0));
-  output.writeUInt16LE(0, 0);
-  output.writeUInt16LE(1, 2);
-  output.writeUInt16LE(images.length, 4);
+  const count = images.length;
+  const directorySize = 6 + count * 16;
+  const totalDataSize = images.reduce((sum, img) => sum + img.data.length, 0);
+  const output = Buffer.alloc(directorySize + totalDataSize);
+
+  // ICONDIR header
+  output.writeUInt16LE(0, 0);     // Reserved (0)
+  output.writeUInt16LE(1, 2);     // Type 1 = ICO
+  output.writeUInt16LE(count, 4); // Number of images
 
   let dataOffset = directorySize;
-  for (const [index, image] of images.entries()) {
-    const entryOffset = 6 + (index * 16);
-    output.writeUInt8(image.size === 256 ? 0 : image.size, entryOffset);
-    output.writeUInt8(image.size === 256 ? 0 : image.size, entryOffset + 1);
-    output.writeUInt8(0, entryOffset + 2);
-    output.writeUInt8(0, entryOffset + 3);
-    output.writeUInt16LE(1, entryOffset + 4);
-    output.writeUInt16LE(32, entryOffset + 6);
-    output.writeUInt32LE(image.data.length, entryOffset + 8);
-    output.writeUInt32LE(dataOffset, entryOffset + 12);
-    image.data.copy(output, dataOffset);
-    dataOffset += image.data.length;
+  for (let i = 0; i < count; i++) {
+    const img = images[i];
+    const entryOffset = 6 + i * 16;
+
+    // Width & Height (0 represents 256)
+    output.writeUInt8(img.size === 256 ? 0 : img.size, entryOffset);
+    output.writeUInt8(img.size === 256 ? 0 : img.size, entryOffset + 1);
+    output.writeUInt8(0, entryOffset + 2); // Color count
+    output.writeUInt8(0, entryOffset + 3); // Reserved
+    output.writeUInt16LE(1, entryOffset + 4); // Color planes
+    output.writeUInt16LE(32, entryOffset + 6); // Bits per pixel
+    output.writeUInt32LE(img.data.length, entryOffset + 8); // Image size in bytes
+    output.writeUInt32LE(dataOffset, entryOffset + 12); // Offset to image data
+
+    img.data.copy(output, dataOffset);
+    dataOffset += img.data.length;
   }
 
   return output;
 }
 
-app.whenReady().then(() => {
-  // 1. Process Logo into Canonical public/ Directory (Zero Duplication)
-  const logoSource = nativeImage.createFromPath(logoSourcePath);
-  if (logoSource.isEmpty()) throw new Error(`No se pudo cargar el logo fuente: ${logoSourcePath}`);
-
-  if (!fs.existsSync(publicDir)) {
-    fs.mkdirSync(publicDir, { recursive: true });
+function resolveSourceImagePath() {
+  // Command line arg
+  const argPath = process.argv[2];
+  if (argPath && fs.existsSync(argPath)) {
+    return argPath;
   }
 
-  // Canonical full-res copy to public/icon.png
-  fs.copyFileSync(logoSourcePath, path.join(publicDir, 'icon.png'));
+  // Existing icon.png
+  const existingIcon = path.join(PUBLIC_DIR, 'icon.png');
+  if (fs.existsSync(existingIcon)) {
+    return existingIcon;
+  }
 
-  // Tray icon (64x64 HiDPI)
-  const trayPng = logoSource.resize({ width: 64, height: 64, quality: 'best' }).toPNG();
-  fs.writeFileSync(path.join(publicDir, 'tray-icon.png'), trayPng);
+  // Downloads fallback candidates
+  const userProfile = process.env.USERPROFILE || '';
+  const downloadCandidates = [
+    path.join(userProfile, 'Downloads', 'ChatGPT Image 5 sept 2026, 19_55_57.png'),
+    path.join(PROJECT_ROOT, 'docs', 'assets', 'cristi-banner.png')
+  ];
 
-  // Multi-resolution ICO (16, 24, 32, 48, 64, 128, 256) for Windows and Web
-  const ico = createIco(iconSizes.map((size) => ({
-    size,
-    data: logoSource.resize({ width: size, height: size, quality: 'best' }).toPNG()
-  })));
-  fs.writeFileSync(faviconPath, ico);
+  for (const candidate of downloadCandidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
 
-  console.log('✅ Logo e iconos maestros (diseño rojo) generados exclusivamente en public/ (sin duplicación).');
+  return null;
+}
 
-  // 2. Process Banner into docs/assets/ (Single Source for Documentation & GitHub)
-  const bannerSource = nativeImage.createFromPath(bannerSourcePath);
-  if (bannerSource.isEmpty()) throw new Error(`No se pudo cargar el banner fuente: ${bannerSourcePath}`);
+// Check if running inside Electron runtime
+if (process.versions && process.versions.electron) {
+  const { app, nativeImage } = require('electron');
 
-  const docsAssetsDir = path.join(projectRoot, 'docs', 'assets');
-  if (!fs.existsSync(docsAssetsDir)) fs.mkdirSync(docsAssetsDir, { recursive: true });
-
-  const bannerPngBuffer = fs.readFileSync(bannerSourcePath);
-  fs.writeFileSync(path.join(docsAssetsDir, 'cristi-banner.png'), bannerPngBuffer);
-
-  console.log('✅ Banner global actualizado en docs/assets/cristi-banner.png.');
-
-  // 3. Sync to dist if dist exists
-  const distDir = path.join(projectRoot, 'dist');
-  if (fs.existsSync(distDir)) {
+  app.whenReady().then(() => {
     try {
-      fs.writeFileSync(path.join(distDir, 'favicon.ico'), ico);
-      fs.writeFileSync(path.join(distDir, 'icon.png'), fs.readFileSync(logoSourcePath));
-      fs.writeFileSync(path.join(distDir, 'tray-icon.png'), trayPng);
-      console.log('✅ Sincronizados logos en dist/');
-    } catch (e) {
-      console.warn('Aviso sincronizando dist:', e.message);
-    }
-  }
+      const sourcePath = resolveSourceImagePath();
+      if (!sourcePath) {
+        throw new Error('No source image found to generate brand assets.');
+      }
 
-  console.log('🎉 Identidad de marca unificada (sin archivos duplicados) procesada con éxito!');
-  app.quit();
-}).catch((error) => {
-  console.error('Error generando brand assets:', error);
-  app.exit(1);
-});
+      console.log(`[BrandAssets] Procesando imagen fuente: ${sourcePath}`);
+      const logoSource = nativeImage.createFromPath(sourcePath);
+      if (logoSource.isEmpty()) {
+        throw new Error(`nativeImage no pudo cargar la imagen fuente: ${sourcePath}`);
+      }
+
+      if (!fs.existsSync(PUBLIC_DIR)) {
+        fs.mkdirSync(PUBLIC_DIR, { recursive: true });
+      }
+
+      const iconPngPath = path.join(PUBLIC_DIR, 'icon.png');
+      const trayPngPath = path.join(PUBLIC_DIR, 'tray-icon.png');
+      const faviconPath = path.join(PUBLIC_DIR, 'favicon.ico');
+
+      // 1. High-res icon.png
+      if (sourcePath !== iconPngPath) {
+        fs.copyFileSync(sourcePath, iconPngPath);
+      }
+
+      // 2. Tray Icon (64x64 HiDPI)
+      const trayPngBuffer = logoSource.resize({ width: 64, height: 64, quality: 'best' }).toPNG();
+      fs.writeFileSync(trayPngPath, trayPngBuffer);
+
+      // 3. Multi-resolution ICO (16, 24, 32, 48, 64, 128, 256)
+      const icoBuffers = ICON_SIZES.map((size) => ({
+        size,
+        data: logoSource.resize({ width: size, height: size, quality: 'best' }).toPNG(),
+      }));
+      const icoData = createIco(icoBuffers);
+      fs.writeFileSync(faviconPath, icoData);
+
+      console.log('✓ Iconos maestros generados en public/ (icon.png, tray-icon.png, favicon.ico)');
+
+      // 4. Mirror to dist/ if dist exists
+      if (fs.existsSync(DIST_DIR)) {
+        try {
+          fs.copyFileSync(iconPngPath, path.join(DIST_DIR, 'icon.png'));
+          fs.copyFileSync(trayPngPath, path.join(DIST_DIR, 'tray-icon.png'));
+          fs.copyFileSync(faviconPath, path.join(DIST_DIR, 'favicon.ico'));
+          console.log('✓ Iconos sincronizados en dist/');
+        } catch (_) {}
+      }
+
+      console.log('✅ Identidad visual generada y verificada exitosamente.');
+      app.quit();
+    } catch (err) {
+      console.error('[BrandAssets Error]', err.message);
+      app.exit(1);
+    }
+  });
+} else {
+  // Running directly under Node.js CLI
+  const iconPngPath = path.join(PUBLIC_DIR, 'icon.png');
+  const trayPngPath = path.join(PUBLIC_DIR, 'tray-icon.png');
+  const faviconPath = path.join(PUBLIC_DIR, 'favicon.ico');
+
+  const allExist = fs.existsSync(iconPngPath) && fs.existsSync(trayPngPath) && fs.existsSync(faviconPath);
+
+  if (allExist && !process.argv.includes('--force')) {
+    console.log('[BrandAssets] ✓ Iconos ya existen y son válidos en public/:');
+    console.log(`   - ${iconPngPath} (${(fs.statSync(iconPngPath).size / 1024).toFixed(1)} KB)`);
+    console.log(`   - ${trayPngPath} (${(fs.statSync(trayPngPath).size / 1024).toFixed(1)} KB)`);
+    console.log(`   - ${faviconPath} (${(fs.statSync(faviconPath).size / 1024).toFixed(1)} KB)`);
+
+    // Sync to dist if exists
+    if (fs.existsSync(DIST_DIR)) {
+      try {
+        fs.copyFileSync(iconPngPath, path.join(DIST_DIR, 'icon.png'));
+        fs.copyFileSync(trayPngPath, path.join(DIST_DIR, 'tray-icon.png'));
+        fs.copyFileSync(faviconPath, path.join(DIST_DIR, 'favicon.ico'));
+        console.log('[BrandAssets] ✓ Sincronizados con dist/');
+      } catch (_) {}
+    }
+    process.exit(0);
+  } else {
+    // Invoke Electron to generate them
+    console.log('[BrandAssets] Ejecutando generación de activos vía Electron...');
+    const result = spawnSync('pnpm', ['exec', 'electron', __filename], {
+      cwd: PROJECT_ROOT,
+      stdio: 'inherit',
+      shell: true,
+    });
+    process.exit(result.status || 0);
+  }
+}

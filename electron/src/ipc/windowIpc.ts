@@ -1,0 +1,368 @@
+import { ipcMain, BrowserWindow, screen, app } from 'electron';
+import { windowManager } from '../windows/windowManager';
+import { processManager } from '../core/processManager';
+import { DisplayInfo, InteractiveHitbox, ProcessMemoryResult, ProcessMetricInfo } from '../types/electron.types';
+
+// Custom properties on BrowserWindow instances for deduplication
+interface ExtendedBrowserWindow extends BrowserWindow {
+  _lastIgnore?: boolean;
+  _lastForward?: boolean;
+}
+
+let registeredInteractiveHitboxes: InteractiveHitbox[] = [];
+let lastInteractiveHitState: boolean | null = null;
+let hitboxIntervalId: NodeJS.Timeout | null = null;
+
+/**
+ * Starts the native zero-lag cursor polling for interactive hitboxes (25ms).
+ * Eliminates OS-level mouse hook delays while maintaining smooth hover activation.
+ */
+export function startHitboxTracking(): void {
+  if (hitboxIntervalId) return;
+
+  hitboxIntervalId = setInterval(() => {
+    const mainWin = windowManager.getMainWindow() as ExtendedBrowserWindow | null;
+    if (!mainWin || mainWin.isDestroyed()) return;
+
+    // If an overlay or modal holds an interaction lock, keep receiving events
+    if (mainWin._lastIgnore === false) return;
+
+    try {
+      const cursor = screen.getCursorScreenPoint();
+      const bounds = mainWin.getBounds();
+      const relX = cursor.x - bounds.x;
+      const relY = cursor.y - bounds.y;
+
+      const isOver = registeredInteractiveHitboxes.some(
+        (b) =>
+          b &&
+          typeof b.x === 'number' &&
+          relX >= b.x &&
+          relX <= b.x + b.width &&
+          relY >= b.y &&
+          relY <= b.y + b.height
+      );
+
+      if (isOver !== lastInteractiveHitState) {
+        lastInteractiveHitState = isOver;
+        if (isOver) {
+          mainWin.setIgnoreMouseEvents(false);
+        } else {
+          mainWin.setIgnoreMouseEvents(true, { forward: false });
+        }
+      }
+    } catch (_) {}
+  }, 25);
+}
+
+export function stopHitboxTracking(): void {
+  if (hitboxIntervalId) {
+    clearInterval(hitboxIntervalId);
+    hitboxIntervalId = null;
+  }
+}
+
+/**
+ * Registers window management and display IPC handlers.
+ */
+export function registerWindowIpc(): void {
+  startHitboxTracking();
+
+  // ── Click-Through Toggle ──────────────────────────────────────────────────
+  ipcMain.on('set-ignore-mouse-events', (event, ignore: unknown) => {
+    try {
+      const win = BrowserWindow.fromWebContents(event.sender) as ExtendedBrowserWindow | null;
+      if (!win || win.isDestroyed()) return;
+
+      const ignoreBool = Boolean(ignore);
+      // forward: false uses native Windows WS_EX_TRANSPARENT without WH_MOUSE_LL lag
+      const forwardBool = false;
+
+      if (win._lastIgnore === ignoreBool && win._lastForward === forwardBool) {
+        return; // Deduplicate call in main process
+      }
+
+      win._lastIgnore = ignoreBool;
+      win._lastForward = forwardBool;
+      win.setIgnoreMouseEvents(ignoreBool, { forward: false });
+    } catch (err) {
+      console.error('[WindowIpc] Error setting ignore mouse events:', err);
+    }
+  });
+
+  // ── Hitbox Synchronization ────────────────────────────────────────────────
+  ipcMain.on('sync-interactive-hitboxes', (_event, hitboxes: unknown) => {
+    if (Array.isArray(hitboxes)) {
+      registeredInteractiveHitboxes = hitboxes as InteractiveHitbox[];
+    }
+  });
+
+  // ── Always-On-Top ─────────────────────────────────────────────────────────
+  ipcMain.on('set-always-on-top', (event, value: unknown) => {
+    try {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      if (!win || win.isDestroyed()) return;
+      if (value) {
+        win.setAlwaysOnTop(true, 'pop-up-menu');
+      } else {
+        win.setAlwaysOnTop(false);
+      }
+    } catch (err) {
+      console.error('[WindowIpc] Error setting always-on-top:', err);
+    }
+  });
+
+  ipcMain.handle('get-always-on-top', (event): boolean => {
+    try {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      return win && !win.isDestroyed() ? win.isAlwaysOnTop() : false;
+    } catch (_) {
+      return false;
+    }
+  });
+
+  // ── Window Controls ───────────────────────────────────────────────────────
+  ipcMain.on('minimize-window', () => {
+    try {
+      const mainWin = windowManager.getMainWindow();
+      if (mainWin && !mainWin.isDestroyed()) {
+        mainWin.minimize();
+      }
+    } catch (err) {
+      console.error('[WindowIpc] Error minimizing window:', err);
+    }
+  });
+
+  ipcMain.on('show-window', () => {
+    try {
+      const mainWin = windowManager.getMainWindow();
+      if (mainWin && !mainWin.isDestroyed()) {
+        mainWin.show();
+        mainWin.focus();
+      }
+    } catch (err) {
+      console.error('[WindowIpc] Error showing window:', err);
+    }
+  });
+
+  ipcMain.on('hide-window', () => {
+    try {
+      const mainWin = windowManager.getMainWindow();
+      if (mainWin && !mainWin.isDestroyed()) {
+        mainWin.hide();
+      }
+    } catch (err) {
+      console.error('[WindowIpc] Error hiding window:', err);
+    }
+  });
+
+  ipcMain.on('quit-app', async () => {
+    await processManager.cleanupAll();
+    app.quit();
+  });
+
+  ipcMain.handle('relaunch-app', async () => {
+    try {
+      await processManager.cleanupAll();
+      app.relaunch();
+      app.exit(0);
+      return { success: true };
+    } catch (err) {
+      console.error('[WindowIpc] Error relaunching app:', err);
+      return { success: false, error: (err as Error).message };
+    }
+  });
+
+  ipcMain.handle('reload-window', (event) => {
+    try {
+      const win = BrowserWindow.fromWebContents(event.sender) || windowManager.getMainWindow();
+      if (win && !win.isDestroyed()) {
+        win.reload();
+        return { success: true };
+      }
+      return { success: false, error: 'Window not found' };
+    } catch (err) {
+      console.error('[WindowIpc] Error reloading window:', err);
+      return { success: false, error: (err as Error).message };
+    }
+  });
+
+  // ── Display Info ──────────────────────────────────────────────────────────
+  ipcMain.handle('get-display-info', (): DisplayInfo => {
+    try {
+      const primary = screen.getPrimaryDisplay();
+      if (!primary || !primary.bounds) {
+        return {
+          width: 1920,
+          height: 1080,
+          scaleFactor: 1,
+          workArea: { x: 0, y: 0, width: 1920, height: 1080 },
+        };
+      }
+      return {
+        width: primary.bounds.width,
+        height: primary.bounds.height,
+        scaleFactor: primary.scaleFactor || 1,
+        workArea: primary.workArea || primary.bounds,
+      };
+    } catch (err) {
+      console.error('[WindowIpc] Error getting display info:', err);
+      return {
+        width: 1920,
+        height: 1080,
+        scaleFactor: 1,
+        workArea: { x: 0, y: 0, width: 1920, height: 1080 },
+      };
+    }
+  });
+
+  // ── Process & GPU Telemetry ───────────────────────────────────────────────
+  ipcMain.handle('get-process-memory-info', async (): Promise<ProcessMemoryResult> => {
+    try {
+      const metrics = (app.getAppMetrics && typeof app.getAppMetrics === 'function') ? app.getAppMetrics() : [];
+      let totalWorkingSetKB = 0;
+      let totalPeakWorkingSetKB = 0;
+      let totalPrivateKB = 0;
+      let totalSharedKB = 0;
+      const processBreakdown = {
+        browser: 0,
+        renderer: 0,
+        gpu: 0,
+        utility: 0,
+      };
+
+      const processList: ProcessMetricInfo[] = [];
+
+      if (Array.isArray(metrics)) {
+        metrics.forEach((m) => {
+          if (!m) return;
+          const mem = m.memory as any;
+          const ws = mem?.workingSetSize || 0;
+          const peak = mem?.peakWorkingSetSize || 0;
+          const priv = mem?.privateBytes || 0;
+          const shared = mem?.sharedBytes || 0;
+          totalWorkingSetKB += ws;
+          totalPeakWorkingSetKB += peak;
+          totalPrivateKB += priv;
+          totalSharedKB += shared;
+
+          if (m.type === 'Browser') processBreakdown.browser += Math.round(ws / 1024);
+          else if (m.type === 'Tab') processBreakdown.renderer += Math.round(ws / 1024);
+          else if (m.type === 'GPU') processBreakdown.gpu += Math.round(ws / 1024);
+          else processBreakdown.utility += Math.round(ws / 1024);
+
+          processList.push({
+            pid: m.pid,
+            type: m.type,
+            workingSetMB: parseFloat((ws / 1024).toFixed(1)),
+            privateMB: parseFloat((priv / 1024).toFixed(1)),
+            sharedMB: parseFloat((shared / 1024).toFixed(1)),
+            cpuPercent: m.cpu?.percentCPUUsage || 0,
+          });
+        });
+      }
+
+      let processMem: { residentSet: number } | null = null;
+      if (process.getProcessMemoryInfo && typeof process.getProcessMemoryInfo === 'function') {
+        try {
+          processMem = await process.getProcessMemoryInfo();
+        } catch (_) {}
+      }
+
+      return {
+        success: true,
+        residentSet: totalWorkingSetKB,
+        peakWorkingSet: totalPeakWorkingSetKB,
+        private: totalPrivateKB,
+        processBreakdown,
+        mainProcessResidentSet: processMem?.residentSet || 0,
+        totalWorkingSetMB: parseFloat((totalWorkingSetKB / 1024).toFixed(1)),
+        totalPrivateMB: parseFloat((totalPrivateKB / 1024).toFixed(1)),
+        totalSharedMB: parseFloat((totalSharedKB / 1024).toFixed(1)),
+        processCount: metrics.length,
+        processes: processList,
+      };
+    } catch (err) {
+      console.error('[WindowIpc] Error in get-process-memory-info:', err);
+      return {
+        success: false,
+        residentSet: 0,
+        peakWorkingSet: 0,
+        private: 0,
+        processBreakdown: { browser: 0, renderer: 0, gpu: 0, utility: 0 },
+        mainProcessResidentSet: 0,
+        totalWorkingSetMB: 0,
+        totalPrivateMB: 0,
+        totalSharedMB: 0,
+        processCount: 0,
+        processes: [],
+      };
+    }
+  });
+
+  ipcMain.handle('get-gpu-feature-status', () => {
+    try {
+      return (app.getGPUFeatureStatus && typeof app.getGPUFeatureStatus === 'function')
+        ? app.getGPUFeatureStatus()
+        : {};
+    } catch (_) {
+      return {};
+    }
+  });
+
+  ipcMain.handle('get-gpu-info', async () => {
+    try {
+      let gpuInfo: unknown = {};
+      let gpuFeatureStatus: unknown = {};
+
+      try {
+        if (app.getGPUInfo && typeof app.getGPUInfo === 'function') {
+          gpuInfo = await app.getGPUInfo('basic');
+        }
+      } catch (_) {}
+
+      try {
+        if (app.getGPUFeatureStatus && typeof app.getGPUFeatureStatus === 'function') {
+          gpuFeatureStatus = app.getGPUFeatureStatus();
+        }
+      } catch (_) {}
+
+      return {
+        gpuInfo: gpuInfo || {},
+        gpuFeatureStatus: gpuFeatureStatus || {},
+      };
+    } catch (err) {
+      console.error('[WindowIpc] Error in get-gpu-info:', err);
+      return { gpuInfo: {}, gpuFeatureStatus: {} };
+    }
+  });
+
+  ipcMain.handle('get-app-version', () => {
+    return app.getVersion();
+  });
+
+  // ── Subwindow Management Handlers ─────────────────────────────────────────
+  ipcMain.handle('open-settings-window', () => {
+    windowManager.createSettingsWindow();
+    return { success: true };
+  });
+
+  ipcMain.handle('close-settings-window', () => {
+    windowManager.closeSettingsWindow();
+    return { success: true };
+  });
+
+  ipcMain.handle('open-camera-window', () => {
+    windowManager.createCameraWindow();
+    return { success: true };
+  });
+
+  ipcMain.handle('close-camera-window', () => {
+    windowManager.closeCameraWindow();
+    return { success: true };
+  });
+
+  ipcMain.handle('is-camera-window-open', () => {
+    return windowManager.isCameraWindowOpen();
+  });
+}
