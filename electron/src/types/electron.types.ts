@@ -100,11 +100,11 @@ export interface MemoryRecord {
   [key: string]: unknown;
 }
 
-export interface MemoryLoadResult {
-  success: boolean;
+export type MemoryLoadResult = {
+  success: true;
   backend: 'sqlite' | 'json';
   memories: MemoryRecord[] | null;
-}
+} | { success: false; error: string };
 
 export interface MemorySaveResult {
   success: boolean;

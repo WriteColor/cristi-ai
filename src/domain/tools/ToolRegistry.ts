@@ -1,7 +1,7 @@
 import type { IToolHandler, ToolExecutionContext, GeminiFunctionDeclaration } from './IToolHandler';
 import type { GeminiLiveToolCall, GeminiLiveToolResponse } from '@/types/gemini.types';
-import { logger } from '@/services/logger.js';
-import { mcpClientManager } from '@/services/mcp/MCPClientManager.js';
+import { logger } from '../../infrastructure/logging/logger.js';
+import { mcpClientManager } from '../integrations/mcp/MCPClientManager.js';
 
 export class ToolRegistry {
   private readonly handlers = new Map<string, IToolHandler>();
@@ -136,6 +136,7 @@ export class ToolRegistry {
 
     for (const call of calls) {
       const { id, name, args } = call;
+      if (context.isCallCancelled?.(id)) continue;
       context.onToolExecutionStart?.(name, args);
       logger.info('TOOL', `Ejecutando herramienta local "${name}"...`, args);
 
@@ -155,6 +156,7 @@ export class ToolRegistry {
 
       context.onToolExecutionEnd?.(name, result);
 
+      if (context.isCallCancelled?.(id)) continue;
       responses.push({
         id,
         name,

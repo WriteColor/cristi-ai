@@ -12,9 +12,9 @@ import {
   Volume2
 } from 'lucide-react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { spotifyService } from '../../services/spotify/SpotifyService.js';
-import { soundFxService } from '../../services/soundFxService.js';
-import { toastService } from '../../services/toastService.js';
+import { spotifyService } from '../../domain/integrations/spotify/SpotifyService.js';
+import { soundFxService } from '../../domain/audio/SoundFxService.js';
+import { toastService } from '../../infrastructure/notifications/toastService.js';
 
 export interface SpotifyStatusData {
   isRunning: boolean;

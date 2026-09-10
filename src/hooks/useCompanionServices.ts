@@ -1,3 +1,5 @@
+import { useCompanionRuntime } from '../app/CompanionRuntimeProvider';
+import type { TranscriptSnapshot } from '../domain/transcription/TranscriptAssembler';
 import { useEffect, useRef, useCallback } from 'react';
 import {
   eventBus,
@@ -37,7 +39,7 @@ import {
   GeminiTranslationProvider,
   virtualAudioOutputService,
   TranslationOutputCoordinator
-} from '../services/index.js';
+} from '../app/serviceRegistry.js';
 import { DEFAULT_MODEL_ID, getScreenCaptureFPS } from '../config/index.js';
 import { useCompanionStore } from '../stores/useCompanionStore.js';
 import { useSessionStore } from '../stores/useSessionStore.js';
@@ -51,6 +53,7 @@ interface UseCompanionServicesProps {
 }
 
 export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
+  const runtime = useCompanionRuntime();
   const isCallActiveRef = useRef(false);
   const callGenerationRef = useRef(0);
   const socketRef = useRef<any>(null);
@@ -143,8 +146,7 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
       visionDispatcherRef.current?.reset();
       useVisionStore.getState().setIsScreenWatchActive(false);
 
-      sessionStore.setIsConnected(false);
-      sessionStore.setIsConnecting(false);
+      sessionStore.dispatchConnection('DISCONNECT');
       companionStore.setIsSpeaking(false);
       companionStore.setIsListening(false);
       sessionStore.setUserTranscript('');
@@ -158,7 +160,7 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
       return;
     }
 
-    if (!currentConfig.apiKey || !currentConfig.apiKey.trim()) {
+    if (!currentConfig.hasGeminiCredential) {
       toastService.warning('Por favor configura tu Gemini API Key en el menú de Ajustes (⚙).');
       useSettingsStore.getState().handleOpenSettings();
       return;
@@ -169,7 +171,7 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
     sessionStore.setUserTranscript('');
     sessionStore.setModelTranscript('');
     sessionStore.setErrorMessage(null);
-    sessionStore.setIsConnecting(true);
+    sessionStore.dispatchConnection('CONNECT');
 
     try {
       if (socketRef.current) {
@@ -181,8 +183,9 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
       }
 
       if (!audioInRef.current) {
-        audioInRef.current = new AudioInputService({
-          onAudioData: (base64PCM: string) => {
+        audioInRef.current = runtime.createCapture({
+          onStreamEnd: () => socketRef.current?.endAudioStream(),
+          onAudioData: (base64PCM: ArrayBuffer) => {
             if (socketRef.current && socketRef.current.isConnected && !audioInRef.current?.isMuted) {
               socketRef.current.sendAudioChunk(base64PCM);
             }
@@ -204,18 +207,17 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
       }
       if (callGeneration !== callGenerationRef.current) return;
 
-      const socket = new (GeminiLiveSocket as any)({
-        apiKey: currentConfig.apiKey,
+      const socket = runtime.createSocket({
+
         modelId: currentConfig.modelId,
         voiceName: currentConfig.voiceName,
         temperature: currentConfig.temperature,
         systemPrompt: currentConfig.systemPrompt,
         thinkingConfig: { thinkingBudget: 0 },
-        maxReconnectAttempts: Infinity,
+        maxReconnectAttempts: 5,
         onOpen: () => {
           if (callGeneration !== callGenerationRef.current) return;
-          useSessionStore.getState().setIsConnected(true);
-          useSessionStore.getState().setIsConnecting(false);
+          useSessionStore.getState().dispatchConnection('SETUP_COMPLETE');
           proactiveTriggerService.setGeminiSocket(socket);
           proactiveScheduler.setGeminiSocket(socket);
           interactionOrchestrator.setGeminiSocket(socket);
@@ -225,8 +227,7 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
           audioOutRef.current?.stopImmediate();
           externalResponseRef.current = '';
           modelTextTurnRef.current = '';
-          useSessionStore.getState().setIsConnected(false);
-          useSessionStore.getState().setIsConnecting(true);
+          useSessionStore.getState().dispatchConnection('RECONNECT');
         },
         onClose: (event: any) => {
           if (callGeneration !== callGenerationRef.current) return;
@@ -239,8 +240,7 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
           proactiveTriggerService.setGeminiSocket(null);
           proactiveScheduler.setGeminiSocket(null);
           interactionOrchestrator.setGeminiSocket(null);
-          useSessionStore.getState().setIsConnected(false);
-          useSessionStore.getState().setIsConnecting(false);
+          useSessionStore.getState().dispatchConnection('DISCONNECT');
           useCompanionStore.getState().setIsSpeaking(false);
           useCompanionStore.getState().setIsListening(false);
           useSessionStore.getState().setUserTranscript('');
@@ -258,9 +258,11 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
           if (!socket.isConnecting && !socket.reconnectTimer) {
             isCallActiveRef.current = false;
             audioInRef.current?.stop();
-            useSessionStore.getState().setIsConnecting(false);
+            useSessionStore.getState().dispatchConnection('FAIL');
           }
         },
+        onGenerationStart: () => audioOutRef.current?.beginGeneration(),
+        onGenerationComplete: () => audioOutRef.current?.signalGenerationComplete(),
         onAudioChunk: (base64PCM: string) => {
           turnAudioReceivedRef.current = true;
           proactiveTriggerService.recordDialogueActivity();
@@ -275,9 +277,7 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
           if (screenCaptureRef.current?.isCapturing && !useCompanionStore.getState().isSpeaking && !audioOutRef.current?.isPlaying) {
             screenCaptureRef.current.triggerImmediateCapture();
           }
-          const completedModelText = [modelTextTurnRef.current, externalResponseRef.current]
-            .filter(Boolean)
-            .sort((a, b) => b.length - a.length)[0] || '';
+          const completedModelText = externalResponseRef.current || modelTextTurnRef.current || '';
           if (completedModelText) {
             useSessionStore.getState().setModelTranscript(completedModelText);
             if (modelSubtitleTimeoutRef.current) clearTimeout(modelSubtitleTimeoutRef.current);
@@ -296,9 +296,9 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
             ? `${previous} ${cleanText}`.replace(/\s{2,}/g, ' ').trim()
             : cleanText.startsWith(previous) ? cleanText : previous || cleanText;
           modelTextTurnRef.current = next;
-          externalResponseRef.current = next;
+          if (!externalResponseRef.current) useSessionStore.getState().setModelTranscript(next);
         },
-        onOutputTranscription: (text: string) => {
+        onOutputTranscription: (text: string, snapshot?: TranscriptSnapshot) => {
           proactiveTriggerService.recordDialogueActivity();
           const cleanText = text ? text.replace(/<thought>[\s\S]*?<\/thought>/gi, '')
             .replace(/\[thought[\s\S]*?\]/gi, '')
@@ -316,16 +316,14 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
 
           if (cleanText) {
             externalResponseRef.current = cleanText;
-            if (cleanText.length >= modelTextTurnRef.current.length) {
-              modelTextTurnRef.current = cleanText;
-            }
+            useSessionStore.getState().setTranscript('output', cleanText, snapshot?.isFinal ?? false);
           }
         },
-        onInputTranscription: (text: string) => {
+        onInputTranscription: (text: string, snapshot?: TranscriptSnapshot) => {
           proactiveTriggerService.recordDialogueActivity();
           const cleanText = text ? text.trim() : '';
           if (cleanText) {
-            useSessionStore.getState().setUserTranscript(cleanText);
+            useSessionStore.getState().setTranscript('input', cleanText, snapshot?.isFinal ?? false);
             if (userSubtitleTimeoutRef.current) clearTimeout(userSubtitleTimeoutRef.current);
             userSubtitleTimeoutRef.current = setTimeout(() => {
               useSessionStore.getState().setUserTranscript('');
@@ -344,7 +342,7 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
         },
         onToolCall: async (functionCalls: any, sourceSocket: any) => {
           if (toolExecutorRef.current) {
-            const responses = await toolExecutorRef.current.executeCalls(functionCalls);
+            const responses = await toolExecutorRef.current.executeCalls(functionCalls, (id: string) => socket.cancelledTools.has(id) || socket.websocket !== sourceSocket || callGeneration !== callGenerationRef.current);
             if (socket.websocket === sourceSocket && callGeneration === callGenerationRef.current) {
               socket.sendToolResponse(responses);
             }
@@ -360,8 +358,7 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
       audioInRef.current?.stop();
       socketRef.current?.disconnect();
       useSessionStore.getState().setErrorMessage(`No se pudo conectar: ${err.message}`);
-      useSessionStore.getState().setIsConnecting(false);
-      useSessionStore.getState().setIsConnected(false);
+      useSessionStore.getState().dispatchConnection('FAIL');
     }
   }, []);
 
@@ -479,7 +476,7 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
   // Lifecycle initialization
   useEffect(() => {
     // 1. Initialize AudioOutputService
-    audioOutRef.current = new AudioOutputService({
+    audioOutRef.current = runtime.createPlayback({
       onAudioStart: () => useCompanionStore.getState().setIsSpeaking(true),
       onAudioEnd: () => useCompanionStore.getState().setIsSpeaking(false)
     });
@@ -603,8 +600,8 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
       systemTrayRef.current.setupTray();
     }
 
-    // 10. Expose global test bridge
-    if (typeof window !== 'undefined') {
+    // Development inspection only.
+    if (import.meta.env.DEV && typeof window !== 'undefined') {
       (window as any).__cristiEventBus = eventBus;
       (window as any).__cristiModelManager = modelManager;
       (window as any).__cristiApp = {
@@ -641,6 +638,11 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
     return () => {
       callGenerationRef.current++;
       isCallActiveRef.current = false;
+      for (const timer of [autoHideTimerRef, modelSubtitleTimeoutRef, userSubtitleTimeoutRef, translationSubtitleTimeoutRef]) {
+        clearTimeout(timer.current); timer.current = null;
+      }
+      runtime.dispose();
+      audioInRef.current = audioOutRef.current = socketRef.current = null;
       visionDispatcherRef.current?.destroy();
       interactionOrchestrator.stop();
       externalReplyService.stop();

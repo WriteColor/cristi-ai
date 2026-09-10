@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Database, Plus, Trash2, Search, Tag, Filter } from 'lucide-react';
-import { memoryService, MEMORY_CATEGORIES } from '../../services/memory/MemoryService.js';
-import { soundFxService } from '../../services/soundFxService.js';
-import { toastService } from '../../services/toastService.js';
+import { memoryService, MEMORY_CATEGORIES } from '../../domain/integrations/memory/MemoryService.js';
+import { soundFxService } from '../../domain/audio/SoundFxService.js';
+import { toastService } from '../../infrastructure/notifications/toastService.js';
 
 export const MemoryTab: React.FC = () => {
   const [memories, setMemories] = useState<any[]>(() => {

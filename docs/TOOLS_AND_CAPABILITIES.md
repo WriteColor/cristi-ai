@@ -1,206 +1,199 @@
-# 🛠️ Catálogo de Herramientas y Capacidades Autónomas — Cristi AI Companion
-> **Autor:** Write_Color | **Versión:** 1.0.0 | **Protocolo:** Gemini Multimodal Live API (BidiGenerateContent)
+# Catalogo Verificado de Herramientas, Capacidades y Servidores MCP — Cristi AI Companion
+> **Autor:** Write_Color | **Versión:** 2.0.0 (Auditoría Integral 2026) | **Protocolo:** Gemini Multimodal Live API (BidiGenerateContent)
 
-Cristi AI Companion dispone de un catálogo agéntico de más de **45 funciones y herramientas (Function Calling Declarations)** sincronizadas en tiempo real a través del protocolo bidireccional de **Google Gemini Multimodal Live API**. Esta integración otorga a Cristi control del sistema operativo Windows, manipulación cinemática de avatares Live2D, visión continua, audio de juegos, integración con Spotify, compañeros autónomos en Minecraft y Discord, automatización web con Playwright y servidores dinámicos MCP.
+Cristi AI Companion dispone de un catálogo agéntico fuertemente tipado sincronizado en tiempo real a través del protocolo bidireccional de **Google Gemini Multimodal Live API (`v1beta`)**. Todas las herramientas están gobernadas por el patrón de diseño *Command* en `src/domain/tools/` y son filtradas estrictamente por el enrutador de seguridad `CapabilityRouter` y la política de aislamiento en `electron/src/security/`.
 
 ---
 
-## 📑 Resumen General por Categorías
+## 📑 Resumen General por Categorías y Capacidades Reales
 
-| Categoría | Herramientas Principales | Alcance y Capacidades |
+| Categoría | Herramientas Registradas | Alcance Real y Límites de Seguridad |
 |---|---|---|
-| 🎭 **Control de Avatar Live2D** | `trigger_companion_gesture`, `trigger_model_motion`, `move_avatar`, `switch_avatar_model` | 13 modelos oficiales, expresiones emocionales, poses motion3 y desplazamiento por pantalla. |
-| 💻 **Acceso a Windows & PowerShell** | `execute_system_command`, `read_file`, `write_file`, `list_directory`, `get_clipboard`, `set_clipboard`, `get_running_processes`, `kill_process`, `open_file_or_folder`, `open_system_app_or_link` | Control nativo del SO, ejecución en PowerShell, inspección de procesos, portapapeles y archivos locales. |
-| 🖱️ **Computer Use & Periféricos** | `computer_action` | Clics en coordenadas de pantalla, tipeo de texto, pulsación de teclas nativas, scroll y captura de pantalla. |
-| 👁️ **Visión de Pantalla y Cámara** | `capture_screen_snapshot`, `set_screen_watch`, `set_screen_region`, `analyze_visual_scene` | Capturas a 60 FPS nativas con Electron desktopCapturer, selector de regiones porcentuales y análisis óptico. |
-| 🛡️ **Blindaje de Audio & Loopback WASAPI** | `start_desktop_audio_capture`, `stop_desktop_audio_capture`, `desktop_audio_capture_status`, `send_game_voice_translation`, `translate_and_speak_in_game` | Captura loopback de audio del sistema/juegos sin aplicaciones externas, aislamiento de retorno y traducción hacia canales de voz de juegos. |
-| 🧠 **Memoria Persistente Multicapa** | `manage_memory`, `remember_fact`, `search_memory`, `delete_memory` | Base de datos SQLite / JSON atómico, indexación semántica local, consolidación de preferencias y recuerdos a largo plazo. |
-| 🪟 **Widgets Tácticos y Alarmas** | `set_reminder`, `set_alarm`, `show_tactical_widget`, `dismiss_tactical_widget` | HUDs tácticos flotantes, recordatorios persistentes y alarmas visuales/sonoras en el escritorio. |
-| 🌐 **Búsqueda y Navegación Web** | `search_internet`, `browse_web_page`, `open_in_brave_browser` | Búsqueda en tiempo real, extracción de contenido web y apertura directa en el navegador Brave. |
-| ⛏️ **Compañero de Minecraft** | `minecraft_connect`, `minecraft_disconnect`, `minecraft_get_status`, `minecraft_chat`, `minecraft_move_to`, `minecraft_follow_player`, `minecraft_stop_moving`, `minecraft_mine_block`, `minecraft_place_block`, `minecraft_attack_entity` | Bot interactivo en el juego con Mineflayer, navegación autónoma con pathfinding, minería, colocación de bloques, combate y chat. |
-| 💬 **Compañero de Discord** | `discord_send_message`, `discord_set_status`, `discord_voice_join`, `discord_voice_leave`, `discord_voice_status` | Mensajes de texto en canales, estados de presencia, conexión a canales de voz, decodificación Opus y transmisión de audio traducido. |
-| 🔌 **Servidores MCP Dinámicos** | `mcp_add_server`, `mcp_remove_server`, `mcp_list_servers`, `mcp_reconnect_server`, `mcp_call_tool` | Integración Model Context Protocol (stdio y SSE) en el proceso principal con namespacing seguro y ejecución inmediata. |
-| 🎵 **Reproducción Musical en Spotify** | `spotify_play`, `spotify_pause`, `spotify_next`, `spotify_previous`, `spotify_get_status`, `spotify_search`, `spotify_set_volume` | Control de Spotify Desktop y Web API: búsqueda global, reproducción por URIs, consulta de metadatos y teclas multimedia. |
-| 🎭 **Automatización Web con Playwright** | `playwright_navigate`, `playwright_click`, `playwright_fill`, `playwright_press`, `playwright_screenshot`, `playwright_get_content`, `playwright_evaluate`, `playwright_close` | Control autónomo de páginas web en Brave Browser mediante Playwright, clics, rellenado de formularios y ejecución de scripts. |
+| 🎭 **Control de Avatar Live2D** | `trigger_companion_gesture`, `trigger_model_motion`, `move_avatar`, `switch_avatar_model` | Manipulación cinemática de los 13 modelos oficiales, expresiones emocionales, poses `motion3` y reposicionamiento en pantalla. |
+| 💻 **Diagnóstico y Sistema Operativo** | `get_current_time_and_date`, `get_weather`, `system_diagnostics`, `execute_system_command`, `read_file`, `write_file`, `list_directory`, `get_clipboard_text`, `set_clipboard_text`, `open_external_link` | Consultas del reloj/clima, diagnósticos autorizados (`system-info`, `list-processes`), portapapeles y lectura/escritura acotada a la carpeta de trabajo aprobada. |
+| 🖱️ **Captura del Entorno (Computer Use)**| `computer_action` | Captura fotográfica instantánea de pantalla completa (`take_screenshot`) a través del pipeline nativo. Acciones de inyección de ratón deshabilitadas por seguridad. |
+| 👁️ **Visión de Pantalla y Regiones** | `capture_screen_snapshot`, `set_screen_watch`, `set_screen_region`, `analyze_visual_scene` | Capturas nativas con `desktopCapturer`, recorte por cuadrantes o regiones porcentuales (`x_pct`, `y_pct`, `w_pct`, `h_pct`) y streaming continuo a Gemini Live. |
+| 🛡️ **Blindaje de Audio & Loopback WASAPI**| `start_desktop_audio_capture`, `stop_desktop_audio_capture`, `desktop_audio_capture_status`, `send_game_voice_translation`, `translate_and_speak_in_game` | Captura de audio de salida de Windows mediante el helper nativo `CristiWasapiLoopback.exe`, aislamiento de eco con `markGenerated` y enrutamiento hacia canales de voz. |
+| 🧠 **Memoria Persistente Multicapa** | `manage_memory`, `remember_fact`, `search_memory`, `delete_memory` | Almacenamiento seguro en SQLite (`node:sqlite`), indexación léxica BM25 (`MemoryIndex`), consolidación de preferencias y contexto dinámico. |
+| 🪟 **Widgets Tácticos y Alarmas** | `set_reminder`, `set_alarm`, `show_tactical_widget`, `dismiss_tactical_widget` | Notificaciones en pantalla (toasts), programación de alarmas proactivas con temporizador en segundo plano y HUDs de estado. |
+| 🌐 **Búsqueda Web y Scrapeo** | `search_internet`, `browse_web_page`, `open_in_brave_browser` | Búsqueda web asistida, extracción de texto legible y apertura directa de enlaces en el navegador predeterminado. |
+| ⛏️ **Compañero de Minecraft (Mineflayer)**| `minecraft_connect`, `minecraft_disconnect`, `minecraft_get_status`, `minecraft_chat`, `minecraft_move_to`, `minecraft_follow_player`, `minecraft_stop_moving`, `minecraft_mine_block`, `minecraft_place_block`, `minecraft_attack_entity` | Conexión de un bot virtual autónomo a servidores Minecraft Java Edition, navegación con pathfinding A*, telemetría de vida/hambre y combate defensivo. |
+| 💬 **Compañero de Discord** | `discord_send_message`, `discord_set_status`, `discord_voice_join`, `discord_voice_leave`, `discord_voice_status` | Publicación en canales de texto, actualización de actividad rica y transmisión/recepción de voz en canales de voz mediante `@discordjs/voice`. |
+| 🔌 **Servidores MCP Dinámicos** | `mcp_add_server`, `mcp_remove_server`, `mcp_list_servers`, `mcp_reconnect_server`, `mcp_call_tool` | Gestión e invocación en caliente de herramientas MCP mediante transportes `stdio` (JSON-RPC 2.0) y `sse` con esquemas autogenerados. |
+| 🎵 **Control Multimedia y Spotify** | `spotify_play`, `spotify_pause`, `spotify_next`, `spotify_previous`, `spotify_get_status`, `spotify_search`, `spotify_set_volume` | Búsqueda estructurada mediante Spotify Web API e interacción con la aplicación de escritorio de Windows mediante teclas de medios y lectura de título de ventana. |
+| 🎭 **Automatización Web con Playwright** | `playwright_navigate`, `playwright_click`, `playwright_fill`, `playwright_press`, `playwright_screenshot`, `playwright_get_content`, `playwright_evaluate`, `playwright_close` | Navegación autónoma en Brave Browser, llenado de formularios, clics en selectores CSS, evaluación de scripts y capturas en un worker aislado. |
 
 ---
 
-## 🎭 1. Control del Avatar & Expresiones Live2D
+## 1. 🎭 Control del Avatar y Expresiones Live2D
 
 ### `trigger_companion_gesture`
-* **Descripción:** Activa un gesto emocional o expresión facial en el avatar de la compañera virtual adaptado al modelo activo.
+* **Descripción:** Activa una expresión o gesto emocional en el avatar activo. Se resuelven sinónimos semánticos y se respetan las expresiones bloqueadas por modelo.
 * **Parámetros:**
-  * `gesture` *(string, obligatorio)*: `idle`, `happy`, `blush`, `love`, `surprised`, `yandere`, `crazy`, `thinking`, `wink`, `pout`, `angry`, `sad`, `smug`, `gamer`, `nod`, `dance`, `relaxed`, `waving`.
-  * `comment` *(string, opcional)*: Motivo interno del cambio emocional.
+  * `gesture` *(string, obligatorio)*: Gesto deseado (ej: `happy`, `blush`, `love`, `surprised`, `yandere`, `crazy`, `thinking`, `wink`, `pout`, `angry`, `sad`, `smug`, `gamer`, `nod`, `dance`, `relaxed`, `waving`).
+  * `comment` *(string, opcional)*: Razón explicativa interna.
 
 ### `trigger_model_motion`
-* **Descripción:** Dispara una animación o pose de movimiento nativa del modelo Live2D activo.
+* **Descripción:** Dispara una animación nativa (`motion3.json`) del modelo activo.
 * **Parámetros:**
-  * `motion_group` *(string, obligatorio)*: Nombre del grupo de animación (`Idle`, `Tap`, `Flick`, `MeiYan`, `HuiShou`, `DaiJi`, `Scene1`, etc.).
-  * `index` *(integer, opcional)*: Índice de la pose dentro del grupo (por defecto `0`).
+  * `motion_group` *(string, obligatorio)*: Nombre del grupo de animación (`Idle`, `Tap`, `Flick`, `Special`, etc.).
+  * `index` *(integer, opcional)*: Índice dentro del grupo (por defecto `0`).
 
 ### `move_avatar`
-* **Descripción:** Desplaza al avatar por el monitor a una ubicación predefinida con una transición animada.
+* **Descripción:** Reposiciona la ventana del avatar en el monitor.
 * **Parámetros:**
-  * `position` *(string, obligatorio)*: `center`, `left`, `right`, `top-left`, `top-right`, `bottom-left`, `bottom-right`, `random`.
-  * `animation` *(string, opcional)*: `none`, `bounce`, `float`, `shake`, `dance`, `slide` (por defecto `slide`).
+  * `position` *(string, obligatorio)*: `center`, `left`, `right`, `top-left`, `top-right`, `bottom-left`, `bottom-right`.
+  * `animation` *(string, opcional)*: `none`, `slide`, `bounce`, `float`.
 
 ### `switch_avatar_model`
-* **Descripción:** Cambia el avatar activo entre los 13 modelos Live2D oficiales disponibles.
+* **Descripción:** Cambia el avatar activo entre los 13 modelos Live2D oficiales registrados con tipado estricto.
 * **Parámetros:**
-  * `model_id` *(string, obligatorio)*: `yanderegirl`, `icegirl`, `hiyori`, `miara`, `toki`, `ellen`, `jane_doe`, `ruan_mei`, `belle`, `sparkle`, `huohuo`, `vivian`, `goth_loli`.
+  * `model_id` *(string, obligatorio)*: Uno de: `yanderegirl`, `icegirl`, `hiyori`, `miara`, `toki`, `ellen`, `jane_doe`, `ruan_mei`, `belle`, `sparkle`, `huohuo`, `vivian`, `goth_loli`.
 
 ---
 
-## 💻 2. Acceso al Sistema Operativo Windows & PowerShell
+## 2. 💻 Sistema Operativo y Diagnósticos Seguros
+
+### `get_current_time_and_date`
+* **Descripción:** Retorna la fecha, hora actual exacta, zona horaria y día de la semana. Sin parámetros requeridos.
+
+### `get_weather`
+* **Descripción:** Consulta el pronóstico o clima actual.
+* **Parámetros:**
+  * `city` *(string, opcional)*: Ciudad o ubicación a consultar.
 
 ### `execute_system_command`
-* **Descripción:** Ejecuta cualquier comando o script nativo en PowerShell o CMD con privilegios y retorno estructurado.
+* **Descripción:** Consulta diagnósticos mediante capacidades nominales permitidas del sistema. Por seguridad, rechaza comandos de terminal arbitrarios.
 * **Parámetros:**
-  * `command` *(string, obligatorio)*: El comando a ejecutar (ej: `Get-Process`, `dir`, `Start-Process notepad`).
-  * `use_powershell` *(boolean, opcional)*: Si es `true`, fuerza ejecución en PowerShell (por defecto `true`).
+  * `kind` *(string, obligatorio)*: Únicamente `system-info` (especificaciones de CPU/RAM/SO) o `list-processes` (procesos activos).
 
 ### `read_file`
-* **Descripción:** Lee el contenido de cualquier archivo del sistema de archivos local.
+* **Descripción:** Lee un archivo de texto dentro del directorio autorizado configurado en Ajustes.
 * **Parámetros:**
-  * `path` *(string, obligatorio)*: Ruta absoluta del archivo a leer.
+  * `path` *(string, obligatorio)*: Ruta relativa del archivo dentro de la carpeta aprobada.
 
 ### `write_file`
-* **Descripción:** Crea o sobreescribe un archivo en disco con el contenido especificado.
+* **Descripción:** Crea o sobreescribe un archivo en la carpeta aprobada.
 * **Parámetros:**
-  * `path` *(string, obligatorio)*: Ruta absoluta del archivo.
-  * `content` *(string, obligatorio)*: Contenido a escribir.
-  * `append` *(boolean, opcional)*: Si es `true`, agrega el contenido al final sin sobreescribir.
+  * `path` *(string, obligatorio)*: Ruta relativa del archivo.
+  * `content` *(string, obligatorio)*: Texto a escribir.
+  * `append` *(boolean, opcional)*: Si es true, añade al final en lugar de sobreescribir.
 
 ### `list_directory`
-* **Descripción:** Lista los archivos y carpetas contenidos en una ruta absoluta del sistema.
+* **Descripción:** Lista los archivos y subcarpetas dentro del directorio de trabajo aprobado.
 * **Parámetros:**
-  * `path` *(string, obligatorio)*: Ruta absoluta del directorio.
-
-### `get_clipboard` / `set_clipboard`
-* **Descripción:** Lee o escribe texto en el portapapeles del sistema operativo Windows.
-
-### `get_running_processes` / `kill_process`
-* **Descripción:** Consulta la lista de procesos activos con PID, nombre y uso de memoria, o finaliza un proceso bloqueado por nombre o PID.
-
-### `open_file_or_folder` / `open_system_app_or_link`
-* **Descripción:** Abre carpetas en el Explorador de Windows, archivos locales en su aplicación predeterminada o enlaces web en el navegador.
+  * `path` *(string, opcional)*: Subdirectorio relativo a inspeccionar.
 
 ---
 
-## 🖱️ 3. Computer Use & Control de Periféricos
+## 3. 🖱️ Captura del Entorno (Computer Use)
 
 ### `computer_action`
-* **Descripción:** Realiza operaciones de ratón y teclado nativas mediante la API SendInput de Windows.
+* **Descripción:** Captura la pantalla actual para inspección visual de interfaces o videojuegos.
 * **Parámetros:**
-  * `action` *(string, obligatorio)*: `mouse_click`, `type_text`, `press_key`, `mouse_scroll`, `take_screenshot`.
-  * `coordinate` *(array de enteros, opcional)*: `[x, y]` coordenadas en píxeles para clics de ratón.
-  * `text` *(string, opcional)*: Texto a tipear cuando la acción es `type_text`.
-  * `key` *(string, opcional)*: Tecla o combinación (ej: `Enter`, `Tab`, `Escape`, `Control+s`).
-  * `scroll_amount` *(integer, opcional)*: Cantidad de desplazamiento vertical.
+  * `action` *(string, obligatorio)*: Exclusivamente `take_screenshot`.
+  * *Nota de seguridad:* Acciones de inyección de teclado y clics sintéticos directos sobre el sistema operativo están deshabilitadas por política de aislamiento de privilegios.
 
 ---
 
-## 👁️ 4. Visión de Pantalla y Cámara
+## 4. 👁️ Visión de Pantalla y Regiones
 
 ### `capture_screen_snapshot`
-* **Descripción:** Captura fotogramas de la pantalla completa o de una región seleccionada a 60 FPS mediante la API nativa de Electron (`desktopCapturer`).
+* **Descripción:** Toma una captura inmediata de la pantalla completa o del recorte activo y la devuelve en base64 para análisis visual de Gemini.
 * **Parámetros:**
-  * `region` *(string, opcional)*: `full`, `active_region`, `top-left`, `top-right`, `bottom-left`, `bottom-right`, `center`.
-
-### `set_screen_watch`
-* **Descripción:** Activa o desactiva la vigilancia continua de la pantalla para análisis contextual en streaming.
+  * `mode` *(string, opcional)*: `full` (pantalla completa), `region` (cuadrante seleccionado) o `active_window`.
 
 ### `set_screen_region`
-* **Descripción:** Define programáticamente el área de visión porcentual de Cristi (`x_pct`, `y_pct`, `w_pct`, `h_pct`) resaltada con borde violeta.
-
-### `analyze_visual_scene`
-* **Descripción:** Solicita un análisis de la cámara web para inspeccionar el entorno, posturas o expresiones del usuario.
-
----
-
-## 🛡️ 5. Blindaje de Audio, Loopback WASAPI & Traducción In-Game
-
-### `start_desktop_audio_capture` / `stop_desktop_audio_capture`
-* **Descripción:** Inicia o detiene la captura de audio loopback del sistema o de una aplicación (juego, reproductor) sin mezclarla con el micrófono, garantizando que el audio del sistema no vuelva a ingresar como instrucción. En Windows, utiliza preferentemente el helper nativo WASAPI.
-
-### `translate_and_speak_in_game` / `send_game_voice_translation`
-* **Descripción:** Traduce una frase y sintetiza el audio directamente hacia el canal de voz o micrófono virtual del juego (`game_voice`), permitiendo comunicación en equipo internacional sin emitir por los altavoces locales ni generar eco.
+* **Descripción:** Configura un área rectangular específica de la pantalla para observación continua o lecturas enfocadas.
+* **Parámetros:**
+  * `x_pct` *(number)*: Posición horizontal inicial en porcentaje (0-100).
+  * `y_pct` *(number)*: Posición vertical inicial en porcentaje (0-100).
+  * `w_pct` *(number)*: Ancho del área en porcentaje (1-100).
+  * `h_pct` *(number)*: Alto del área en porcentaje (1-100).
 
 ---
 
-## 🧠 6. Memoria Persistente Multicapa
+## 5. 🧠 Memoria Persistente y Consolidación
 
 ### `manage_memory`
-* **Descripción:** Orquesta el ciclo de vida de la memoria permanente a largo plazo sobre Ariel y las sesiones de trabajo.
+* **Descripción:** Administra la base de datos persistente SQLite de recuerdos a largo plazo de Cristi AI.
 * **Parámetros:**
-  * `action` *(string, obligatorio)*: `store`, `update`, `recall`, `invalidate`, `get_recent`.
-  * `key` *(string, opcional)*: Clave o tema del recuerdo.
-  * `content` *(string, opcional)*: Contenido detallado del recuerdo.
-  * `category` *(string, opcional)*: `fact`, `preference`, `relationship`, `task`, `minecraft`, `conversation`.
-  * `importance` *(number, opcional)*: Nivel de relevancia de 0.1 a 1.0.
-
-### `remember_fact` / `search_memory` / `delete_memory`
-* **Descripción:** Funciones directas para registrar hechos específicos, realizar búsquedas de similitud o purgar recuerdos obsoletos.
+  * `action` *(string, obligatorio)*: `remember`, `recall`, `forget` o `list`.
+  * `key` *(string, opcional)*: Identificador conceptual único del recuerdo (ej: `comida_favorita`, `apodo_usuario`).
+  * `value` *(string, opcional)*: Hecho o contenido del recuerdo a guardar.
+  * `category` *(string, opcional)*: `fact`, `preference`, `relationship`, `task`, `rule` o `lore`.
+  * `importance` *(number, opcional)*: Valor entre 0.1 y 1.0 que pondera su prioridad de inyección en el prompt.
+  * `query` *(string, opcional)*: Consulta de búsqueda semántica/léxica para la acción `recall`.
 
 ---
 
-## ⛏️ 7. Compañero de Minecraft (Mineflayer + GameAdapter)
+## 6. ⛏️ Compañero de Minecraft (Mineflayer)
 
-Cristi puede unirse como bot inteligente a partidas de Minecraft del usuario:
+### `minecraft_connect`
+* **Descripción:** Conecta al bot virtual de Cristi a un servidor de Minecraft Java.
+* **Parámetros:**
+  * `host` *(string, opcional)*: Dirección IP o dominio del servidor (por defecto `localhost`).
+  * `port` *(number, opcional)*: Puerto del servidor (por defecto `25565`).
+  * `username` *(string, opcional)*: Nombre del bot en el juego (por defecto `Cristi_AI`).
+  * `version` *(string/boolean, opcional)*: Versión del protocolo o false para detección automática.
 
-* **`minecraft_connect`**: Conecta al bot al servidor (`host`, `port`, `username`).
-* **`minecraft_disconnect`**: Desconecta la sesión en el juego.
-* **`minecraft_get_status`**: Consulta vida, hambre, coordenadas XYZ y entidades cercanas.
-* **`minecraft_chat`**: Escribe en el chat del juego.
-* **`minecraft_move_to`**: Camina de forma autónoma hacia coordenadas XYZ mediante algoritmos de pathfinding.
-* **`minecraft_follow_player`**: Sigue y escolta de forma continua a un jugador específico.
-* **`minecraft_mine_block`**: Extrae bloques del mundo en coordenadas dadas.
-* **`minecraft_place_block`**: Coloca bloques del inventario en el escenario.
-* **`minecraft_attack_entity`**: Combate monstruos y entidades hostiles cercanas.
+### `minecraft_get_status`
+* **Descripción:** Obtiene la posición XYZ actual, dimensión, salud (0-20), nivel de comida, jugadores conectados y entidades hostiles cercanas.
 
----
+### `minecraft_chat`
+* **Descripción:** Envía un mensaje al chat público del servidor de Minecraft.
+* **Parámetros:**
+  * `message` *(string, obligatorio)*: Texto a enviar.
 
-## 💬 8. Compañero de Discord
+### `minecraft_move_to`
+* **Descripción:** Navega de forma autónoma mediante el algoritmo pathfinder A* hacia unas coordenadas dadas.
+* **Parámetros:**
+  * `x` *(number)*: Coordenada X.
+  * `y` *(number)*: Coordenada Y.
+  * `z` *(number)*: Coordenada Z.
 
-* **`discord_send_message`**: Envía mensajes a canales de texto en servidores configurados.
-* **`discord_set_status`**: Configura la actividad y mensaje de presencia de Cristi en Discord (`Playing`, `Listening`, `Watching`).
-* **`discord_voice_join`**: Se une a canales de voz para escuchar a participantes con decodificación Opus y soporte de traducción.
-* **`discord_voice_leave`**: Abandona el canal de voz y libera los recursos de audio.
-
----
-
-## 🎵 9. Reproducción Musical en Spotify
-
-* **`spotify_play`**: Inicia o reanuda la reproducción. Admite búsqueda directa por nombre (`query: "nombre de canción o artista"`), URI de Spotify (`spotify:track:...`) o modo web con Playwright.
-* **`spotify_pause` / `spotify_next` / `spotify_previous`**: Controles de transporte multimedia.
-* **`spotify_get_status`**: Consulta la pista activa, el artista y el estado de la aplicación.
-* **`spotify_search`**: Búsqueda avanzada en el catálogo oficial de Spotify.
-* **`spotify_set_volume`**: Ajuste gradual de volumen (`up` o `down`).
+### `minecraft_follow_player`
+* **Descripción:** Sigue de cerca a un jugador específico en el servidor evitando obstáculos y caídas.
+* **Parámetros:**
+  * `player` *(string, obligatorio)*: Nombre de usuario del jugador.
 
 ---
 
-## 🌐 10. Automatización Web con Playwright (Brave Browser)
+## 7. 🎵 Control Multimedia y Spotify
 
-Control autónomo del navegador Brave sin depender de Chrome:
+### `spotify_play`, `spotify_pause`, `spotify_next`, `spotify_previous`
+* **Descripción:** Controla la reproducción de música enviando señales virtuales a las teclas multimedia nativas de Windows. Sin parámetros requeridos.
 
-* **`playwright_navigate`**: Abre cualquier sitio o aplicación web.
-* **`playwright_click`**: Clics en selectores CSS o enlaces.
-* **`playwright_fill`**: Rellena entradas de texto y formularios.
-* **`playwright_press`**: Emula pulsación de teclas del teclado.
-* **`playwright_screenshot`**: Capturas completas o de viewport de la página web.
-* **`playwright_get_content`**: Extrae el contenido legible para análisis por IA.
-* **`playwright_evaluate`**: Ejecuta scripts JavaScript personalizados en la página.
-* **`playwright_close`**: Cierra la sesión de navegación.
+### `spotify_get_status`
+* **Descripción:** Consulta si Spotify está abierto y qué canción y artista se están reproduciendo en este momento inspeccionando el título de la ventana de Windows.
+
+### `spotify_search`
+* **Descripción:** Busca pistas, álbumes o artistas en Spotify Web API o lanza la reproducción en la aplicación de escritorio.
+* **Parámetros:**
+  * `query` *(string, obligatorio)*: Término de búsqueda (canción o artista).
+  * `type` *(string, opcional)*: `track`, `album`, `artist` o `playlist`.
 
 ---
 
-## 🔌 11. Servidores MCP Dinámicos (Model Context Protocol)
+## 8. 🎭 Automatización Web con Playwright
 
-Permite expandir las herramientas de Cristi en caliente durante una sesión Live:
+### `playwright_navigate`
+* **Descripción:** Abre el navegador Brave y navega a una dirección URL.
+* **Parámetros:**
+  * `url` *(string, obligatorio)*: Dirección web completa.
 
-* **`mcp_add_server`**: Conecta servidores locales por `stdio` o remotos por `sse`.
-* **`mcp_list_servers`**: Lista herramientas descubiertas por servidor.
-* **`mcp_reconnect_server`**: Reconexión y re-descubrimiento de herramientas.
-* **`mcp_remove_server`**: Desconexión y limpieza de procesos.
-* **`mcp_call_tool`**: Ejecuta inmediatamente una herramienta MCP descubierta sin reiniciar la llamada Live.
+### `playwright_click`
+* **Descripción:** Hace clic sobre un elemento del DOM en la página web abierta.
+* **Parámetros:**
+  * `selector` *(string, obligatorio)*: Selector CSS o texto del elemento.
+
+### `playwright_fill`
+* **Descripción:** Introduce texto en un campo de entrada o formulario.
+* **Parámetros:**
+  * `selector` *(string, obligatorio)*: Selector CSS del campo.
+  * `value` *(string, obligatorio)*: Texto a rellenar.
+
+### `playwright_get_content`
+* **Descripción:** Extrae el contenido de texto visible de la página o de un contenedor específico para que Gemini lo lea.
+* **Parámetros:**
+  * `selector` *(string, opcional)*: Selector CSS del contenedor o cuerpo entero si se omite.

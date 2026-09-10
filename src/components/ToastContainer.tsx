@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, CheckCircle2, AlertTriangle, XCircle, Info, Terminal, Heart, Clock, X, LucideIcon } from 'lucide-react';
-import { toastService } from '../services/toastService.js';
+import { toastService } from '../infrastructure/notifications/toastService.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';
 
 export type ToastType = 'info' | 'success' | 'warning' | 'error' | 'emotion' | 'tool' | 'ai' | 'alarm';

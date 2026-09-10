@@ -1,25 +1,20 @@
-import { ipcMain, shell, clipboard, Notification, desktopCapturer, screen, dialog, app } from 'electron';
-import { exec, spawn } from 'child_process';
+import { isNewerVersion, verifyInstaller } from '../security/UpdatePolicy';
+import { resolveFile, approveWorkspace, executeSystemCapability } from '../security/SystemCapabilityService';
+import { readPublicConfig, writePublicConfig } from '../security/PublicConfig';
+import { handleTrusted, onTrusted } from '../security/CapabilityRouter';
+import { shell, clipboard, Notification, desktopCapturer, screen, dialog, app } from 'electron';
+import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { processManager } from '../core/processManager';
 import { windowManager } from '../windows/windowManager';
 import { ExecCommandOptions, ExecCommandResult, ScreenRegion, AppConfig } from '../types/electron.types';
 import { getAppRootDir } from '../core/paths';
+import { processScreen, disposeScreenWorker } from '../utility/ScreenClient';
 
 /**
  * Sanitizes and validates a filesystem path against directory traversal and null byte injections.
  */
-export function sanitizeAndValidatePath(inputPath: unknown): string {
-  if (typeof inputPath !== 'string' || !inputPath.trim()) {
-    throw new Error('Ruta de archivo inválida o vacía.');
-  }
-  if (inputPath.includes('\0')) {
-    throw new Error('La ruta contiene caracteres nulos inválidos (Poison NULL byte).');
-  }
-  return path.normalize(inputPath.trim());
-}
-
 let isScreenCaptureInProgress = false;
 const activeScreenCapturePromises = new Map<string, Promise<string | null>>();
 let lastScreenCaptureCache: {
@@ -73,27 +68,6 @@ function findLocalProjectRelease(rootDir: string) {
   return null;
 }
 
-function getEnvApiKey(rootDir: string): string {
-  const candidateEnvPaths = [
-    path.join(rootDir, '.env'),
-    path.join(process.cwd(), '.env'),
-    path.join(process.resourcesPath, '.env'),
-    path.join(app.getPath('userData'), '.env'),
-  ];
-  for (const envPath of candidateEnvPaths) {
-    try {
-      if (fs.existsSync(envPath)) {
-        const content = fs.readFileSync(envPath, 'utf-8');
-        const match = content.match(/^(?:VITE_)?GEMINI_API_KEY=(.+)$/m);
-        if (match && match[1].trim()) {
-          return match[1].trim().replace(/^["']|["']$/g, '');
-        }
-      }
-    } catch (_) {}
-  }
-  return process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
-}
-
 /**
  * Registers native system operations, file I/O, screen capture, and app config IPC handlers.
  */
@@ -102,75 +76,22 @@ export function registerSystemIpc(rootDir?: string): void {
   const configFilePath = path.join(app.getPath('userData'), 'cristi-config.json');
 
   // ── Native Command Execution with Safe Timeout ────────────────────────────
-  ipcMain.handle('exec-command', async (_event, command: unknown, options: ExecCommandOptions = {}): Promise<ExecCommandResult> => {
-    if (typeof command !== 'string' || !command.trim()) {
-      return {
-        stdOut: '',
-        stdErr: 'Comando inválido o vacío.',
-        exitCode: 1,
-      };
-    }
-
-    if (command.includes('\0')) {
-      return {
-        stdOut: '',
-        stdErr: 'Comando contiene caracteres nulos inválidos.',
-        exitCode: 1,
-      };
-    }
-
-    const requestedTimeout = typeof options?.timeout === 'number' ? options.timeout : 10000;
-    const timeoutMs = Math.max(500, Math.min(60000, requestedTimeout));
-
-    return new Promise((resolve) => {
-      try {
-        const cp = exec(
-          command,
-          { maxBuffer: 10 * 1024 * 1024, windowsHide: true, timeout: timeoutMs },
-          (error, stdout, stderr) => {
-            processManager.untrack(cp);
-
-            if (error && (error as { killed?: boolean }).killed) {
-              resolve({
-                stdOut: '',
-                stdErr: `El comando fue abortado porque excedió el tiempo límite de seguridad de ${Math.round(timeoutMs / 1000)} segundos.`,
-                exitCode: 124,
-              });
-              return;
-            }
-
-            resolve({
-              stdOut: stdout || '',
-              stdErr: stderr || (error ? error.message : ''),
-              exitCode: error ? (typeof error.code === 'number' ? error.code : 1) : 0,
-            });
-          }
-        );
-
-        processManager.track(cp);
-      } catch (execErr) {
-        resolve({
-          stdOut: '',
-          stdErr: `Error al iniciar el comando: ${(execErr as Error).message}`,
-          exitCode: 1,
-        });
-      }
-    });
-  });
+  handleTrusted('system-execute', (_event, request) => executeSystemCapability(request));
+  handleTrusted('approve-workspace', () => approveWorkspace());
 
   // ── Filesystem Operations ─────────────────────────────────────────────────
-  ipcMain.handle('read-file', async (_event, filePath: unknown) => {
+  handleTrusted('read-file', async (_event, filePath: import("../../../shared/ipc/contracts").FileRequest) => {
     try {
-      const safePath = sanitizeAndValidatePath(filePath);
+      const safePath = await resolveFile(filePath);
       return await fs.promises.readFile(safePath, 'utf8');
     } catch (err) {
       throw new Error(`Failed to read file: ${(err as Error).message}`, { cause: err });
     }
   });
 
-  ipcMain.handle('write-file', async (_event, filePath: unknown, data: unknown) => {
+  handleTrusted('write-file', async (_event, filePath: import("../../../shared/ipc/contracts").FileRequest, data: unknown) => {
     try {
-      const safePath = sanitizeAndValidatePath(filePath);
+      const safePath = await resolveFile(filePath);
       const safeData = typeof data === 'string' ? data : String(data ?? '');
       await fs.promises.mkdir(path.dirname(safePath), { recursive: true });
       await fs.promises.writeFile(safePath, safeData, 'utf8');
@@ -180,9 +101,9 @@ export function registerSystemIpc(rootDir?: string): void {
     }
   });
 
-  ipcMain.handle('append-file', async (_event, filePath: unknown, data: unknown) => {
+  handleTrusted('append-file', async (_event, filePath: import("../../../shared/ipc/contracts").FileRequest, data: unknown) => {
     try {
-      const safePath = sanitizeAndValidatePath(filePath);
+      const safePath = await resolveFile(filePath);
       const safeData = typeof data === 'string' ? data : String(data ?? '');
       await fs.promises.mkdir(path.dirname(safePath), { recursive: true });
       await fs.promises.appendFile(safePath, safeData, 'utf8');
@@ -192,9 +113,9 @@ export function registerSystemIpc(rootDir?: string): void {
     }
   });
 
-  ipcMain.handle('read-directory', async (_event, dirPath: unknown) => {
+  handleTrusted('read-directory', async (_event, dirPath: import("../../../shared/ipc/contracts").FileRequest) => {
     try {
-      const safePath = sanitizeAndValidatePath(dirPath);
+      const safePath = await resolveFile(dirPath);
       const entries = await fs.promises.readdir(safePath, { withFileTypes: true });
       return entries.map((e) => ({
         entry: e.name,
@@ -206,7 +127,7 @@ export function registerSystemIpc(rootDir?: string): void {
   });
 
   // ── Shell and Desktop Integration ─────────────────────────────────────────
-  ipcMain.handle('open-external', async (_event, targetUrl: unknown) => {
+  handleTrusted('open-external', async (_event, targetUrl: unknown) => {
     try {
       if (typeof targetUrl !== 'string' || !targetUrl.trim() || targetUrl.includes('\0')) {
         return false;
@@ -225,9 +146,15 @@ export function registerSystemIpc(rootDir?: string): void {
     }
   });
 
-  ipcMain.handle('open-path', async (_event, targetPath: unknown) => {
+  handleTrusted('open-path', async (_event, targetPath: import("../../../shared/ipc/contracts").FileRequest) => {
     try {
-      const safePath = sanitizeAndValidatePath(targetPath);
+      const safePath = await resolveFile(targetPath);
+      const stat = await fs.promises.stat(safePath);
+      if (!stat.isDirectory()) {
+        // Reveal files without executing their shell association (scripts, shortcuts, executables).
+        shell.showItemInFolder(safePath);
+        return { success: true, error: null };
+      }
       const errorMsg = await shell.openPath(safePath);
       return { success: !errorMsg, error: errorMsg || null };
     } catch (err) {
@@ -235,9 +162,9 @@ export function registerSystemIpc(rootDir?: string): void {
     }
   });
 
-  ipcMain.handle('show-item-in-folder', async (_event, targetPath: unknown) => {
+  handleTrusted('show-item-in-folder', async (_event, targetPath: import("../../../shared/ipc/contracts").FileRequest) => {
     try {
-      const safePath = sanitizeAndValidatePath(targetPath);
+      const safePath = await resolveFile(targetPath);
       shell.showItemInFolder(safePath);
       return true;
     } catch (err) {
@@ -247,7 +174,7 @@ export function registerSystemIpc(rootDir?: string): void {
   });
 
   // ── Clipboard & Notifications ─────────────────────────────────────────────
-  ipcMain.handle('get-clipboard-text', () => {
+  handleTrusted('get-clipboard-text', () => {
     try {
       return clipboard.readText();
     } catch (err) {
@@ -256,7 +183,7 @@ export function registerSystemIpc(rootDir?: string): void {
     }
   });
 
-  ipcMain.handle('set-clipboard-text', (_event, text: unknown) => {
+  handleTrusted('set-clipboard-text', (_event, text: unknown) => {
     try {
       clipboard.writeText(typeof text === 'string' ? text : String(text ?? ''));
       return true;
@@ -266,7 +193,7 @@ export function registerSystemIpc(rootDir?: string): void {
     }
   });
 
-  ipcMain.handle('show-notification', (_event, payload: unknown) => {
+  handleTrusted('show-notification', (_event, payload: unknown) => {
     try {
       const title =
         payload && typeof payload === 'object' && 'title' in payload && payload.title
@@ -288,7 +215,7 @@ export function registerSystemIpc(rootDir?: string): void {
   });
 
   // ── High-Performance Native Screen Capture ────────────────────────────────
-  ipcMain.handle('capture-screen-native', async (_event, region: ScreenRegion | null = null) => {
+  handleTrusted('capture-screen-native', async (_event, region: ScreenRegion | null = null) => {
     const regionKey =
       region && typeof region === 'object'
         ? `${Math.round(region.x_pct || 0)}_${Math.round(region.y_pct || 0)}_${Math.round(region.w_pct || 100)}_${Math.round(region.h_pct || 100)}`
@@ -366,39 +293,61 @@ export function registerSystemIpc(rootDir?: string): void {
         const imgSize = image.getSize();
         if (imgSize.width <= 0 || imgSize.height <= 0) return null;
 
-        // Native region cropping
+        // Preparar descripción de región normalizada para el worker
+        let workerRegion: { x_pct: number; y_pct: number; w_pct: number; h_pct: number } | null = null;
         if (region && typeof region === 'object') {
           const rawX = typeof region.x_pct === 'number' && !isNaN(region.x_pct) ? region.x_pct : 0;
           const rawY = typeof region.y_pct === 'number' && !isNaN(region.y_pct) ? region.y_pct : 0;
           const rawW = typeof region.w_pct === 'number' && !isNaN(region.w_pct) ? region.w_pct : 100;
           const rawH = typeof region.h_pct === 'number' && !isNaN(region.h_pct) ? region.h_pct : 100;
-
-          const clampedX_pct = Math.max(0, Math.min(99, rawX));
-          const clampedY_pct = Math.max(0, Math.min(99, rawY));
-          const clampedW_pct = Math.max(1, Math.min(100 - clampedX_pct, rawW));
-          const clampedH_pct = Math.max(1, Math.min(100 - clampedY_pct, rawH));
-
-          const cropX = Math.max(0, Math.min(imgSize.width - 1, Math.round((clampedX_pct / 100) * imgSize.width)));
-          const cropY = Math.max(0, Math.min(imgSize.height - 1, Math.round((clampedY_pct / 100) * imgSize.height)));
-
-          const maxW = imgSize.width - cropX;
-          const maxH = imgSize.height - cropY;
-
-          const cropW = Math.max(1, Math.min(maxW, Math.round((clampedW_pct / 100) * imgSize.width)));
-          const cropH = Math.max(1, Math.min(maxH, Math.round((clampedH_pct / 100) * imgSize.height)));
-
-          if (cropW > 0 && cropH > 0 && (cropW < imgSize.width || cropH < imgSize.height || cropX > 0 || cropY > 0)) {
-            try {
-              image = image.crop({ x: cropX, y: cropY, width: cropW, height: cropH });
-            } catch (cropErr) {
-              console.warn('[SystemIpc] Region cropping failed, returning full thumbnail:', cropErr);
-            }
-          }
+          const clampedX = Math.max(0, Math.min(99, rawX));
+          const clampedY = Math.max(0, Math.min(99, rawY));
+          workerRegion = {
+            x_pct: clampedX,
+            y_pct: clampedY,
+            w_pct: Math.max(1, Math.min(100 - clampedX, rawW)),
+            h_pct: Math.max(1, Math.min(100 - clampedY, rawH)),
+          };
         }
 
-        // Fast JPEG encode at quality 55 (~25KB payload, sub-3ms)
-        const jpegBuffer = image.toJPEG(55);
-        const base64Result = jpegBuffer.toString('base64');
+        // Intentar delegar crop + JPEG encode al worker (CPU-bound off-main)
+        // toBitmap() se llama justo antes del postMessage; tras la transferencia
+        // bgraBuffer queda vaciado, pero `image` sigue válida para el fallback.
+        let base64Result: string;
+        const bgraBuffer = image.toBitmap();
+        const workerReply = await processScreen(
+          bgraBuffer,
+          imgSize.width,
+          imgSize.height,
+          workerRegion,
+          55
+        );
+
+        if (workerReply.base64) {
+          // Worker procesó correctamente (sharp disponible)
+          base64Result = workerReply.base64;
+        } else {
+          // Fallback: sharp no disponible o worker agotó timeout → encode en main
+          // Aplicar crop nativo si se especificó región
+          if (workerRegion) {
+            const cropX = Math.max(0, Math.min(imgSize.width - 1, Math.round((workerRegion.x_pct / 100) * imgSize.width)));
+            const cropY = Math.max(0, Math.min(imgSize.height - 1, Math.round((workerRegion.y_pct / 100) * imgSize.height)));
+            const maxW = imgSize.width - cropX;
+            const maxH = imgSize.height - cropY;
+            const cropW = Math.max(1, Math.min(maxW, Math.round((workerRegion.w_pct / 100) * imgSize.width)));
+            const cropH = Math.max(1, Math.min(maxH, Math.round((workerRegion.h_pct / 100) * imgSize.height)));
+            if (cropW > 0 && cropH > 0 && (cropW < imgSize.width || cropH < imgSize.height || cropX > 0 || cropY > 0)) {
+              try {
+                image = image.crop({ x: cropX, y: cropY, width: cropW, height: cropH });
+              } catch (cropErr) {
+                console.warn('[SystemIpc] Region cropping fallback failed, returning full thumbnail:', cropErr);
+              }
+            }
+          }
+          // Fast JPEG encode at quality 55 (~25KB payload, sub-3ms)
+          const jpegBuffer = image.toJPEG(55);
+          base64Result = jpegBuffer.toString('base64');
+        }
 
         lastScreenCaptureCache = {
           timestamp: Date.now(),
@@ -421,7 +370,7 @@ export function registerSystemIpc(rootDir?: string): void {
   });
 
   // ── Custom Wallpaper & Scene Native Importer ────────────────────────────────
-  ipcMain.handle('import-custom-scene-file', async () => {
+  handleTrusted('import-custom-scene-file', async () => {
     try {
       const targetWin = windowManager.getMainWindow();
       const result = await dialog.showOpenDialog(targetWin || undefined as unknown as Electron.BrowserWindow, {
@@ -446,7 +395,8 @@ export function registerSystemIpc(rootDir?: string): void {
         fs.mkdirSync(customScenesDir, { recursive: true });
       }
 
-      const ext = path.extname(sourcePath);
+      const ext = path.extname(sourcePath).toLowerCase();
+      if (!/^\.(mp4|webm|mkv|mov|png|jpg|jpeg|gif|webp)$/.test(ext)) throw new Error('Tipo de archivo no admitido.');
       const baseName = path.basename(sourcePath, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
       const destName = `${Date.now()}_${baseName}${ext}`;
       const destPath = path.join(customScenesDir, destName);
@@ -459,7 +409,7 @@ export function registerSystemIpc(rootDir?: string): void {
       return {
         canceled: false,
         filePath: destPath,
-        fileUrl: `file:///${destPath.replace(/\\/g, '/')}`,
+        fileUrl: `app://cristi/custom-scenes/${encodeURIComponent(destName)}`,
         name: baseName,
         type: isVideo ? 'video' : isAnimated ? 'animated' : 'image',
       };
@@ -470,53 +420,22 @@ export function registerSystemIpc(rootDir?: string): void {
   });
 
   // ── Configuration Store ───────────────────────────────────────────────────
-  let saveConfigTimer: NodeJS.Timeout | null = null;
-
-  ipcMain.handle('get-app-config', (): AppConfig | null => {
-    try {
-      let cfg: AppConfig = {};
-      if (fs.existsSync(configFilePath)) {
-        const raw = fs.readFileSync(configFilePath, 'utf-8');
-        cfg = JSON.parse(raw) || {};
-      }
-      if (!cfg.apiKey || !String(cfg.apiKey).trim()) {
-        const envKey = getEnvApiKey(baseDir);
-        if (envKey) cfg.apiKey = envKey;
-      }
-      return cfg;
-    } catch (err) {
-      console.warn('[SystemIpc] Error reading config file:', err);
-    }
-    const envKey = getEnvApiKey(baseDir);
-    return envKey ? { apiKey: envKey } : null;
-  });
-
-  ipcMain.handle('save-app-config', (_event, newConfig: unknown) => {
-    const mainWin = windowManager.getMainWindow();
-    if (mainWin?.webContents && !mainWin.isDestroyed()) {
-      mainWin.webContents.send('config-updated', newConfig);
-    }
-
-    if (saveConfigTimer) clearTimeout(saveConfigTimer);
-    saveConfigTimer = setTimeout(() => {
-      try {
-        fs.writeFileSync(configFilePath, JSON.stringify(newConfig, null, 2), 'utf-8');
-      } catch (err) {
-        console.warn('[SystemIpc] Error writing config file:', err);
-      }
-    }, 100);
-
+  handleTrusted('get-app-config', () => readPublicConfig());
+  handleTrusted('save-app-config', async (_event, config) => {
+    const clean = await writePublicConfig(config);
+    const main = windowManager.getMainWindow();
+    if (main && !main.isDestroyed()) main.webContents.send('config-updated', clean);
     return { success: true };
   });
 
-  ipcMain.on('companion-pause', () => {
+  onTrusted('companion-pause', () => {
     const mainWin = windowManager.getMainWindow();
     if (mainWin?.webContents && !mainWin.isDestroyed()) {
       mainWin.webContents.send('companion-pause');
     }
   });
 
-  ipcMain.on('companion-resume', () => {
+  onTrusted('companion-resume', () => {
     const mainWin = windowManager.getMainWindow();
     if (mainWin?.webContents && !mainWin.isDestroyed()) {
       mainWin.webContents.send('companion-resume');
@@ -524,13 +443,13 @@ export function registerSystemIpc(rootDir?: string): void {
   });
 
   // ── Offline & Local Updater ───────────────────────────────────────────────
-  ipcMain.handle('check-for-updates', async () => {
+  handleTrusted('check-for-updates', async () => {
     try {
       const currentVersion = app.getVersion();
       const localRelease = findLocalProjectRelease(baseDir);
 
       if (localRelease && localRelease.version) {
-        const isNewer = localRelease.version !== currentVersion;
+        const isNewer = isNewerVersion(localRelease.version, currentVersion);
         if (isNewer) {
           pendingLocalUpdate = localRelease;
           const mainWin = windowManager.getMainWindow();
@@ -561,7 +480,7 @@ export function registerSystemIpc(rootDir?: string): void {
     }
   });
 
-  ipcMain.handle('download-update', async () => {
+  handleTrusted('download-update', async () => {
     try {
       if (!pendingLocalUpdate || !fs.existsSync(pendingLocalUpdate.filePath)) {
         const local = findLocalProjectRelease(baseDir);
@@ -591,13 +510,14 @@ export function registerSystemIpc(rootDir?: string): void {
     }
   });
 
-  ipcMain.handle('install-update', async () => {
+  handleTrusted('install-update', async () => {
     try {
       if (!pendingLocalUpdate || !fs.existsSync(pendingLocalUpdate.filePath)) {
         const local = findLocalProjectRelease(baseDir);
         if (local) pendingLocalUpdate = local;
       }
       if (pendingLocalUpdate && fs.existsSync(pendingLocalUpdate.filePath)) {
+        await verifyInstaller(pendingLocalUpdate.filePath, pendingLocalUpdate.version || '', app.getVersion());
         await processManager.cleanupAll();
         const child = spawn(pendingLocalUpdate.filePath, [], {
           detached: true,
@@ -613,4 +533,7 @@ export function registerSystemIpc(rootDir?: string): void {
       return false;
     }
   });
+
+  // Registrar cleanup del worker de captura de pantalla para cierre limpio de la app
+  processManager.registerCleanupHook('screen-worker', () => void disposeScreenWorker());
 }

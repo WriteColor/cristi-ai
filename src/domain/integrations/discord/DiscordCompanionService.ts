@@ -1,106 +1,131 @@
 /**
- * Cristi AI - Discord Autonomous Companion & Voice Service (Domain Layer)
- * 
- * Provides Discord bot interaction: listening to mentions/messages, autonomous replies
- * preserving correlationId, voice channel connection, and 16 kHz PCM/Opus audio streaming.
+ * Cristi AI - Discord Companion Service (AIRI Inspired)
+ * High-level Discord bot integration enabling Cristi to interact, chat, listen, and participate in Discord servers and channels.
  */
 
-import type {
-  DiscordCommandResult,
-  DiscordConfig,
-  DiscordMessage,
-  DiscordVoiceAudioFrame,
-  DiscordVoiceResult,
-  DiscordVoiceState
-} from '@/types';
-import { electronBridge } from '@/services/desktop/ElectronBridge.js';
-import { eventBus, EVENTS } from '@/services/eventBus.js';
-import { logger } from '@/services/logger.js';
+import { electronBridge } from '../../../services/desktop/ElectronBridge';
+import { logger } from '../../../infrastructure/logging/logger';
+import { eventBus, EVENTS } from '../../../infrastructure/events/eventBus';
 
-export interface IDiscordCompanionService {
-  readonly status: 'disconnected' | 'connecting' | 'connected' | 'error';
-  readonly botInfo: Record<string, any> | null;
-  readonly voiceState: DiscordVoiceState;
-
-  connect(token?: string | null): Promise<DiscordCommandResult>;
-  disconnect(): Promise<DiscordCommandResult>;
-  sendMessage(channelId: string, content: string, correlationId?: string): Promise<DiscordCommandResult>;
-  replyToMessage(message: DiscordMessage, content: string): Promise<DiscordCommandResult>;
-  getRecentMessages(channelId: string, limit?: number): Promise<{ status: string; messages?: any[]; error?: string }>;
-  setStatus(statusText: string, activityType?: 'Playing' | 'Listening' | 'Watching'): Promise<DiscordCommandResult>;
-  
-  joinVoiceChannel(guildId: string, channelId: string): Promise<DiscordVoiceResult>;
-  leaveVoiceChannel(): Promise<DiscordVoiceResult>;
-  sendVoiceAudio(payload: { data: string; frameId?: string; sampleRate?: number }): Promise<DiscordVoiceResult>;
-  getVoiceStatus(): DiscordVoiceState;
-
-  isAutoReplyEligible(message: DiscordMessage): boolean;
-  destroy(): void;
+export interface DiscordConfig {
+  botToken: string;
+  autoReply: boolean;
+  monitoredChannels: string[];
+  statusMessage: string;
+  activityType: 'Playing' | 'Listening' | 'Watching' | string;
+  prefix: string;
 }
 
-function normalizeDiscordConfig(value: Partial<DiscordConfig> = {}): DiscordConfig {
-  const monitoredChannels = Array.isArray(value.monitoredChannels)
-    ? [...new Set(value.monitoredChannels
-        .map((ch) => String(ch || '').trim())
-        .filter((ch) => /^\d{5,32}$/.test(ch)))].slice(0, 100)
+export interface DiscordMessage {
+  id?: string;
+  channelId?: string;
+  authorId?: string;
+  authorTag?: string;
+  content?: string;
+  isMentioned?: boolean;
+  isDirectMessage?: boolean;
+  receivedAt?: number;
+  connectionId?: string;
+  [key: string]: unknown;
+}
+
+export interface DiscordBotInfo {
+  id?: string;
+  username?: string;
+  tag?: string;
+  avatar?: string;
+}
+
+function normalizeDiscordConfig(value: unknown = {}): DiscordConfig {
+  const input = (value && typeof value === 'object' && !Array.isArray(value)) ? (value as Record<string, unknown>) : {};
+  const monitoredChannels = Array.isArray(input.monitoredChannels)
+    ? [...new Set(input.monitoredChannels
+      .map((channelId) => String(channelId || '').trim())
+      .filter((channelId) => /^\d{5,32}$/.test(channelId)))].slice(0, 100)
     : [];
-
-  const activity = value.activityType && ['Playing', 'Listening', 'Watching'].includes(value.activityType)
-    ? value.activityType
-    : 'Playing';
-
   return {
-    botToken: typeof value.botToken === 'string' ? value.botToken.trim() : '',
-    autoReply: value.autoReply === true,
+    botToken: '',
+    autoReply: input.autoReply === true,
     monitoredChannels,
-    statusMessage: typeof value.statusMessage === 'string' && value.statusMessage.trim()
-      ? value.statusMessage.trim().slice(0, 128)
+    statusMessage: typeof input.statusMessage === 'string' && input.statusMessage.trim()
+      ? input.statusMessage.trim().slice(0, 128)
       : 'Conectada con Jeremy | Cristi AI',
-    activityType: activity,
-    prefix: typeof value.prefix === 'string' && value.prefix.trim() ? value.prefix.trim().slice(0, 32) : '!cristi'
+    activityType: ['Playing', 'Listening', 'Watching'].includes(String(input.activityType)) ? String(input.activityType) : 'Playing',
+    prefix: typeof input.prefix === 'string' && input.prefix.trim() ? input.prefix.trim().slice(0, 32) : '!cristi'
   };
 }
 
-export class DiscordCompanionService implements IDiscordCompanionService {
-  private readonly bridge: typeof electronBridge;
-  private readonly bus: typeof eventBus;
-  private readonly storageKey = 'cristi_discord_config';
-
+export class DiscordCompanionService {
+  private bridge: typeof electronBridge;
+  private bus: typeof eventBus;
+  private storageKey = 'cristi_discord_config';
   public config: DiscordConfig;
-  public status: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
-  public botInfo: Record<string, any> | null = null;
-  private transportConnectionId: string | null = null;
-
-  public voiceState: DiscordVoiceState = {
-    status: 'disconnected',
-    session: null
-  };
-
+  public status: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error' = 'disconnected';
+  public botInfo: DiscordBotInfo | null = null;
+  public transportConnectionId: string | null = null;
   public recentMessages: DiscordMessage[] = [];
-  public readonly maxRecentMessages = 200;
+  public maxRecentMessages = 200;
 
   private unsubscribeMessage: (() => void) | null = null;
   private unsubscribeEvent: (() => void) | null = null;
-  private unsubscribeVoiceAudio: (() => void) | null = null;
-  private unsubscribeVoiceEvent: (() => void) | null = null;
   private unsubscribeConfig: (() => void) | null = null;
 
-  constructor({ bridge = electronBridge, bus = eventBus } = {}) {
+  constructor({ bridge = electronBridge, bus = eventBus }: { bridge?: typeof electronBridge; bus?: typeof eventBus } = {}) {
     this.bridge = bridge;
     this.bus = bus;
+    this.config = {
+      botToken: '',
+      autoReply: false,
+      monitoredChannels: [],
+      statusMessage: 'Conectada con Jeremy | Cristi AI',
+      activityType: 'Playing',
+      prefix: '!cristi'
+    };
 
-    const envToken =
-      (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_DISCORD_BOT_TOKEN) ||
-      (typeof process !== 'undefined' && (process.env?.VITE_DISCORD_BOT_TOKEN || process.env?.DISCORD_BOT_TOKEN)) ||
-      '';
+    this.unsubscribeMessage = this.bridge?.onDiscordMessage?.((rawMessage: unknown) => {
+      const message = rawMessage as DiscordMessage;
+      if (message?.connectionId && message.connectionId !== this.transportConnectionId) return;
+      const item: DiscordMessage = { ...message, receivedAt: Date.now() };
+      this.recentMessages.push(item);
+      if (this.recentMessages.length > this.maxRecentMessages) this.recentMessages.shift();
+      const autoReplyEligible = this.isAutoReplyEligible(message.channelId, message);
+      const correlationId = message?.id ? `discord_${message.id}` : undefined;
+      this.bus.emitDomain(EVENTS.DISCORD_MESSAGE, { ...item, autoReplyEligible }, {
+        source: 'discord',
+        privacy: 'external',
+        sessionId: `discord_${message.channelId || 'unknown'}`,
+        correlationId
+      });
+    }) || null;
 
-    this.config = normalizeDiscordConfig({ botToken: envToken });
+    this.unsubscribeEvent = this.bridge?.onDiscordEvent?.((rawEvent: unknown) => {
+      const event = rawEvent as { type?: string; connectionId?: string };
+      if (event?.connectionId && event.connectionId !== this.transportConnectionId) return;
+      this.bus.emitDomain(`discord.${event?.type || 'event'}`, event || {}, {
+        source: 'discord', privacy: 'internal'
+      });
+      if (event?.type === 'disconnect' || event?.type === 'reconnecting') this.status = 'reconnecting';
+      if (event?.type === 'ready') this.status = 'connected';
+      if (event?.type === 'error') this.status = 'error';
+    }) || null;
+
+    this.unsubscribeConfig = this.bridge?.onConfigUpdated?.((config: unknown) => {
+      const c = config as { discord?: Partial<DiscordConfig> };
+      if (c?.discord) this.applyConfig(c.discord, { preserveToken: true });
+    }) || null;
 
     this.loadConfig();
-    this.setupListeners();
+    if (this.bridge?.isElectron && this.bridge.getAppConfig) {
+      void this.bridge.getAppConfig()
+        .then((config: unknown) => {
+          const c = config as { discord?: Partial<DiscordConfig> };
+          if (c?.discord) this.applyConfig(c.discord, { preserveToken: true });
+        })
+        .catch(() => {});
+    }
   }
 
-  private loadConfig(): void {
+  loadConfig(): void {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         const stored = window.localStorage.getItem(this.storageKey);
@@ -110,298 +135,150 @@ export class DiscordCompanionService implements IDiscordCompanionService {
         }
       }
     } catch (e) {
-      logger.warn?.('DISCORD', 'Error al cargar configuración:', e);
+      console.warn('[Discord] Error loading config:', e);
     }
   }
 
-  public saveConfig(newConfig: Partial<DiscordConfig> = {}): void {
+  saveConfig(newConfig: Partial<DiscordConfig> = {}): void {
     this.applyConfig(newConfig);
-    const { botToken, ...safeConfig } = this.config;
+    const { botToken: _botToken, ...safeConfig } = this.config;
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.setItem(this.storageKey, JSON.stringify(safeConfig));
       }
       if (this.bridge?.isElectron && this.bridge.getAppConfig && this.bridge.saveAppConfig) {
-        void this.bridge.getAppConfig().then((current: any) =>
-          this.bridge.saveAppConfig({ ...(current || {}), discord: safeConfig })
-        ).catch(() => {});
+        void this.bridge.getAppConfig()
+          .then((current: unknown) => this.bridge.saveAppConfig({ ...((current as Record<string, unknown>) || {}), discord: safeConfig }))
+          .catch(() => {});
       }
     } catch (e) {
-      logger.warn?.('DISCORD', 'Error al guardar configuración:', e);
+      console.warn('[Discord] Error saving config:', e);
     }
   }
 
-  public applyConfig(nextConfig: Partial<DiscordConfig> = {}, { preserveToken = false } = {}): DiscordConfig {
+  applyConfig(nextConfig: Partial<DiscordConfig> = {}, { preserveToken = false }: { preserveToken?: boolean } = {}): DiscordConfig {
     const merged = normalizeDiscordConfig({ ...this.config, ...nextConfig });
     this.config = {
       ...merged,
-      botToken: preserveToken
-        ? this.config.botToken
-        : typeof nextConfig.botToken === 'string'
-        ? nextConfig.botToken.trim()
-        : this.config.botToken
+      botToken: preserveToken ? this.config.botToken : (typeof nextConfig.botToken === 'string' ? nextConfig.botToken.trim() : this.config.botToken)
     };
-    const { botToken, ...safeConfig } = this.config;
+    const { botToken: _token, ...safeConfig } = this.config;
     this.bus.emitDomain('discord.configuration_changed', safeConfig, { source: 'discord', privacy: 'internal' });
     return { ...this.config };
   }
 
-  private setupListeners(): void {
-    this.unsubscribeMessage = this.bridge?.onDiscordMessage?.((rawMessage: any) => {
-      if (rawMessage?.connectionId && this.transportConnectionId && rawMessage.connectionId !== this.transportConnectionId) {
-        return;
-      }
-
-      const correlationId = rawMessage?.id ? `discord_${rawMessage.id}` : `discord_msg_${Date.now()}`;
-      const message: DiscordMessage = {
-        id: String(rawMessage?.id || Date.now()),
-        channelId: String(rawMessage?.channelId || ''),
-        guildId: rawMessage?.guildId || null,
-        content: String(rawMessage?.content || ''),
-        author: {
-          id: String(rawMessage?.author?.id || 'unknown'),
-          username: String(rawMessage?.author?.username || 'User'),
-          bot: Boolean(rawMessage?.author?.bot)
-        },
-        isMentioned: Boolean(rawMessage?.isMentioned),
-        isDirectMessage: Boolean(rawMessage?.isDirectMessage),
-        correlationId,
-        receivedAt: Date.now()
-      };
-
-      this.recentMessages.push(message);
-      if (this.recentMessages.length > this.maxRecentMessages) {
-        this.recentMessages.shift();
-      }
-
-      const autoReplyEligible = this.isAutoReplyEligible(message);
-
-      this.bus.emitDomain(
-        EVENTS.DISCORD_MESSAGE,
-        { ...message, autoReplyEligible },
-        {
-          source: 'discord',
-          privacy: 'external',
-          sessionId: `discord_${message.channelId || 'unknown'}`,
-          correlationId
-        }
-      );
-    }) ?? null;
-
-    this.unsubscribeEvent = this.bridge?.onDiscordEvent?.((event: Record<string, any>) => {
-      if (event?.connectionId && this.transportConnectionId && event.connectionId !== this.transportConnectionId) {
-        return;
-      }
-
-      this.bus.emitDomain(`discord.${event?.type || 'event'}`, event || {}, {
-        source: 'discord',
-        privacy: 'internal'
-      });
-
-      if (event?.type === 'disconnect' || event?.type === 'reconnecting') this.status = 'error';
-      if (event?.type === 'ready') this.status = 'connected';
-      if (event?.type === 'error') this.status = 'error';
-    }) ?? null;
-
-    // Listen to voice incoming audio
-    this.unsubscribeVoiceAudio = this.bridge?.onDiscordVoiceAudio?.((frame: any) => {
-      if (this.voiceState.status !== 'connected' || !frame?.data || !frame.userId) return;
-
-      const voiceFrame: DiscordVoiceAudioFrame = {
-        frameId: frame.frameId || `frame_${Date.now()}`,
-        guildId: frame.guildId || this.voiceState.session?.guildId || null,
-        channelId: frame.channelId || this.voiceState.session?.channelId || null,
-        userId: String(frame.userId),
-        speakerId: String(frame.userId),
-        data: frame.data,
-        sampleRate: Number(frame.sampleRate) || 16000,
-        encoding: frame.encoding || 'pcm_s16le',
-        timestamp: Date.now()
-      };
-
-      this.bus.emitDomain('discord.voice_audio', voiceFrame, {
-        source: 'discord_voice',
-        privacy: 'external',
-        sessionId: this.voiceState.session?.sessionId || null
-      });
-    }) ?? null;
-
-    this.unsubscribeVoiceEvent = this.bridge?.onDiscordVoiceEvent?.((event: any) => {
-      const type = event?.type;
-      if (type === 'ready') this.voiceState.status = 'connected';
-      if (['disconnect', 'reconnecting', 'reconnect_error'].includes(type)) this.voiceState.status = 'reconnecting';
-      if (['disconnected', 'destroyed', 'reconnect_failed'].includes(type)) {
-        this.voiceState.status = 'disconnected';
-        this.voiceState.session = null;
-      }
-
-      this.bus.emitDomain(`discord.voice_${type || 'event'}`, event || {}, {
-        source: 'discord_voice',
-        privacy: 'internal',
-        sessionId: this.voiceState.session?.sessionId || null
-      });
-    }) ?? null;
-
-    this.unsubscribeConfig = this.bridge?.onConfigUpdated?.((config: any) => {
-      if (config?.discord) this.applyConfig(config.discord, { preserveToken: true });
-    }) ?? null;
-  }
-
-  public isAutoReplyEligible(message: DiscordMessage): boolean {
+  isAutoReplyEligible(channelIdOrMessage?: string | DiscordMessage, maybeMessage: DiscordMessage | null = null): boolean {
     if (!this.config.autoReply) return false;
-    if (message.author?.bot) return false;
+    const message = (typeof channelIdOrMessage === 'object' && channelIdOrMessage !== null)
+      ? channelIdOrMessage
+      : maybeMessage;
+    const channelId = String(
+      (typeof channelIdOrMessage === 'string' ? channelIdOrMessage : '') ||
+      message?.channelId ||
+      ''
+    ).trim();
 
-    if (message.isMentioned || message.isDirectMessage) {
+    if (message?.isMentioned === true || message?.isDirectMessage === true) {
       return true;
     }
-
-    if (message.content && this.config.prefix && message.content.startsWith(this.config.prefix)) {
+    if (message?.content && this.config.prefix && message.content.startsWith(this.config.prefix)) {
       return true;
     }
-
     if (this.config.monitoredChannels && this.config.monitoredChannels.length > 0) {
-      return Boolean(message.channelId && this.config.monitoredChannels.includes(message.channelId));
+      return Boolean(channelId && this.config.monitoredChannels.includes(channelId));
     }
-
-    return Boolean(message.channelId);
+    return Boolean(channelId);
   }
 
-  public async connect(token?: string | null): Promise<DiscordCommandResult> {
-    let activeToken: string | undefined = (token || this.config.botToken) || undefined;
-    if (!activeToken && this.bridge?.isElectron && this.bridge.getSecureSecret) {
-      activeToken = (await this.bridge.getSecureSecret('discord.botToken')) || undefined;
-    }
-
-    if (!activeToken) {
-      return {
-        success: false,
-        status: 'error',
-        message: 'Por favor proporciona un Bot Token de Discord válido.'
-      };
-    }
-
-    this.config.botToken = activeToken;
+  async connect(token: string | null = null): Promise<{ status: string; bot?: DiscordBotInfo; message: string }> {
+    if (token) await this.bridge.setSecureSecret('discord.botToken', token);
+    const credStatus = await this.bridge.credentialStatus();
+    if (!credStatus.hasDiscordCredential) return { status: 'error', message: 'Configura Discord en Ajustes.' };
     this.status = 'connecting';
-    logger.info?.('DISCORD', 'Iniciando conexión con Discord Gateway...');
-
-    if (this.bridge?.isElectron && this.bridge.setSecureSecret) {
-      await this.bridge.setSecureSecret('discord.botToken', activeToken);
-    }
-
     try {
       if (this.bridge?.isElectron) {
         this.transportConnectionId = null;
         const res = await this.bridge.discordConnect({
-          token: activeToken,
           statusMessage: this.config.statusMessage,
           activityType: this.config.activityType
         });
 
-        if (res && res.success) {
+        const result = res as Record<string, unknown>;
+        if (result && result.success) {
           this.status = 'connected';
-          this.transportConnectionId = res.connectionId || null;
-          this.botInfo = res.botInfo;
-
-          this.bus.emitDomain(
-            EVENTS.DISCORD_CONNECTED,
-            { bot: res.botInfo, connectionId: this.transportConnectionId },
-            { source: 'discord', privacy: 'internal' }
-          );
-
-          logger.info?.('DISCORD', `✓ Conectado exitosamente como ${res.botInfo?.tag || 'Cristi Bot'}`);
-          return {
-            success: true,
-            status: 'success',
-            bot: res.botInfo,
-            message: `Conectado como ${res.botInfo?.tag}`
-          };
+          this.transportConnectionId = (result.connectionId as string) || null;
+          const botInfo = (result.botInfo as DiscordBotInfo) || null;
+          this.botInfo = botInfo;
+          this.bus.emitDomain(EVENTS.DISCORD_CONNECTED, { bot: botInfo, connectionId: this.transportConnectionId }, {
+            source: 'discord', privacy: 'internal'
+          });
+          const tag = botInfo?.tag || 'Cristi Bot';
+          logger.info('DISCORD', `✓ Conectado exitosamente como ${tag}`);
+          return { status: 'success', bot: botInfo || undefined, message: `Conectado como ${tag}` };
         } else {
           this.status = 'error';
-          logger.error?.('DISCORD', 'Fallo de autenticación Discord:', res?.error);
-          return {
-            success: false,
-            status: 'error',
-            message: res?.error || 'Token inválido o error de Discord.'
-          };
+          logger.error('DISCORD', 'Fallo de autenticación Discord:', result?.error);
+          return { status: 'error', message: typeof result?.error === 'string' ? result.error : 'Token inválido o error de Discord.' };
         }
       }
 
       this.status = 'connected';
-      return { success: true, status: 'success', message: 'Simulación de Discord Bot activa (entorno web).' };
-    } catch (err: any) {
+      return { status: 'success', message: 'Simulación de Discord Bot activa.' };
+    } catch (err) {
+      const error = err as Error;
       this.status = 'error';
-      logger.error?.('DISCORD', 'Error crítico en Discord:', err);
-      return { success: false, status: 'error', message: err?.message || String(err) };
+      logger.error('DISCORD', 'Error crítico en Discord:', error);
+      return { status: 'error', message: error.message };
     }
   }
 
-  public async disconnect(): Promise<DiscordCommandResult> {
+  async disconnect(): Promise<{ status: string; message: string }> {
     this.status = 'disconnected';
     this.botInfo = null;
     this.transportConnectionId = null;
-    await this.leaveVoiceChannel();
-
-    logger.info?.('DISCORD', 'Desconectando bot de Discord...');
+    logger.info('DISCORD', 'Desconectando bot de Discord...');
     try {
       if (this.bridge?.isElectron) {
         await this.bridge.discordDisconnect();
       }
       this.bus.emitDomain(EVENTS.DISCORD_DISCONNECTED, {}, { source: 'discord', privacy: 'internal' });
-      return { success: true, status: 'success', message: 'Bot de Discord desconectado.' };
-    } catch (err: any) {
-      return { success: false, status: 'error', message: err?.message || String(err) };
+      return { status: 'success', message: 'Bot de Discord desconectado.' };
+    } catch (err) {
+      const error = err as Error;
+      return { status: 'error', message: error.message };
     }
   }
 
-  public async sendMessage(channelId: string, content: string, correlationId?: string): Promise<DiscordCommandResult> {
+  async sendMessage(channelId: string, content: string): Promise<{ success?: boolean; status?: string; message?: string }> {
     if (!channelId || !content) {
-      return { success: false, status: 'error', message: 'Canal o mensaje inválido.' };
+      return { status: 'error', message: 'Canal o mensaje inválido.' };
     }
 
-    const corrId = correlationId || `discord_out_${Date.now()}`;
-    logger.info?.('DISCORD', `Enviando mensaje al canal ${channelId} [corrId=${corrId}]: "${content}"`);
-
+    logger.info('DISCORD', `Enviando mensaje al canal ${channelId}: "${content}"`);
     try {
-      let result: any = { success: true };
       if (this.bridge?.isElectron) {
-        result = await this.bridge.discordSendMessage({ channelId, content });
+        return await this.bridge.discordSendMessage({ channelId, content });
       }
-
-      this.bus.emitDomain(
-        'discord.message_sent',
-        { channelId, content, correlationId: corrId },
-        { source: 'discord', correlationId: corrId, privacy: 'external' }
-      );
-
-      return {
-        success: Boolean(result?.success ?? true),
-        status: 'success',
-        message: `Mensaje enviado al canal ${channelId}.`
-      };
-    } catch (err: any) {
-      return { success: false, status: 'error', message: err?.message || String(err) };
+      return { status: 'success', message: `Mensaje enviado al canal ${channelId}.` };
+    } catch (err) {
+      const error = err as Error;
+      return { status: 'error', message: error.message };
     }
   }
 
-  public async replyToMessage(message: DiscordMessage, content: string): Promise<DiscordCommandResult> {
-    return this.sendMessage(message.channelId, content, message.correlationId);
-  }
-
-  public async getRecentMessages(
-    channelId: string,
-    limit = 10
-  ): Promise<{ status: string; messages?: any[]; error?: string }> {
+  async getRecentMessages(channelId: string, limit = 10): Promise<{ messages?: unknown[]; error?: string; status?: string; message?: string }> {
     try {
       if (this.bridge?.isElectron) {
         return await this.bridge.discordGetMessages({ channelId, limit });
       }
       return { status: 'success', messages: [] };
-    } catch (err: any) {
-      return { status: 'error', error: err?.message || String(err) };
+    } catch (err) {
+      const error = err as Error;
+      return { status: 'error', message: error.message };
     }
   }
 
-  public async setStatus(statusText: string, activityType: 'Playing' | 'Listening' | 'Watching' = 'Playing'): Promise<DiscordCommandResult> {
+  async setStatus(statusText: string, activityType = 'Playing'): Promise<{ status: string; message: string }> {
     this.config.statusMessage = statusText;
     this.config.activityType = activityType;
     this.saveConfig();
@@ -410,142 +287,29 @@ export class DiscordCompanionService implements IDiscordCompanionService {
       if (this.bridge?.isElectron) {
         await this.bridge.discordSetStatus({ statusText, activityType });
       }
-      return { success: true, status: 'success', message: `Estado actualizado a "${statusText}"` };
-    } catch (err: any) {
-      return { success: false, status: 'error', message: err?.message || String(err) };
+      return { status: 'success', message: `Estado actualizado a "${statusText}"` };
+    } catch (err) {
+      const error = err as Error;
+      return { status: 'error', message: error.message };
     }
   }
 
-  public async joinVoiceChannel(guildId: string, channelId: string): Promise<DiscordVoiceResult> {
-    if (!guildId || !channelId) {
-      return { success: false, error: 'guildId y channelId son requeridos para unirse al canal de voz.' };
-    }
-
-    this.voiceState.status = 'connecting';
-    logger.info?.('DISCORD', `Conectando a canal de voz: ${guildId} / ${channelId}`);
-
-    try {
-      if (this.bridge?.isElectron) {
-        const res = await this.bridge.discordVoiceJoin({ guildId, channelId });
-        if (res && res.success) {
-          const session = {
-            guildId,
-            channelId,
-            sessionId: `discord_voice_${guildId}_${channelId}`
-          };
-          this.voiceState = { status: 'connected', session };
-          return { success: true, session };
-        }
-        this.voiceState = { status: 'error', session: null };
-        return { success: false, error: res?.error || 'Fallo al unirse al canal de voz.' };
-      }
-
-      const mockSession = {
-        guildId,
-        channelId,
-        sessionId: `discord_voice_${guildId}_${channelId}`
-      };
-      this.voiceState = { status: 'connected', session: mockSession };
-      return { success: true, session: mockSession };
-    } catch (err: any) {
-      this.voiceState = { status: 'error', session: null };
-      return { success: false, error: err?.message || String(err) };
-    }
+  getRecentLocalMessages({ channelId = null, limit = 20 }: { channelId?: string | null; limit?: number } = {}): DiscordMessage[] {
+    const filtered = channelId
+      ? this.recentMessages.filter((message) => message.channelId === channelId)
+      : this.recentMessages;
+    return filtered.slice(-Math.min(100, Math.max(1, limit)));
   }
 
-  public async leaveVoiceChannel(): Promise<DiscordVoiceResult> {
-    try {
-      if (this.bridge?.isElectron) {
-        await this.bridge.discordVoiceLeave();
-      }
-      return { success: true };
-    } catch (err: any) {
-      return { success: false, error: err?.message || String(err) };
-    } finally {
-      this.voiceState = { status: 'disconnected', session: null };
-    }
-  }
-
-  public async sendVoiceAudio(payload: { data: string; frameId?: string; sampleRate?: number }): Promise<DiscordVoiceResult> {
-    if (!payload?.data) {
-      return { success: false, error: 'Audio data base64 requerida.' };
-    }
-    if (this.voiceState.status !== 'connected' || !this.voiceState.session) {
-      return { success: false, error: 'No conectado a un canal de voz de Discord.' };
-    }
-
-    const frameId = payload.frameId || `voice_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const inputSampleRate = payload.sampleRate || 16000;
-
-    // Resample to 16 kHz if necessary
-    const resampledData = inputSampleRate === 16000
-      ? payload.data
-      : this.resamplePcm16Base64(payload.data, inputSampleRate, 16000);
-
-    try {
-      if (this.bridge?.isElectron) {
-        const res = await this.bridge.discordVoiceSendAudio({ data: resampledData, frameId });
-        return { success: Boolean(res?.success ?? true), error: res?.error };
-      }
-      return { success: true };
-    } catch (err: any) {
-      return { success: false, error: err?.message || String(err) };
-    }
-  }
-
-  public getVoiceStatus(): DiscordVoiceState {
-    return {
-      status: this.voiceState.status,
-      session: this.voiceState.session ? { ...this.voiceState.session } : null
-    };
-  }
-
-  /**
-   * Resamples PCM 16-bit LE Base64 audio between sample rates using linear interpolation.
-   */
-  private resamplePcm16Base64(data: string, inputRate: number, outputRate: number): string {
-    try {
-      const bytes = typeof globalThis.atob === 'function'
-        ? Uint8Array.from(globalThis.atob(String(data)), (char) => char.charCodeAt(0))
-        : new Uint8Array(Buffer.from(String(data), 'base64'));
-
-      const source = new Int16Array(bytes.buffer, bytes.byteOffset, Math.floor(bytes.byteLength / 2));
-      const length = Math.max(1, Math.round(source.length * outputRate / inputRate));
-      const target = new Int16Array(length);
-
-      for (let i = 0; i < length; i += 1) {
-        const position = (i * inputRate) / outputRate;
-        const left = Math.floor(position);
-        const right = Math.min(source.length - 1, left + 1);
-        const fraction = position - left;
-        target[i] = Math.round((source[left] || 0) * (1 - fraction) + (source[right] || 0) * fraction);
-      }
-
-      const out = new Uint8Array(target.buffer);
-      let binary = '';
-      for (let i = 0; i < out.length; i += 0x8000) {
-        binary += String.fromCharCode(...out.subarray(i, Math.min(i + 0x8000, out.length)));
-      }
-      return typeof globalThis.btoa === 'function' ? globalThis.btoa(binary) : Buffer.from(out).toString('base64');
-    } catch (_) {
-      return data;
-    }
-  }
-
-  public destroy(): void {
+  destroy(): void {
     this.unsubscribeMessage?.();
     this.unsubscribeMessage = null;
     this.unsubscribeEvent?.();
     this.unsubscribeEvent = null;
-    this.unsubscribeVoiceAudio?.();
-    this.unsubscribeVoiceAudio = null;
-    this.unsubscribeVoiceEvent?.();
-    this.unsubscribeVoiceEvent = null;
     this.unsubscribeConfig?.();
     this.unsubscribeConfig = null;
-    void this.leaveVoiceChannel();
   }
 }
 
-export const discordCompanionService = new DiscordCompanionService();
-export default discordCompanionService;
+export const discordCompanion = new DiscordCompanionService();
+export default discordCompanion;

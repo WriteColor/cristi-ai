@@ -1,6 +1,6 @@
 import type { IToolHandler } from '../IToolHandler';
-import { eventBus, EVENTS } from '@/services/eventBus.js';
-import { proactiveScheduler } from '@/services/proactiveScheduler.js';
+import { eventBus, EVENTS } from '../../../infrastructure/events/eventBus.js';
+import { proactiveScheduler } from '../../interaction/ProactiveScheduler.js';
 
 export const setReminderHandler: IToolHandler = {
   name: 'set_reminder',

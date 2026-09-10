@@ -3,8 +3,10 @@
  */
 
 import { GeminiFunctionDeclaration } from './gemini.types';
+import type { ScreenRegion } from './sensory.types';
 
 export interface ToolExecutionContext {
+  isCallCancelled?: (id: string) => boolean;
   sessionId?: string;
   source?: string;
   onGestureTrigger?: (gesture: string, comment?: string) => void;
@@ -13,7 +15,7 @@ export interface ToolExecutionContext {
   onModelSwitch?: (modelType: string, modelId: string) => void;
   onToolExecutionStart?: (name: string, args: any) => void;
   onToolExecutionEnd?: (name: string, result: any) => void;
-  onScreenRegionChange?: (region: { x_pct: number; y_pct: number; w_pct: number; h_pct: number }) => void;
+  onScreenRegionChange?: (region: ScreenRegion) => void;
   onScreenWatchChange?: (enabled: boolean) => void;
   getCameraSnapshot?: () => any;
   getVisionDetections?: () => any;

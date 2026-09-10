@@ -6,7 +6,8 @@ import { ChildProcess } from 'child_process';
  */
 class ProcessManager {
   private activeProcesses: Set<ChildProcess> = new Set();
-  private cleanupHooks: Array<() => void | Promise<void>> = [];
+  private cleanupHooks = new Map<string, () => void | Promise<void>>();
+  private cleanupPromise: Promise<void> | null = null;
 
   /**
    * Tracks a spawned child process.
@@ -31,8 +32,9 @@ class ProcessManager {
   /**
    * Registers a cleanup hook to run on application shutdown.
    */
-  public registerCleanupHook(hook: () => void | Promise<void>): void {
-    this.cleanupHooks.push(hook);
+  public registerCleanupHook(key: string, hook: () => void | Promise<void>): void {
+    this.cleanupPromise = null;
+    this.cleanupHooks.set(key, hook);
   }
 
   /**
@@ -56,8 +58,13 @@ class ProcessManager {
   /**
    * Runs all registered cleanup hooks and kills child processes.
    */
-  public async cleanupAll(): Promise<void> {
-    for (const hook of this.cleanupHooks) {
+  public cleanupAll(): Promise<void> {
+    this.cleanupPromise ??= this.runCleanup();
+    return this.cleanupPromise;
+  }
+
+  private async runCleanup(): Promise<void> {
+    for (const hook of this.cleanupHooks.values()) {
       try {
         await hook();
       } catch (err) {

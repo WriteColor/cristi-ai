@@ -14,14 +14,14 @@ import {
   ChevronDown, ChevronRight, Check, Sliders, Image as ImageIcon, Activity,
   FolderPlus, Settings, LogOut, LucideIcon
 } from 'lucide-react';
-import { live2dModelRegistry } from '../services/live2d/index.js';
+import { live2dModelRegistry } from '../domain/live2d/Live2DModelRegistry.js';
 import { GEMINI_MODELS_LIST, DEFAULT_MODEL_ID } from '../config/models.js';
 import { GEMINI_STANDARD_VOICES } from '../config/voices.js';
 import { DEFAULT_SCENE_ID } from '../config/scenes.js';
-import { sceneManager } from '../services/sceneManager.js';
+import { sceneManager } from '../domain/scenes/SceneManager.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';
 import { electronBridge } from '../services/desktop/ElectronBridge.js';
-import { soundFxService } from '../services/soundFxService.js';
+import { soundFxService } from '../domain/audio/SoundFxService.js';
 import { useCompanionStore } from '../stores/useCompanionStore.js';
 import { useVisionStore } from '../stores/useVisionStore.js';
 import { useSettingsStore } from '../stores/useSettingsStore.js';

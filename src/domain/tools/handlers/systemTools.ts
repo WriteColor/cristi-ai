@@ -1,7 +1,6 @@
 import type { IToolHandler, ToolExecutionContext } from '../IToolHandler';
 import { electronBridge } from '@/services/desktop/ElectronBridge.js';
-import { virtualTerminal } from '@/services/virtualTerminalService.js';
-import { eventBus, EVENTS } from '@/services/eventBus.js';
+import { eventBus, EVENTS } from '../../../infrastructure/events/eventBus.js';
 
 export const getCurrentTimeAndDateHandler: IToolHandler = {
   name: 'get_current_time_and_date',
@@ -69,92 +68,32 @@ export const getWeatherHandler: IToolHandler = {
 };
 
 export const systemDiagnosticsHandler: IToolHandler = {
-  name: 'system_diagnostics',
-  declaration: {
-    name: 'system_diagnostics',
-    description: 'Obtiene métricas en tiempo real del sistema: CPU, RAM, procesos activos, FPS del avatar, estado del micrófono y cámara.'
-  },
-  async execute() {
-    const memoryMB = (typeof performance !== 'undefined' && (performance as any).memory)
-      ? `${Math.round((performance as any).memory.usedJSHeapSize / (1024 * 1024))} MB`
-      : 'N/A';
-
-    let platform = 'Web Browser';
-    let cpuInfo = 'N/A';
-    let memInfo = 'N/A';
-
-    if (electronBridge.isElectron) {
-      try {
-        const cpuResult = await electronBridge.execCommand(
-          'powershell -Command "Get-CimInstance Win32_Processor | Select-Object Name,LoadPercentage | ConvertTo-Json"',
-          { timeout: 5000 }
-        );
-        const memResult = await electronBridge.execCommand(
-          'powershell -Command "$mem = Get-CimInstance Win32_OperatingSystem; [PSCustomObject]@{TotalGB=[math]::Round($mem.TotalVisibleMemorySize/1MB,1);FreeGB=[math]::Round($mem.FreePhysicalMemory/1MB,1)} | ConvertTo-Json"',
-          { timeout: 5000 }
-        );
-        platform = 'Electron Desktop (Cristi Native)';
-        cpuInfo = cpuResult.stdOut?.trim() || 'N/A';
-        memInfo = memResult.stdOut?.trim() || 'N/A';
-      } catch (e: any) {
-        cpuInfo = 'error: ' + e?.message;
-      }
-    }
-
-    return {
-      status: 'success',
-      health: 'healthy',
-      platform,
-      memory_heap: memoryMB,
-      cpu_info: cpuInfo,
-      memory_info: memInfo,
-      timestamp: Date.now(),
-      user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : 'NodeJS/Test'
-    };
-  }
+ name: 'system_diagnostics', declaration: { name: 'system_diagnostics', description: 'Consulta información del sistema operativo.' },
+ async execute() { try { return { status: 'success', ...await electronBridge.systemExecute('system-info') }; }
+ catch (error) { return { status: 'error', message: String(error) }; } }
 };
 
 export const executeSystemCommandHandler: IToolHandler = {
-  name: 'execute_system_command',
-  declaration: {
-    name: 'execute_system_command',
-    description: 'Ejecuta cualquier comando en el sistema operativo Windows del usuario (PowerShell o cmd). Tienes acceso completo al sistema. Usa esto para abrir apps, gestionar archivos, consultar el sistema, ejecutar scripts, etc.',
-    parameters: {
-      type: 'OBJECT',
-      properties: {
-        command: {
-          type: 'STRING',
-          description: 'El comando completo a ejecutar (ej: "Get-Process", "notepad.exe", "ipconfig /all", "dir C:\\\\").'
-        },
-        use_powershell: {
-          type: 'BOOLEAN',
-          description: 'Si es true, fuerza ejecución en PowerShell. Por defecto true.'
-        }
-      },
-      required: ['command']
-    }
-  },
-  async execute(args: { command?: string; use_powershell?: boolean }) {
-    const command = args?.command;
-    if (!command || typeof command !== 'string') {
-      return { status: 'error', message: 'El comando es requerido y debe ser una cadena de texto.' };
-    }
-    const usePowershell = args.use_powershell !== false;
-    return await virtualTerminal.executeCommand(command, usePowershell);
-  }
+ name: 'execute_system_command', declaration: { name: 'execute_system_command', description: 'Consulta diagnósticos mediante capacidades nominales del sistema.',
+ parameters: { type: 'OBJECT', properties: { kind: { type: 'STRING', enum: ['system-info', 'list-processes'] } }, required: ['kind'] } },
+ async execute(args: { kind?: string }) {
+ if (args.kind !== 'system-info' && args.kind !== 'list-processes') return { status: 'error', message: 'Capacidad no autorizada.' };
+ try { return { status: 'success', ...await electronBridge.systemExecute(args.kind) }; }
+ catch (error) { return { status: 'error', message: String(error) }; }
+ }
 };
 
 export const readFileHandler: IToolHandler = {
   name: 'read_file',
   declaration: {
     name: 'read_file',
-    description: 'Lee el contenido de cualquier archivo del sistema de archivos del usuario.',
+    description: 'Lee el contenido de un archivo dentro de la carpeta autorizada.',
     parameters: {
       type: 'OBJECT',
       properties: {
         path: {
           type: 'STRING',
-          description: 'Ruta absoluta del archivo a leer (ej: "C:\\\\Users\\\\jerem\\\\Documents\\\\nota.txt").'
+          description: 'Ruta relativa dentro de la carpeta autorizada desde Ajustes.'
         }
       },
       required: ['path']
@@ -174,7 +113,7 @@ export const readFileHandler: IToolHandler = {
         return { status: 'error', path, message: e?.message };
       }
     }
-    return virtualTerminal.readFile(path);
+    return { status: 'error', path, message: 'Operación no disponible fuera del entorno de escritorio.' };
   }
 };
 
@@ -188,7 +127,7 @@ export const writeFileHandler: IToolHandler = {
       properties: {
         path: {
           type: 'STRING',
-          description: 'Ruta absoluta del archivo a crear o sobreescribir.'
+          description: 'Ruta relativa dentro de la carpeta autorizada desde Ajustes.'
         },
         content: {
           type: 'STRING',
@@ -221,7 +160,7 @@ export const writeFileHandler: IToolHandler = {
         return { status: 'error', path, message: e?.message };
       }
     }
-    return virtualTerminal.writeFile(path, contentStr, append);
+    return { status: 'error', path, message: 'Operación no disponible fuera del entorno de escritorio.' };
   }
 };
 
@@ -235,7 +174,7 @@ export const listDirectoryHandler: IToolHandler = {
       properties: {
         path: {
           type: 'STRING',
-          description: 'Ruta absoluta del directorio a listar (ej: "C:\\\\Users\\\\jerem\\\\Desktop").'
+          description: 'Ruta relativa dentro de la carpeta autorizada desde Ajustes.'
         }
       },
       required: ['path']
@@ -244,7 +183,7 @@ export const listDirectoryHandler: IToolHandler = {
   async execute(args: { path?: string }) {
     const path = (typeof args?.path === 'string' && args.path.trim())
       ? args.path.trim()
-      : 'C:\\React-Nextjs-Projects\\Cristi AI';
+      : '';
 
     if (electronBridge.isElectron) {
       try {
@@ -262,7 +201,7 @@ export const listDirectoryHandler: IToolHandler = {
         return { status: 'error', path, message: e?.message };
       }
     }
-    return await virtualTerminal.executeCommand(`dir "${path}"`);
+    return { status: 'error', path, message: 'Operación no disponible fuera del entorno de escritorio.' };
   }
 };
 
@@ -310,74 +249,27 @@ export const setClipboardHandler: IToolHandler = {
 };
 
 export const getRunningProcessesHandler: IToolHandler = {
-  name: 'get_running_processes',
-  declaration: {
-    name: 'get_running_processes',
-    description: 'Lista los procesos activos en el sistema del usuario con nombre, PID y uso de memoria.'
-  },
-  async execute() {
-    if (electronBridge.isElectron) {
-      try {
-        const cmd = 'powershell -NoProfile -Command "Get-Process | Where-Object { $_.MainWindowTitle -or $_.WorkingSet -gt 50MB } | Sort-Object WorkingSet -Descending | Select-Object -First 25 Id, ProcessName, @{Name=\'MemoryMB\';Expression={[math]::Round($_.WorkingSet/1MB,1)}}, MainWindowTitle | ConvertTo-Json"';
-        const res = await electronBridge.execCommand(cmd, { timeout: 8000 });
-        if (res.stdOut) {
-          const processes = JSON.parse(res.stdOut);
-          return { status: 'success', count: Array.isArray(processes) ? processes.length : 1, processes };
-        }
-      } catch {
-        // fallback to virtual terminal
-      }
-    }
-    return await virtualTerminal.executeCommand('Get-Process');
-  }
+ name: 'get_running_processes', declaration: { name: 'get_running_processes', description: 'Lista los procesos activos.' },
+ async execute() { try { return { status: 'success', ...await electronBridge.systemExecute('list-processes') }; }
+ catch (error) { return { status: 'error', message: String(error) }; } }
 };
 
 export const killProcessHandler: IToolHandler = {
-  name: 'kill_process',
-  declaration: {
-    name: 'kill_process',
-    description: 'Termina un proceso en ejecución por su nombre o PID.',
-    parameters: {
-      type: 'OBJECT',
-      properties: {
-        pid_or_name: {
-          type: 'STRING',
-          description: 'Nombre del proceso (ej: "notepad.exe") o PID numérico a terminar.'
-        }
-      },
-      required: ['pid_or_name']
-    }
-  },
-  async execute(args: { pid_or_name?: string | number }) {
-    const target = args?.pid_or_name;
-    if (target === undefined || target === null || target === '') {
-      return { status: 'error', message: 'pid_or_name es requerido.' };
-    }
-    const isNumeric = /^\d+$/.test(String(target).trim());
-    const cleanTarget = String(target).replace(/['";$`]/g, '').trim();
-    const cmd = isNumeric
-      ? `Stop-Process -Id ${cleanTarget} -Force`
-      : `Stop-Process -Name '${cleanTarget}' -Force`;
-
-    if (electronBridge.isElectron) {
-      const res = await electronBridge.execCommand(`powershell -NoProfile -Command "${cmd}"`, { timeout: 5000 });
-      return { status: res.exitCode === 0 ? 'success' : 'error', message: res.stdOut || res.stdErr || 'Proceso finalizado.' };
-    }
-    return await virtualTerminal.executeCommand(cmd);
-  }
+ name: 'kill_process', declaration: { name: 'kill_process', description: 'Capacidad no disponible.' },
+ async execute() { return { status: 'error', message: 'Terminar procesos no es una capacidad autorizada.' }; }
 };
 
 export const openFileOrFolderHandler: IToolHandler = {
   name: 'open_file_or_folder',
   declaration: {
     name: 'open_file_or_folder',
-    description: 'Abre cualquier archivo local o carpeta del sistema operativo directamente en el Explorador de Windows o con su aplicación predeterminada.',
+    description: 'Muestra un archivo o abre una carpeta del espacio autorizado en el Explorador.',
     parameters: {
       type: 'OBJECT',
       properties: {
         path: {
           type: 'STRING',
-          description: 'Ruta absoluta o relativa del archivo o carpeta a abrir (ej: "C:\\\\Users\\\\jerem\\\\Downloads", "C:\\\\React-Nextjs-Projects").'
+          description: 'Ruta relativa dentro de la carpeta autorizada desde Ajustes.'
         }
       },
       required: ['path']
@@ -424,13 +316,7 @@ export const openSystemAppOrLinkHandler: IToolHandler = {
     try {
       await electronBridge.openExternal(url);
       return { status: 'success', opened: true, url };
-    } catch {
-      if (typeof window !== 'undefined' && window.open) {
-        window.open(url, '_blank');
-        return { status: 'success', opened: true, url, via: 'browser' };
-      }
-      return { status: 'success', opened: true, url };
-    }
+    } catch (error) { return { status: 'error', opened: false, message: String(error) }; }
   }
 };
 
@@ -445,7 +331,6 @@ export const systemTools: IToolHandler[] = [
   getClipboardHandler,
   setClipboardHandler,
   getRunningProcessesHandler,
-  killProcessHandler,
   openFileOrFolderHandler,
   openSystemAppOrLinkHandler
 ];

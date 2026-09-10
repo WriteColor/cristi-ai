@@ -1,3 +1,4 @@
+import '@pixi/unsafe-eval';
 /**
  * Cristi AI - Settings Model Live WebGL Preview Canvas (Pure Live2D Edition)
  * Ultra-responsive Live2D WebGL canvas with:
@@ -12,8 +13,8 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as PIXI from 'pixi.js';
 import { Live2DModel } from 'pixi-live2d-display/cubism4';
 import { ZoomIn, ZoomOut, RotateCcw, Move } from 'lucide-react';
-import { live2dModelRegistry } from '../../services/live2d/index.js';
-import { soundFxService } from '../../services/soundFxService.js';
+import { live2dModelRegistry } from '../../domain/live2d/Live2DModelRegistry.js';
+import { soundFxService } from '../../domain/audio/SoundFxService.js';
 
 // Setup PIXI global flags
 if (typeof window !== 'undefined') {

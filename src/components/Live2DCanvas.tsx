@@ -20,16 +20,16 @@ import React, {
   useImperativeHandle
 } from 'react';
 import * as PIXI from 'pixi.js';
-import { Live2DModel } from 'pixi-live2d-display/cubism4';
-import { live2dModelRegistry } from '../services/live2d/index.js';
-import { Live2DAdapter } from '../services/live2d/Live2DAdapter.js';
-import { Live2DController } from '../services/live2d/Live2DController.js';
-import { contextualEmotionOrchestrator } from '../services/live2d/ContextualEmotionOrchestrator.js';
-import { logger } from '../services/logger.js';
-import { eventBus, EVENTS } from '../services/eventBus.js';
+import { Live2DCanvasEngine } from '../domain/live2d/Live2DCanvasEngine';
+import { live2dModelRegistry } from '../domain/live2d/Live2DModelRegistry.js';
+import { Live2DAdapter } from '../domain/live2d/Live2DAdapter.js';
+import { Live2DController } from '../domain/live2d/Live2DController.js';
+import { contextualEmotionOrchestrator } from '../domain/live2d/ContextualEmotionOrchestrator.js';
+import { logger } from '../infrastructure/logging/logger.js';
+import { eventBus, EVENTS } from '../infrastructure/events/eventBus.js';
 import { electronBridge } from '../services/desktop/ElectronBridge.js';
 import { clickThroughService } from '../services/desktop/ClickThroughService.js';
-import { soundFxService } from '../services/soundFxService.js';
+import { soundFxService } from '../domain/audio/SoundFxService.js';
 import { AdaptiveTicker } from '../domain/live2d/AdaptiveTicker';
 
 // ── Global PIXI & Live2D Engine Setup ────────────────────────────────────────
@@ -45,62 +45,6 @@ declare global {
       setEmotion: (emo: string) => void;
     };
   }
-}
-
-if (typeof window !== 'undefined') {
-  window.PIXI = PIXI;
-  PIXI.settings.PREFER_ENV = PIXI.ENV.WEBGL2;
-  PIXI.settings.ROUND_PIXELS = false;
-  PIXI.settings.PRECISION_FRAGMENT = PIXI.PRECISION.HIGH;
-  (PIXI.settings as any).MIPMAP_MODES = PIXI.MIPMAP_MODES.OFF;
-
-  const displayProto = PIXI.DisplayObject?.prototype as any;
-  if (displayProto && !displayProto.isInteractive) {
-    displayProto.isInteractive = function () { return false; };
-  }
-  const live2dProto = (Live2DModel as any)?.prototype;
-  if (live2dProto && !live2dProto.isInteractive) {
-    live2dProto.isInteractive = function () { return false; };
-  }
-}
-
-try { (Live2DModel as any).registerTicker(PIXI.Ticker); } catch (_) {}
-
-// Serialize decoding so cancelled loads release textures before a replacement
-// reuses PIXI's cache, including rapid A -> B -> A model changes.
-let modelLoadQueue: Promise<unknown> = Promise.resolve();
-function loadModel(path: string, isCurrent: () => boolean): Promise<any> {
-  const loading = modelLoadQueue.then(async () => {
-    if (!isCurrent()) return null;
-    const loaded = await (Live2DModel as any).from(path, { autoInteract: false, autoUpdate: false });
-    if (!isCurrent()) {
-      try {
-        loaded.destroy({ texture: true, baseTexture: true });
-      } catch (_) {}
-      return null;
-    }
-    return loaded;
-  });
-  modelLoadQueue = loading.catch(() => {});
-  return loading;
-}
-
-function resolveModelPath(modelPath: string): string {
-  if (!modelPath) return '';
-  if (modelPath.startsWith('blob:') || modelPath.startsWith('data:') || modelPath.startsWith('http://') || modelPath.startsWith('https://')) {
-    return modelPath;
-  }
-  const cleanPath = modelPath.startsWith('/') ? modelPath.slice(1) : modelPath;
-  if (typeof window !== 'undefined' && window.location) {
-    const origin = window.location.origin;
-    if (origin && origin !== 'null' && !origin.startsWith('file:')) {
-      return `${origin}/${cleanPath}`;
-    }
-    if (window.location.protocol === 'file:') {
-      return new URL('./' + cleanPath, window.location.href).href;
-    }
-  }
-  return '/' + cleanPath;
 }
 
 export interface Live2DCanvasProps {
@@ -239,237 +183,22 @@ export const Live2DCanvas = React.memo(forwardRef<Live2DCanvasRef, Live2DCanvasP
 
   // ── Inicialización del Motor Live2D ───────────────────────────────────────
   useEffect(() => {
-    let isMounted = true;
-    let app: PIXI.Application | null = null;
-    let model: any = null;
-    let controller: any = null;
-    let adapter: any = null;
-    let ticker: AdaptiveTicker | null = null;
-
-    setIsLoading(true);
-    setLoadError(null);
-    setModelReady(false);
-
-    async function init() {
-      try {
-        if (!containerRef.current) return;
-        containerRef.current.innerHTML = '';
-
-        // 1. Cargar Cubism Core si no está en window
-        if (typeof window !== 'undefined' && !window.Live2DCubismCore) {
-          await new Promise<void>((resolve) => {
-            const script = document.createElement('script');
-            script.src = resolveModelPath('live2dcubismcore.min.js');
-            script.onload = () => resolve();
-            script.onerror = () => resolve();
-            document.head.appendChild(script);
-          });
-        }
-        if (!isMounted) return;
-
-        if (PIXI.settings) {
-          PIXI.settings.ROUND_PIXELS = false;
-          PIXI.settings.PRECISION_FRAGMENT = PIXI.PRECISION.HIGH;
-        }
-
-        // Calidad nativa con soporte ultra nítido para pantallas HiDPI / 4K (hasta 2.0)
-        const renderRes = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2.0);
-
-        // 2. Crear PIXI Application (fondo transparente, pointer-events disabled en canvas)
-        app = new PIXI.Application({
-          width: window.innerWidth,
-          height: window.innerHeight,
-          backgroundAlpha: 0,
-          backgroundColor: 0x000000,
-          antialias: true,
-          autoDensity: true,
-          autoStart: true,
-          resolution: renderRes,
-          clearBeforeRender: true,
-          preserveDrawingBuffer: false, // Desactivar copia redundante de backbuffer (ahorra 40% de GPU)
-          powerPreference: 'high-performance'
-        });
-
-        // Conectar AdaptiveTicker para regulación inteligente de FPS (60fps activo -> 30fps reposo -> 0fps en background)
-        ticker = new AdaptiveTicker({
-          activeFps: 60,
-          idleFps: 30,
-          inactivityThresholdMs: 4500,
-          autoListenDom: true,
-          targetElement: typeof window !== 'undefined' ? window : null
-        });
-        ticker.attachTicker(app.ticker);
-        adaptiveTickerRef.current = ticker;
-
-        const canvasEl = app.view as HTMLCanvasElement;
-        if (canvasEl) {
-          canvasEl.style.width = '100%';
-          canvasEl.style.height = '100%';
-          canvasEl.style.position = 'absolute';
-          canvasEl.style.top = '0';
-          canvasEl.style.left = '0';
-          canvasEl.style.pointerEvents = 'none';
-          containerRef.current.appendChild(canvasEl);
-        }
-
-        pixiAppRef.current = app;
-
-        // 3. Cargar modelo Live2D
-        const descriptor = live2dModelRegistry.getModel(modelId) || live2dModelRegistry.getModel('yanderegirl');
-        const resolvedPath = resolveModelPath(descriptor.path);
-
-        logger.info('Live2D', `Cargando modelo ${descriptor.name}...`);
-
-        model = await loadModel(resolvedPath, () => isMounted);
-
-        if (!isMounted) {
-          try { model?.destroy({ texture: true, baseTexture: true }); } catch (_) {}
-          try { app?.destroy(true); } catch (_) {}
-          return;
-        }
-
-        // 4. Pre-decodificar texturas para evitar frames negros en WebGL
-        const textures: any[] = [
-          ...(model.textures || []),
-          ...(model.internalModel?.textures || [])
-        ];
-
-        await Promise.all(textures.map((tex) => {
-          const src = tex?.baseTexture?.resource?.source;
-          if (src instanceof HTMLImageElement && !src.complete) {
-            return new Promise<void>((res) => {
-              src.onload = () => res();
-              src.onerror = () => res();
-              if (typeof src.decode === 'function') {
-                src.decode().then(() => res()).catch(() => res());
-              }
-            });
-          }
-          return Promise.resolve();
-        }));
-        if (!isMounted) return;
-
-        // Filtrado bilineal de alta fidelidad sin blur en texturas
-        for (const tex of textures) {
-          if (tex?.baseTexture) {
-            tex.baseTexture.mipmap = PIXI.MIPMAP_MODES.OFF;
-            tex.baseTexture.scaleMode = PIXI.SCALE_MODES.LINEAR;
-            tex.baseTexture.wrapMode = PIXI.WRAP_MODES.CLAMP;
-            tex.baseTexture.update();
-          }
-        }
-
-        // 5. Supresión selectiva de partes y parámetros específicos según el perfil del modelo
-        const core = model.internalModel?.coreModel;
-        if (core) {
-          const hiddenParts = Array.isArray(descriptor.hiddenParts) ? descriptor.hiddenParts : [];
-          if (core._partIds && hiddenParts.length > 0) {
-            for (const pId of hiddenParts) {
-              const idx = core._partIds.indexOf(pId);
-              if (idx !== -1) {
-                if (typeof core.setPartOpacityByIndex === 'function') core.setPartOpacityByIndex(idx, 0);
-                if (core._partOpacities) core._partOpacities[idx] = 0;
-              }
-            }
-          }
-          if (descriptor.lockedParameters && typeof descriptor.lockedParameters === 'object') {
-            for (const [pId, val] of Object.entries(descriptor.lockedParameters)) {
-              if (typeof core.setParameterValueById === 'function') {
-                core.setParameterValueById(pId, val);
-              }
-            }
-          }
-        }
-
-        // 6. Desactivar toda interactividad interna de PIXI (la maneja el DOM hitTarget)
-        model.interactive = false;
-        model.interactiveChildren = false;
-        model.eventMode = 'none';
-        if (model.internalModel) {
-          try { model.internalModel.interactive = false; } catch (_) {}
-        }
-        app.stage.interactiveChildren = false;
-        app.stage.eventMode = 'none';
-        app.stage.addChild(model);
-        modelRef.current = model;
-
-        // 7. Conectar adaptador y controlador de expresiones
-        const detected: any = live2dModelRegistry.detectModelCapabilities(model);
-        const mapping = {
-          ...(detected?.standardMapping || {}),
-          ...(descriptor.standardMapping || {})
-        };
-        adapter = new Live2DAdapter(model, mapping, descriptor);
-        adapterRef.current = adapter;
-        controller = new Live2DController(adapter, descriptor.id);
-        controllerRef.current = controller;
-        contextualEmotionOrchestrator.setContextReferences(controller, adapter, descriptor.id);
-
-        // 8. Conectar bucle de animación y cinética
-        const onTick = (delta: number) => {
-          if (!isMounted) return;
-          const deltaMs = app?.ticker?.deltaMS || (delta * 16.6667);
-          model.update(deltaMs);
-          controller.update(deltaMs);
-        };
-        app.ticker.add(onTick);
-
-        // 9. Aplicar layout y cebar WebGL con pases de render
-        applyLayout(model, app, viewModeRef.current);
-        model.update(16);
-        app.renderer.render(app.stage);
-
-        requestAnimationFrame(() => {
-          if (!isMounted || !app) return;
-          model.update(16);
-          app.renderer.render(app.stage);
-
-          // Sincronizar hit target DESPUÉS del primer render real
-          syncHitTargetBounds();
-          setIsLoading(false);
-          setModelReady(true);
-        });
-
-        // 10. Exponer API para testing externo
-        if (typeof window !== 'undefined') {
-          window.__cristiAvatar = {
-            get model() { return modelRef.current; },
-            get adapter() { return adapterRef.current; },
-            get controller() { return controllerRef.current; },
-            setExpression: (exp: string) => adapterRef.current?.setExpression(exp),
-            setEmotion: (emo: string) => controllerRef.current?.setEmotion(emo)
-          };
-        }
-
-      } catch (err: unknown) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        logger.error('Live2D', `Error fatal: ${errorMsg}`, err);
-        if (isMounted) {
-          setLoadError(errorMsg);
-          setIsLoading(false);
-        }
-      }
-    }
-
-    void init();
-
+    if (!containerRef.current) return;
+    setIsLoading(true); setLoadError(null); setModelReady(false);
+    const engine = new Live2DCanvasEngine({ container: containerRef.current, modelId,
+      applyLayout: (model, app) => applyLayout(model, app, viewModeRef.current), syncHitTargetBounds,
+      onResources: current => {
+        pixiAppRef.current = current.app; modelRef.current = current.model;
+        adapterRef.current = current.adapter; controllerRef.current = current.controller;
+        adaptiveTickerRef.current = current.ticker;
+      },
+      onReady: () => { setIsLoading(false); setModelReady(true); },
+      onError: error => { setLoadError(error); setIsLoading(false); }
+    });
+    void engine.start();
     return () => {
-      isMounted = false;
-      ticker?.destroy();
-      adaptiveTickerRef.current = null;
-      if (controller) controller.destroy();
-      else adapter?.destroy();
-      if (contextualEmotionOrchestrator.controller === controller) {
-        contextualEmotionOrchestrator.setContextReferences(null, null);
-      }
-      delete window.__cristiAvatar;
-      try { model?.destroy({ texture: true, baseTexture: true }); } catch (_) {}
-      try { app?.destroy(true); } catch (_) {}
-      clickThroughService.unregisterHitbox('live2d');
-      modelRef.current = null;
-      pixiAppRef.current = null;
-      adapterRef.current = null;
-      controllerRef.current = null;
+      engine.destroy();
+      pixiAppRef.current = modelRef.current = adapterRef.current = controllerRef.current = adaptiveTickerRef.current = null;
     };
   }, [modelId, applyLayout, syncHitTargetBounds]);
 
@@ -617,6 +346,8 @@ export const Live2DCanvas = React.memo(forwardRef<Live2DCanvasRef, Live2DCanvasP
   return (
     <div
       ref={wrapperRef}
+      data-avatar-ready={modelReady}
+      data-avatar-error={loadError || undefined}
       className="relative w-full h-full select-none overflow-hidden"
       style={{ pointerEvents: 'none' }}
     >

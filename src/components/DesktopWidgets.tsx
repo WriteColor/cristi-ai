@@ -7,8 +7,8 @@ import {
   Sparkles,
   X
 } from 'lucide-react';
-import { eventBus, EVENTS } from '../services/eventBus.js';
-import { proactiveScheduler } from '../services/proactiveScheduler.js';
+import { eventBus, EVENTS } from '../infrastructure/events/eventBus.js';
+import { proactiveScheduler } from '../domain/interaction/ProactiveScheduler.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';
 import { useWidgetStore } from '../stores/useWidgetStore.js';
 import { useCompanionStore } from '../stores/useCompanionStore.js';

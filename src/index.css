@@ -214,3 +214,5 @@
 
   .hidden { @apply hidden; }
 }
+/* Interim speech is visibly provisional until the final transcript arrives. */
+[data-provisional="true"] { font-style: italic; opacity: 0.76; }

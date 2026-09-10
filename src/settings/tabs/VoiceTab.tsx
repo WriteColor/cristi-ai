@@ -12,8 +12,8 @@ import {
 } from 'lucide-react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { GEMINI_STANDARD_VOICES } from '../../config/voices.js';
-import { soundFxService } from '../../services/soundFxService.js';
-import { toastService } from '../../services/toastService.js';
+import { soundFxService } from '../../domain/audio/SoundFxService.js';
+import { toastService } from '../../infrastructure/notifications/toastService.js';
 
 export const VoiceTab: React.FC = () => {
   const voiceName = useSettingsStore((s) => s.voiceName);

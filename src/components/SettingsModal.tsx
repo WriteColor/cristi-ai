@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { SettingsApp } from '../settings/SettingsApp';
 import { useClickThrough } from '../hooks/useClickThrough.js';
-import { soundFxService } from '../services/soundFxService.js';
+import { soundFxService } from '../domain/audio/SoundFxService.js';
 
 export interface PersonaPreset {
   id: string;

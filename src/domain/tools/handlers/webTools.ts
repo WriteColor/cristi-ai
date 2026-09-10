@@ -1,6 +1,6 @@
 import type { IToolHandler } from '../IToolHandler';
-import { browserAutomationService } from '@/services/browser/BrowserAutomationService.js';
-import { playwrightService } from '@/services/playwright/PlaywrightService.js';
+import { browserAutomationService } from '../../integrations/browser/BrowserAutomationService.js';
+import { playwrightService } from '../../integrations/playwright/PlaywrightService.js';
 
 export const searchInternetHandler: IToolHandler = {
   name: 'search_internet',
@@ -161,7 +161,7 @@ export const playwrightPressHandler: IToolHandler = {
     }
   },
   async execute(args: { key?: string; selector?: string }) {
-    return await playwrightService.press(args?.selector, args?.key || 'Enter');
+    return await playwrightService.press(args?.selector || 'body', args?.key || 'Enter');
   }
 };
 
@@ -207,27 +207,6 @@ export const playwrightGetContentHandler: IToolHandler = {
   }
 };
 
-export const playwrightEvaluateHandler: IToolHandler = {
-  name: 'playwright_evaluate',
-  declaration: {
-    name: 'playwright_evaluate',
-    description: 'Ejecuta código JavaScript directamente en el contexto del navegador y devuelve el resultado.',
-    parameters: {
-      type: 'OBJECT',
-      properties: {
-        script: {
-          type: 'STRING',
-          description: 'Código JavaScript a evaluar en la ventana del navegador.'
-        }
-      },
-      required: ['script']
-    }
-  },
-  async execute(args: { script?: string }) {
-    return await playwrightService.evaluate(args?.script || '');
-  }
-};
-
 export const playwrightCloseHandler: IToolHandler = {
   name: 'playwright_close',
   declaration: {
@@ -249,6 +228,5 @@ export const webTools: IToolHandler[] = [
   playwrightPressHandler,
   playwrightScreenshotHandler,
   playwrightGetContentHandler,
-  playwrightEvaluateHandler,
   playwrightCloseHandler
 ];

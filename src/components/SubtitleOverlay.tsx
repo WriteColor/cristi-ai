@@ -16,6 +16,8 @@ export interface SubtitleOverlayProps {
  * Completely pointer-events-none to prevent any gaming mouse interference.
  */
 export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(function SubtitleOverlay(props = {}) {
+  const inputProvisional = useSessionStore(s => Boolean(s.inputInterim));
+  const outputProvisional = useSessionStore(s => Boolean(s.outputInterim));
   const storeUser = useSessionStore((s) => s.userTranscript);
   const storeModel = useSessionStore((s) => s.modelTranscript);
   const storeTranslation = useSessionStore((s) => s.translationTranscript);
@@ -76,7 +78,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(functi
             CRISTI
           </span>
           <span className="min-w-0 whitespace-pre-wrap break-words text-zinc-100 font-sans leading-relaxed text-base max-h-56 max-h-[min(70vh,40rem)] overflow-y-auto">
-            {cleanModel}
+            <span data-provisional={outputProvisional}>{cleanModel}</span>
           </span>
         </div>
       )}
@@ -100,7 +102,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = React.memo(functi
             TÚ
           </span>
           <span className="min-w-0 whitespace-pre-wrap break-words text-zinc-100 font-sans leading-relaxed text-base max-h-56 max-h-[min(70vh,40rem)] overflow-y-auto">
-            {cleanUser}
+            <span data-provisional={inputProvisional}>{cleanUser}</span>
           </span>
         </div>
       )}

@@ -1,4 +1,4 @@
-# ⌨️ Guía Completa de Atajos de Teclado, Controles y Gestos — Cristi AI Companion
+# Guia de Atajos de Teclado, Controles y Gestos — Cristi AI Companion
 
 Esta guía recopila y detalla **todos los atajos de teclado globales y locales**, interacciones de ratón, gestos táctiles y controles de interfaz implementados en **Cristi AI (Cristi AI Companion)**.
 

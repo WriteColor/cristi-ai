@@ -9,9 +9,9 @@ import {
   Activity,
   X
 } from 'lucide-react';
-import { performanceProfiler } from '../services/profiler/PerformanceProfilerService.js';
+import { performanceProfiler } from '../infrastructure/profiler/PerformanceProfilerService.js';
 import { useClickThrough } from '../hooks/useClickThrough.js';
-import { soundFxService } from '../services/soundFxService.js';
+import { soundFxService } from '../domain/audio/SoundFxService.js';
 import { useTelemetryStore } from '../stores/useTelemetryStore.js';
 
 export interface PerformanceHUDProps {

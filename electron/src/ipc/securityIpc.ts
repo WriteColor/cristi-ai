@@ -1,59 +1,37 @@
-import { ipcMain, safeStorage, app } from 'electron';
-import path from 'path';
-import fs from 'fs';
+import { handleTrusted } from '../security/CapabilityRouter';
+import { credentialVault } from '../security/CredentialVault';
+import { issueLiveToken } from '../security/LiveTokenBroker';
+import { readPublicConfig } from '../security/PublicConfig';
 
-function getSecretsFilePath(): string {
-  return path.join(app.getPath('userData'), 'cristi-secrets.json');
-}
-
-function readSecrets(): Record<string, string> {
-  const filePath = getSecretsFilePath();
-  try {
-    return fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) || {} : {};
-  } catch (_) {
-    return {};
-  }
-}
-
-function writeSecrets(secrets: Record<string, string>): void {
-  const filePath = getSecretsFilePath();
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, JSON.stringify(secrets, null, 2), 'utf8');
-}
-
-/**
- * Registers secure secret storage handlers using Electron safeStorage (DPAPI on Windows).
- */
 export function registerSecurityIpc(): void {
-  ipcMain.handle('secure-set-secret', (_event, key: unknown, value: unknown) => {
-    if (!key || typeof value !== 'string') {
-      return { success: false, error: 'Secret o clave inválida.' };
-    }
-    if (!safeStorage.isEncryptionAvailable()) {
-      return { success: false, error: 'Cifrado seguro (safeStorage) no disponible en este sistema.' };
-    }
-    const secrets = readSecrets();
-    secrets[String(key)] = safeStorage.encryptString(value).toString('base64');
-    writeSecrets(secrets);
+  handleTrusted('secure-set-secret', async (_event, key, value) => {
+    await credentialVault.set(key, value);
     return { success: true };
   });
-
-  ipcMain.handle('secure-get-secret', (_event, key: unknown): string | null => {
-    if (!key || !safeStorage.isEncryptionAvailable()) return null;
-    const encoded = readSecrets()[String(key)];
-    if (!encoded) return null;
-    try {
-      return safeStorage.decryptString(Buffer.from(encoded, 'base64'));
-    } catch (_) {
-      return null;
-    }
+  handleTrusted('secure-delete-secret', async (_event, key) => { await credentialVault.delete(key); return { success: true }; });
+  handleTrusted('credential-status', async () => { await readPublicConfig(); return credentialVault.status(); });
+  handleTrusted('live-token', async (_event, model) => { await readPublicConfig(); return issueLiveToken(model); });
+  handleTrusted('gemini-generate', async (_event, model, body) => {
+    const key = await credentialVault.get('gemini.apiKey');
+    if (!key) throw new Error('Credencial Gemini no configurada.');
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      signal: AbortSignal.timeout(30000), body: JSON.stringify(body),
+    });
+    if (!response.ok) throw new Error(`Gemini devolvió ${response.status}.`);
+    return response.json();
   });
-
-  ipcMain.handle('secure-delete-secret', (_event, key: unknown) => {
-    if (!key) return { success: false, error: 'Clave no especificada.' };
-    const secrets = readSecrets();
-    delete secrets[String(key)];
-    writeSecrets(secrets);
-    return { success: true };
+  handleTrusted('spotify-token', async () => {
+    const config = await readPublicConfig();
+    const secret = await credentialVault.get('spotify.clientSecret');
+    if (!secret || !config.spotifyClientId) return null;
+    const response = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: 'Basic ' + Buffer.from(`${config.spotifyClientId}:${secret}`).toString('base64') },
+      body: 'grant_type=client_credentials', signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) throw new Error(`Spotify devolvió ${response.status}.`);
+    const result = await response.json() as { access_token?: string };
+    return result.access_token ?? null;
   });
 }

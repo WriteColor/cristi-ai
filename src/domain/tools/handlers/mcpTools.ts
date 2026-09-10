@@ -1,5 +1,5 @@
 import type { IToolHandler } from '../IToolHandler';
-import { mcpClientManager } from '@/services/mcp/MCPClientManager.js';
+import { mcpClientManager } from '../../integrations/mcp/MCPClientManager.js';
 
 export const mcpAddServerHandler: IToolHandler = {
   name: 'mcp_add_server',

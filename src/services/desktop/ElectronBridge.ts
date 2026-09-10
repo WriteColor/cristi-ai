@@ -1,8 +1,22 @@
+import { publicSettings } from '../../../shared/security';
+import type {
+  ElectronApiBridge,
+  DisplayInfo as IpcDisplayInfo,
+  ProcessMemoryInfo,
+  ScreenRegion,
+  MemoryRecord,
+  MemoryLoadResult,
+  MemorySaveResult,
+} from '../../../shared/ipc/contracts';
+
+export type { MemoryRecord, MemoryLoadResult, MemorySaveResult };
+
 /**
  * Cristi AI - Modern Electron Bridge (Strict TypeScript)
  * 
- * Safely wraps window.electron / window.electronBridge / window.electronAPI / ipcRenderer
- * with complete type definitions, deduplication, and zero-crash browser fallback.
+ * Safely wraps window.electron / window.electronBridge / window.electronAPI
+ * with complete type definitions, deduplication, zero-crash browser fallback,
+ * and strict compile-time types (0 uses of `any`).
  */
 
 export interface DisplayInfo {
@@ -25,17 +39,41 @@ export interface ExecCommandResult {
 
 export interface StatusResult {
   success: boolean;
-  error?: string;
-  [key: string]: any;
+  error?: string | null;
+  [key: string]: unknown;
 }
 
-const getApi = (): any => {
+const getApi = (): ElectronApiBridge | null => {
   if (typeof window === 'undefined') return null;
-  const win = window as any;
-  return win.electronAPI || win.electronBridge || win.electron || win.ipcRenderer || null;
+  const win = window as unknown as {
+    electronAPI?: ElectronApiBridge;
+    electronBridge?: ElectronApiBridge;
+    electron?: ElectronApiBridge;
+  };
+  return win.electronAPI || win.electronBridge || win.electron || null;
 };
 
 export class ElectronBridgeService {
+  public async requestLiveToken(model: string): Promise<string> {
+    const api = getApi();
+    if (!api?.requestLiveToken) throw new Error('Live requiere Electron y una credencial configurada.');
+    return api.requestLiveToken(model);
+  }
+
+  public async credentialStatus(): Promise<{ hasGeminiCredential: boolean; hasDiscordCredential: boolean; hasSpotifyCredential: boolean }> {
+    return await getApi()?.credentialStatus?.() ?? { hasGeminiCredential: false, hasDiscordCredential: false, hasSpotifyCredential: false };
+  }
+
+  public async geminiGenerate(model: string, body: Record<string, unknown>): Promise<unknown> {
+    const api = getApi();
+    if (!api?.geminiGenerate) throw new Error('Gemini requiere Electron.');
+    return api.geminiGenerate(model, body);
+  }
+
+  public async spotifyToken(): Promise<string | null> {
+    return (await getApi()?.spotifyToken?.()) ?? null;
+  }
+
   public _interactionLockCount = 0;
   private _lastIgnore: boolean | null = null;
   private _lastForward: boolean | null = null;
@@ -43,6 +81,10 @@ export class ElectronBridgeService {
   /** True when running inside Electron desktop environment */
   public get isElectron(): boolean {
     return Boolean(getApi()?.isElectron);
+  }
+
+  public isElectronAvailable(): boolean {
+    return this.isElectron;
   }
 
   public acquireInteractionLock(): void {
@@ -89,6 +131,10 @@ export class ElectronBridgeService {
     getApi()?.syncHitboxes?.(hitboxes);
   }
 
+  public syncInteractiveHitboxes(hitboxes: unknown[]): void {
+    getApi()?.syncInteractiveHitboxes?.(hitboxes);
+  }
+
   public setAlwaysOnTop(value: boolean): void {
     getApi()?.setAlwaysOnTop?.(value);
   }
@@ -100,7 +146,18 @@ export class ElectronBridgeService {
   public async getDisplayInfo(): Promise<DisplayInfo> {
     const api = getApi();
     if (api?.getDisplayInfo) {
-      return await api.getDisplayInfo();
+      const info: IpcDisplayInfo = await api.getDisplayInfo();
+      return {
+        width: info.bounds.width,
+        height: info.bounds.height,
+        scaleFactor: info.scaleFactor,
+        workArea: {
+          x: info.workArea.x,
+          y: info.workArea.y,
+          width: info.workArea.width,
+          height: info.workArea.height
+        }
+      };
     }
     if (typeof window !== 'undefined' && window.screen) {
       return {
@@ -156,12 +213,17 @@ export class ElectronBridgeService {
     getApi()?.hideWindow?.();
   }
 
-  public async execCommand(command: string, options: Record<string, unknown> = {}): Promise<ExecCommandResult> {
+  public async approveWorkspace(): Promise<boolean> {
     const api = getApi();
-    if (api?.execCommand) {
-      return await api.execCommand(command, options);
-    }
-    return { stdOut: '', stdErr: 'Electron environment unavailable', exitCode: 1 };
+    if (!api?.approveWorkspace) throw new Error('Selecciona la carpeta desde Ajustes.');
+    return api.approveWorkspace();
+  }
+
+  public async systemExecute(kind: 'system-info' | 'list-processes'): Promise<ExecCommandResult> {
+    const api = getApi();
+    if (!api?.systemExecute) throw new Error('Capacidad del sistema no disponible.');
+    const result = await api.systemExecute({ kind }) as ExecCommandResult;
+    return result;
   }
 
   public async mcpConnect(config: Record<string, unknown> = {}): Promise<StatusResult> {
@@ -179,7 +241,7 @@ export class ElectronBridgeService {
   public async readFile(filePath: string): Promise<string> {
     const api = getApi();
     if (api?.readFile) {
-      return await api.readFile(filePath);
+      return await api.readFile({ scope: 'workspaceApproved', path: filePath });
     }
     throw new Error('Electron filesystem unavailable in browser');
   }
@@ -187,7 +249,7 @@ export class ElectronBridgeService {
   public async writeFile(filePath: string, data: string): Promise<boolean> {
     const api = getApi();
     if (api?.writeFile) {
-      return await api.writeFile(filePath, data);
+      return await api.writeFile({ scope: 'workspaceApproved', path: filePath }, data);
     }
     throw new Error('Electron filesystem unavailable in browser');
   }
@@ -195,33 +257,33 @@ export class ElectronBridgeService {
   public async appendFile(filePath: string, data: string): Promise<boolean> {
     const api = getApi();
     if (api?.appendFile) {
-      return await api.appendFile(filePath, data);
+      return await api.appendFile({ scope: 'workspaceApproved', path: filePath }, data);
     }
     throw new Error('Electron filesystem unavailable in browser');
   }
 
-  public async readDirectory(dirPath: string): Promise<any> {
+  public async readDirectory(dirPath: string): Promise<{ entry: string; type: 'FILE' | 'DIRECTORY' }[]> {
     const api = getApi();
     if (api?.readDirectory) {
-      return await api.readDirectory(dirPath);
+      return await api.readDirectory({ scope: 'workspaceApproved', path: dirPath });
     }
     throw new Error('Electron filesystem unavailable in browser');
   }
 
-  public async memoryLoad(): Promise<any> {
-    return await getApi()?.memoryLoad?.();
+  public async memoryLoad(): Promise<MemoryLoadResult> {
+    return (await getApi()?.memoryLoad?.()) ?? { success: false, error: 'Memoria no disponible.' };
   }
 
-  public async memorySave(memories: unknown): Promise<any> {
-    return await getApi()?.memorySave?.(memories);
+  public async memorySave(memories: Record<string, unknown>[]): Promise<MemorySaveResult> {
+    return (await getApi()?.memorySave?.(memories)) ?? { success: false, error: 'Memoria no disponible.' };
   }
 
   public async setSecureSecret(key: string, value: string): Promise<StatusResult> {
-    return (await getApi()?.setSecureSecret?.(key, value)) || { success: false, error: 'Unavailable' };
-  }
-
-  public async getSecureSecret(key: string): Promise<string | null> {
-    return (await getApi()?.getSecureSecret?.(key)) ?? null;
+    const api = getApi();
+    if (!api?.setSecureSecret) throw new Error('Abre Ajustes para guardar credenciales.');
+    const result = await api.setSecureSecret(key, value);
+    if (!result.success) throw new Error(result.error || 'No se pudo guardar la credencial.');
+    return result;
   }
 
   public async deleteSecureSecret(key: string): Promise<StatusResult> {
@@ -243,7 +305,7 @@ export class ElectronBridgeService {
   public async openPath(targetPath: string): Promise<StatusResult> {
     const api = getApi();
     if (api?.openPath) {
-      return await api.openPath(targetPath);
+      return await api.openPath({ scope: 'workspaceApproved', path: targetPath });
     }
     return { success: false, error: 'Electron unavailable' };
   }
@@ -251,12 +313,12 @@ export class ElectronBridgeService {
   public async showItemInFolder(targetPath: string): Promise<boolean> {
     const api = getApi();
     if (api?.showItemInFolder) {
-      return await api.showItemInFolder(targetPath);
+      return await api.showItemInFolder({ scope: 'workspaceApproved', path: targetPath });
     }
     return false;
   }
 
-  public async captureScreenNative(region: unknown = null): Promise<string | null> {
+  public async captureScreenNative(region: ScreenRegion | null = null): Promise<string | null> {
     const api = getApi();
     if (api?.captureScreenNative) {
       return await api.captureScreenNative(region);
@@ -280,25 +342,38 @@ export class ElectronBridgeService {
     return { success: true, alreadyStopped: true };
   }
 
-  public async getDesktopAudioCaptureStatus(): Promise<any> {
+  public async getDesktopAudioCaptureStatus(): Promise<{
+    running: boolean;
+    sourceId: string | null;
+    transport: string | null;
+    frameCount: number;
+    uptimeMs: number;
+  }> {
     const api = getApi();
     if (api?.desktopAudioNativeStatus) {
       return await api.desktopAudioNativeStatus();
     }
-    return { running: false, transport: null, frameCount: 0 };
+    return { running: false, sourceId: null, transport: null, frameCount: 0, uptimeMs: 0 };
   }
 
-  public onDesktopAudioFrame(callback: (data: any) => void): () => void {
+  public onDesktopAudioFrame(callback: (data: unknown) => void): () => void {
     const api = getApi();
     return api?.onDesktopAudioNativeFrame?.(callback) || (() => {});
   }
 
-  public onDesktopAudioEvent(callback: (data: any) => void): () => void {
+  public onDesktopAudioEvent(callback: (data: unknown) => void): () => void {
     const api = getApi();
     return api?.onDesktopAudioNativeEvent?.(callback) || (() => {});
   }
 
-  public async importCustomSceneFile(): Promise<any> {
+  public async importCustomSceneFile(): Promise<{
+    canceled: boolean;
+    filePath?: string;
+    fileUrl?: string;
+    name?: string;
+    type?: 'video' | 'animated' | 'image';
+    error?: string;
+  }> {
     const api = getApi();
     if (api?.importCustomSceneFile) {
       return await api.importCustomSceneFile();
@@ -307,7 +382,7 @@ export class ElectronBridgeService {
   }
 
   // ── Minecraft Companion API ────────────────────────────────────────────────
-  public async minecraftConnect(opts: any): Promise<StatusResult> {
+  public async minecraftConnect(opts: Record<string, unknown> = {}): Promise<StatusResult> {
     const api = getApi();
     if (api?.minecraftConnect) {
       return await api.minecraftConnect(opts);
@@ -315,52 +390,52 @@ export class ElectronBridgeService {
     return { success: false, error: 'Electron bridge unavailable' };
   }
 
-  public async minecraftDisconnect(): Promise<any> {
-    return await getApi()?.minecraftDisconnect?.();
+  public async minecraftDisconnect(): Promise<StatusResult> {
+    return (await getApi()?.minecraftDisconnect?.()) ?? { success: false };
   }
 
-  public async minecraftChat(msg: string): Promise<any> {
-    return await getApi()?.minecraftChat?.(msg);
+  public async minecraftChat(msg: string): Promise<StatusResult> {
+    return (await getApi()?.minecraftChat?.(msg)) ?? { success: false };
   }
 
-  public async minecraftGetStatus(): Promise<any> {
-    return await getApi()?.minecraftGetStatus?.();
+  public async minecraftGetStatus(): Promise<{ connected: boolean; [key: string]: unknown }> {
+    return (await getApi()?.minecraftGetStatus?.()) ?? { connected: false };
   }
 
-  public async minecraftMoveTo(coords: any): Promise<any> {
-    return await getApi()?.minecraftMoveTo?.(coords);
+  public async minecraftMoveTo(coords: { x: number; y: number; z: number }): Promise<StatusResult> {
+    return (await getApi()?.minecraftMoveTo?.(coords)) ?? { success: false };
   }
 
-  public async minecraftFollow(player: any): Promise<any> {
-    return await getApi()?.minecraftFollow?.(player);
+  public async minecraftFollow(player: string): Promise<StatusResult> {
+    return (await getApi()?.minecraftFollow?.(player)) ?? { success: false };
   }
 
-  public async minecraftStop(): Promise<any> {
-    return await getApi()?.minecraftStop?.();
+  public async minecraftStop(): Promise<StatusResult> {
+    return (await getApi()?.minecraftStop?.()) ?? { success: false };
   }
 
-  public async minecraftMineBlock(coords: any): Promise<any> {
-    return await getApi()?.minecraftMineBlock?.(coords);
+  public async minecraftMineBlock(coords: { x: number; y: number; z: number }): Promise<StatusResult> {
+    return (await getApi()?.minecraftMineBlock?.(coords)) ?? { success: false };
   }
 
-  public async minecraftPlaceBlock(payload: any): Promise<any> {
-    return await getApi()?.minecraftPlaceBlock?.(payload);
+  public async minecraftPlaceBlock(payload: { x: number; y: number; z: number; blockName: string }): Promise<StatusResult> {
+    return (await getApi()?.minecraftPlaceBlock?.(payload)) ?? { success: false };
   }
 
-  public async minecraftAttack(payload: any): Promise<any> {
-    return await getApi()?.minecraftAttack?.(payload);
+  public async minecraftAttack(payload: { entityName?: string } = {}): Promise<StatusResult> {
+    return (await getApi()?.minecraftAttack?.(payload)) ?? { success: false };
   }
 
-  public onMinecraftChat(callback: (data: any) => void): () => void {
+  public onMinecraftChat(callback: (data: unknown) => void): () => void {
     return getApi()?.onMinecraftChat?.(callback) || (() => {});
   }
 
-  public onMinecraftEvent(callback: (data: any) => void): () => void {
+  public onMinecraftEvent(callback: (data: unknown) => void): () => void {
     return getApi()?.onMinecraftEvent?.(callback) || (() => {});
   }
 
   // ── Discord Companion API ──────────────────────────────────────────────────
-  public async discordConnect(opts: any): Promise<StatusResult> {
+  public async discordConnect(opts: { statusMessage?: string; activityType?: string } = {}): Promise<StatusResult> {
     const api = getApi();
     if (api?.discordConnect) {
       return await api.discordConnect(opts);
@@ -368,64 +443,65 @@ export class ElectronBridgeService {
     return { success: false, error: 'Electron bridge unavailable' };
   }
 
-  public async discordDisconnect(): Promise<any> {
-    return await getApi()?.discordDisconnect?.();
+  public async discordDisconnect(): Promise<StatusResult> {
+    return (await getApi()?.discordDisconnect?.()) ?? { success: false };
   }
 
-  public async discordSendMessage(payload: any): Promise<any> {
-    return await getApi()?.discordSendMessage?.(payload);
+  public async discordSendMessage(payload: { channelId: string; content: string }): Promise<StatusResult> {
+    return (await getApi()?.discordSendMessage?.(payload)) ?? { success: false };
   }
 
-  public async discordGetMessages(payload: any): Promise<any> {
-    return await getApi()?.discordGetMessages?.(payload);
+  public async discordGetMessages(payload: { channelId: string; limit?: number }): Promise<{ messages: unknown[]; error?: string; success?: boolean }> {
+    const res = await getApi()?.discordGetMessages?.(payload);
+    return res ?? { success: false, messages: [] };
   }
 
-  public async discordSetStatus(opts: any): Promise<any> {
-    return await getApi()?.discordSetStatus?.(opts);
+  public async discordSetStatus(opts: { statusText: string; activityType?: string }): Promise<StatusResult> {
+    return (await getApi()?.discordSetStatus?.(opts)) ?? { success: false };
   }
 
-  public async discordVoiceJoin(opts: any): Promise<any> {
-    return await getApi()?.discordVoiceJoin?.(opts);
+  public async discordVoiceJoin(opts: { guildId: string; channelId: string }): Promise<StatusResult> {
+    return (await getApi()?.discordVoiceJoin?.(opts)) ?? { success: false };
   }
 
-  public async discordVoiceLeave(): Promise<any> {
-    return await getApi()?.discordVoiceLeave?.();
+  public async discordVoiceLeave(): Promise<StatusResult> {
+    return (await getApi()?.discordVoiceLeave?.()) ?? { success: false };
   }
 
-  public async discordVoiceSendAudio(payload: any): Promise<any> {
-    return await getApi()?.discordVoiceSendAudio?.(payload);
+  public async discordVoiceSendAudio(payload: { data: string; frameId?: string }): Promise<StatusResult> {
+    return (await getApi()?.discordVoiceSendAudio?.(payload)) ?? { success: false };
   }
 
-  public onDiscordMessage(callback: (data: any) => void): () => void {
+  public onDiscordMessage(callback: (data: unknown) => void): () => void {
     return getApi()?.onDiscordMessage?.(callback) || (() => {});
   }
 
-  public onDiscordEvent(callback: (data: any) => void): () => void {
+  public onDiscordEvent(callback: (data: unknown) => void): () => void {
     return getApi()?.onDiscordEvent?.(callback) || (() => {});
   }
 
-  public onDiscordVoiceEvent(callback: (data: any) => void): () => void {
+  public onDiscordVoiceEvent(callback: (data: unknown) => void): () => void {
     return getApi()?.onDiscordVoiceEvent?.(callback) || (() => {});
   }
 
-  public onDiscordVoiceAudio(callback: (data: any) => void): () => void {
+  public onDiscordVoiceAudio(callback: (data: unknown) => void): () => void {
     return getApi()?.onDiscordVoiceAudio?.(callback) || (() => {});
   }
 
   // ── System Diagnostics & Native Features ─────────────────────────────────
-  public async getProcessMemoryInfo(): Promise<any> {
-    return await getApi()?.getProcessMemoryInfo?.();
+  public async getProcessMemoryInfo(): Promise<ProcessMemoryInfo | null> {
+    return (await getApi()?.getProcessMemoryInfo?.()) ?? null;
   }
 
-  public async getGpuFeatureStatus(): Promise<any> {
-    return await getApi()?.getGpuFeatureStatus?.();
+  public async getGpuFeatureStatus(): Promise<Record<string, string> | null> {
+    return (await getApi()?.getGpuFeatureStatus?.()) ?? null;
   }
 
-  public async getGpuInfo(): Promise<any> {
-    return await getApi()?.getGpuInfo?.();
+  public async getGpuInfo(): Promise<Record<string, unknown> | null> {
+    return (await getApi()?.getGpuInfo?.()) ?? null;
   }
 
-  public onShortcutEvent(channel: string, callback: (...args: any[]) => void): () => void {
+  public onShortcutEvent(channel: string, callback: (...args: unknown[]) => void): () => void {
     const api = getApi();
     if (api?.onShortcutEvent) {
       return api.onShortcutEvent(channel, callback);
@@ -484,10 +560,10 @@ export class ElectronBridgeService {
     return { success: false, error: 'Descarga no disponible en versión web' };
   }
 
-  public installUpdate(): any {
+  public async installUpdate(): Promise<boolean> {
     const api = getApi();
     if (api?.installUpdate) {
-      return api.installUpdate();
+      return await api.installUpdate();
     }
     return false;
   }
@@ -500,7 +576,7 @@ export class ElectronBridgeService {
     return '1.0.0 (Web)';
   }
 
-  public onUpdateStatus(callback: (data: any) => void): () => void {
+  public onUpdateStatus(callback: (data: unknown) => void): () => void {
     const api = getApi();
     if (api?.onUpdateStatus) {
       return api.onUpdateStatus(callback);
@@ -517,32 +593,32 @@ export class ElectronBridgeService {
     getApi()?.closeSettingsWindow?.();
   }
 
-  public async saveAppConfig(config: any): Promise<StatusResult> {
+  public async saveAppConfig(config: Record<string, unknown> | object): Promise<StatusResult> {
     const api = getApi();
     if (api?.saveAppConfig) {
-      return await api.saveAppConfig(config);
+      return await api.saveAppConfig(publicSettings(config as Record<string, unknown>));
     }
     // Fallback in web: localStorage
     if (typeof window !== 'undefined') {
       try {
         window.localStorage.setItem('cristi_app_config', JSON.stringify(config));
         return { success: true };
-      } catch (err: any) {
-        return { success: false, error: err?.message };
+      } catch (err: unknown) {
+        return { success: false, error: err instanceof Error ? err.message : String(err) };
       }
     }
     return { success: false, error: 'Unavailable' };
   }
 
-  public async sendConfigUpdated(config: any): Promise<StatusResult> {
+  public async sendConfigUpdated(config: Record<string, unknown> | object): Promise<StatusResult> {
     return await this.saveAppConfig(config);
   }
 
-  public async saveConfig(config: any): Promise<StatusResult> {
+  public async saveConfig(config: Record<string, unknown> | object): Promise<StatusResult> {
     return await this.saveAppConfig(config);
   }
 
-  public async getAppConfig(): Promise<any> {
+  public async getAppConfig(): Promise<Record<string, unknown> | null> {
     const api = getApi();
     if (api?.getAppConfig) {
       return await api.getAppConfig();
@@ -558,10 +634,10 @@ export class ElectronBridgeService {
     return null;
   }
 
-  public onConfigUpdated(callback: (config: any) => void): () => void {
+  public onConfigUpdated<T = unknown>(callback: (config: T) => void): () => void {
     const api = getApi();
     if (api?.onConfigUpdated) {
-      return api.onConfigUpdated(callback);
+      return api.onConfigUpdated(callback as (data: unknown) => void);
     }
     return () => {};
   }
@@ -582,7 +658,7 @@ export class ElectronBridgeService {
     return () => {};
   }
 
-  public onSettingsWindowState(callback: (state: any) => void): () => void {
+  public onSettingsWindowState(callback: (state: unknown) => void): () => void {
     const api = getApi();
     if (api?.onSettingsWindowState) {
       return api.onSettingsWindowState(callback);
@@ -614,7 +690,7 @@ export class ElectronBridgeService {
     return false;
   }
 
-  public onCameraWindowState(callback: (state: any) => void): () => void {
+  public onCameraWindowState(callback: (state: unknown) => void): () => void {
     const api = getApi();
     if (api?.onCameraWindowState) {
       return api.onCameraWindowState(callback);

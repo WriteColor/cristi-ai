@@ -4,7 +4,7 @@
  * Validates a clean machine installation:
  *  - Node.js (>= 20) & pnpm (>= 9)
  *  - Dependency integrity in node_modules
- *  - Live2D Cubism Core runtime & 8 official Live2D models
+ *  - Live2D Cubism Core runtime & official Live2D models
  *  - AI neural network model weights (Face-API & TensorFlow)
  *  - Brand visual identity assets (.png, tray, .ico)
  *  - Electron runtime & compiled entrypoints
@@ -46,7 +46,7 @@ async function promptUser(question) {
 
 async function main() {
   console.log('================================================================');
-  console.log('🚀 CRISTI AI COMPANION - PREPARACIÓN DE ENTORNO LIMPIO');
+  console.log('[SETUP] CRISTI AI COMPANION - VERIFICACION Y PREPARACION DE ENTORNO');
   console.log('================================================================\n');
 
   let allChecksPassed = true;
@@ -58,9 +58,9 @@ async function main() {
 
   console.log(`[1/10] Entorno Node.js: ${nodeVersion} (${process.platform} ${process.arch})`);
   if (isNodeCompatible) {
-    console.log(`      ✅ Versión de Node.js compatible (>= 20: ${nodeVersion})`);
+    console.log(`      [OK] Version de Node.js compatible (>= 20: ${nodeVersion})`);
   } else {
-    console.warn(`      ⚠️ Se recomienda Node.js v20 o superior. Versión actual: ${nodeVersion}`);
+    console.warn(`      [WARN] Se recomienda Node.js v20 o superior. Version actual: ${nodeVersion}`);
     allChecksPassed = false;
   }
 
@@ -70,12 +70,12 @@ async function main() {
     const pnpmVersion = execSync('pnpm --version', { encoding: 'utf8' }).trim();
     const pnpmMajor = parseInt(pnpmVersion.split('.')[0], 10);
     if (pnpmMajor >= 9) {
-      console.log(`      ✅ Gestor de paquetes: pnpm v${pnpmVersion} (cumple >= 9)`);
+      console.log(`      [OK] Gestor de paquetes: pnpm v${pnpmVersion} (cumple >= 9)`);
     } else {
-      console.warn(`      ⚠️ pnpm v${pnpmVersion} detectado. Se recomienda >= 9`);
+      console.warn(`      [WARN] pnpm v${pnpmVersion} detectado. Se recomienda >= 9`);
     }
   } catch {
-    console.error('      ❌ Error: pnpm no detectado en PATH. Se requiere pnpm para Cristi AI.');
+    console.error('      [FAIL] Error: pnpm no detectado en PATH. Se requiere pnpm para Cristi AI.');
     allChecksPassed = false;
   }
 
@@ -92,24 +92,24 @@ async function main() {
     ];
     const missingPkgs = criticalPkgs.filter((pkg) => !fs.existsSync(path.join(nodeModulesDir, ...pkg.split('/'))));
     if (missingPkgs.length === 0) {
-      console.log('      ✅ Dependencias clave del proyecto verificadas en node_modules.');
+      console.log('      [OK] Dependencias clave del proyecto verificadas en node_modules.');
     } else {
-      console.warn(`      ⚠️ Dependencias faltantes: ${missingPkgs.join(', ')}. Ejecutando pnpm install...`);
+      console.warn(`      [WARN] Dependencias faltantes: ${missingPkgs.join(', ')}. Ejecutando pnpm install...`);
       try {
         execSync('pnpm install', { stdio: 'inherit', cwd: ROOT_DIR });
-        console.log('      ✅ Dependencias instaladas con éxito.');
+        console.log('      [OK] Dependencias instaladas con exito.');
       } catch {
-        console.error('      ❌ Error al instalar dependencias con pnpm.');
+        console.error('      [FAIL] Error al instalar dependencias con pnpm.');
         allChecksPassed = false;
       }
     }
   } else {
-    console.warn('      ⚠️ node_modules no encontrado. Ejecutando pnpm install...');
+    console.warn('      [WARN] node_modules no encontrado. Ejecutando pnpm install...');
     try {
       execSync('pnpm install', { stdio: 'inherit', cwd: ROOT_DIR });
-      console.log('      ✅ Dependencias instaladas correctamente.');
+      console.log('      [OK] Dependencias instaladas correctamente.');
     } catch {
-      console.error('      ❌ Error al instalar dependencias con pnpm.');
+      console.error('      [FAIL] Error al instalar dependencias con pnpm.');
       allChecksPassed = false;
     }
   }
@@ -119,16 +119,16 @@ async function main() {
   const cubismCorePath = path.join(PUBLIC_DIR, 'live2dcubismcore.min.js');
   if (fs.existsSync(cubismCorePath)) {
     const stats = fs.statSync(cubismCorePath);
-    console.log(`      ✅ live2dcubismcore.min.js verificado (${(stats.size / 1024).toFixed(1)} KB)`);
+    console.log(`      [OK] live2dcubismcore.min.js verificado (${(stats.size / 1024).toFixed(1)} KB)`);
   } else {
-    console.error('      ❌ FALTA live2dcubismcore.min.js en /public');
+    console.error('      [FAIL] Falta live2dcubismcore.min.js en /public');
     allChecksPassed = false;
   }
 
-  // 4. Verify 8 Official Live2D Models
-  console.log('\n[4/10] Verificando catálogo oficial de 8 modelos Live2D...');
+  // 4. Verify Official Live2D Models
+  console.log('\n[4/10] Verificando catalogo oficial de modelos Live2D...');
   const EXPECTED_LIVE2D_MODELS = [
-    { id: 'yanderegirl', name: 'Cristi Gótica (Yandere Girl)', file: 'yanderegirl/yanderegirl.model3.json' },
+    { id: 'yanderegirl', name: 'Cristi Gotica (Yandere Girl)', file: 'yanderegirl/yanderegirl.model3.json' },
     { id: 'icegirl', name: 'Ice Girl (Cheongsam)', file: 'icegirl/icegirl.model3.json' },
     { id: 'hiyori', name: 'Hiyori Momose (Pro Cubism)', file: 'hiyori/hiyori_free_t08.model3.json' },
     { id: 'miara', name: 'Miara (Pro Cubism)', file: 'miara/miara_pro_t03.model3.json' },
@@ -144,11 +144,11 @@ async function main() {
     if (fs.existsSync(modelFilePath)) {
       live2dCount++;
     } else {
-      console.warn(`      ✗ Faltante: ${m.name} (${modelFilePath})`);
+      console.warn(`      [WARN] Faltante: ${m.name} (${modelFilePath})`);
     }
   }
-  console.log(`      ${live2dCount === 8 ? '✅' : '⚠️'} ${live2dCount}/8 modelos Live2D presentes en /public/models/live2d`);
-  if (live2dCount < 8) allChecksPassed = false;
+  console.log(`      [${live2dCount === EXPECTED_LIVE2D_MODELS.length ? 'OK' : 'WARN'}] ${live2dCount}/${EXPECTED_LIVE2D_MODELS.length} modelos Live2D base presentes en /public/models/live2d`);
+  if (live2dCount < EXPECTED_LIVE2D_MODELS.length) allChecksPassed = false;
 
   // 5. Verify AI Neural Network Weights
   console.log('\n[5/10] Verificando redes neuronales (TensorFlow & Face-API)...');
@@ -173,19 +173,19 @@ async function main() {
   for (const file of EXPECTED_AI_MODELS) {
     if (fs.existsSync(path.join(MODELS_DIR, file))) aiCount++;
   }
-  console.log(`      ${aiCount === EXPECTED_AI_MODELS.length ? '✅' : '⚠️'} ${aiCount}/${EXPECTED_AI_MODELS.length} archivos de modelos neuronales presentes.`);
+  console.log(`      [${aiCount === EXPECTED_AI_MODELS.length ? 'OK' : 'WARN'}] ${aiCount}/${EXPECTED_AI_MODELS.length} archivos de modelos neuronales presentes.`);
   if (aiCount < EXPECTED_AI_MODELS.length) allChecksPassed = false;
 
   // 6. Verify Brand Identity Assets
-  console.log('\n[6/10] Verificando identidad de marca en public/...');
+  console.log('\n[6/10] Verificando identidad visual en public/...');
   const iconPng = path.join(PUBLIC_DIR, 'icon.png');
   const trayPng = path.join(PUBLIC_DIR, 'tray-icon.png');
   const faviconIco = path.join(PUBLIC_DIR, 'favicon.ico');
 
   if (fs.existsSync(iconPng) && fs.existsSync(trayPng) && fs.existsSync(faviconIco)) {
-    console.log('      ✅ Iconos oficiales presentes (icon.png, tray-icon.png, favicon.ico)');
+    console.log('      [OK] Iconos oficiales presentes (icon.png, tray-icon.png, favicon.ico)');
   } else {
-    console.warn('      ⚠️ Faltan iconos en public/. Se pueden generar con pnpm run generate:brand');
+    console.warn('      [WARN] Faltan iconos en public/. Se pueden generar con pnpm run generate:brand');
   }
 
   // 7. Compile Electron Main & Preload Processes
@@ -193,9 +193,9 @@ async function main() {
   try {
     const { buildElectron } = require('./build-electron.cjs');
     buildElectron();
-    console.log('       ✅ electron/src compilado exitosamente a electron/dist (main.cjs & preload.cjs).');
+    console.log('      [OK] electron/src compilado exitosamente a electron/dist (main.cjs & preload.cjs).');
   } catch (err) {
-    console.error('       ❌ Error compilando procesos de Electron:', err.message);
+    console.error('      [FAIL] Error compilando procesos de Electron:', err.message);
     allChecksPassed = false;
   }
 
@@ -203,9 +203,9 @@ async function main() {
   console.log('\n[8/10] Compilando frontend y assets con Vite...');
   try {
     execSync('pnpm run build', { stdio: 'inherit', cwd: ROOT_DIR });
-    console.log('       ✅ Frontend compilado exitosamente en dist/ (multi-page bundle listo).');
+    console.log('      [OK] Frontend compilado exitosamente en dist/ (multi-page bundle listo).');
   } catch (err) {
-    console.error('       ❌ Error compilando frontend con Vite:', err.message);
+    console.error('      [FAIL] Error compilando frontend con Vite:', err.message);
     allChecksPassed = false;
   }
 
@@ -214,28 +214,28 @@ async function main() {
   if (process.platform === 'win32') {
     const wasapiExe = path.join(ROOT_DIR, 'native/CristiWasapiLoopback.exe');
     if (fs.existsSync(wasapiExe)) {
-      console.log('       ✅ Helper de audio nativo WASAPI loopback verificado.');
+      console.log('      [OK] Helper de audio nativo WASAPI loopback verificado.');
     } else {
-      console.log('       ⏳ Compilando helper nativo WASAPI con csc.exe...');
+      console.log('      [INFO] Compilando helper nativo WASAPI con csc.exe...');
       try {
         const { prepareWasapiHelper } = require('./prebuild-electron.cjs');
         prepareWasapiHelper();
       } catch (err) {
-        console.warn('       ⚠️ Advertencia en compilación de WASAPI helper:', err.message);
+        console.warn('      [WARN] Advertencia en compilacion de WASAPI helper:', err.message);
       }
     }
   } else {
-    console.log('       ℹ️  Plataforma no-Windows detectada, helper nativo omitido.');
+    console.log('      [INFO] Plataforma no-Windows detectada, helper nativo omitido.');
   }
 
   // 10. Environment & API Keys Validation
-  console.log('\n[10/10] Validando archivo de configuración .env y credenciales...');
+  console.log('\n[10/10] Validando archivo de configuracion .env y credenciales...');
   const envPath = path.join(ROOT_DIR, '.env');
   const envExamplePath = path.join(ROOT_DIR, '.env.example');
 
   if (!fs.existsSync(envPath) && fs.existsSync(envExamplePath)) {
     fs.copyFileSync(envExamplePath, envPath);
-    console.log('       ✅ Archivo .env generado a partir de .env.example');
+    console.log('      [OK] Archivo .env generado a partir de .env.example');
   }
 
   let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
@@ -244,10 +244,10 @@ async function main() {
   const hasValidKey = currentKey.length > 5 && !currentKey.includes('tu_gemini_api_key');
 
   if (hasValidKey) {
-    console.log('       ✅ VITE_GEMINI_API_KEY configurada.');
+    console.log('      [OK] VITE_GEMINI_API_KEY configurada.');
   } else if (isInteractive) {
-    console.log('       ℹ️  VITE_GEMINI_API_KEY no configurada aún.');
-    const inputKey = await promptUser('       🔑 Ingrese su Gemini API Key (o presione Enter para omitir): ');
+    console.log('      [INFO] VITE_GEMINI_API_KEY no configurada aun.');
+    const inputKey = await promptUser('      [INPUT] Ingrese su Gemini API Key (o presione Enter para omitir): ');
     if (inputKey.length > 5) {
       if (envContent.includes('VITE_GEMINI_API_KEY=')) {
         envContent = envContent.replace(/^VITE_GEMINI_API_KEY=.*$/m, `VITE_GEMINI_API_KEY=${inputKey}`);
@@ -255,23 +255,23 @@ async function main() {
         envContent += `\nVITE_GEMINI_API_KEY=${inputKey}\n`;
       }
       fs.writeFileSync(envPath, envContent, 'utf8');
-      console.log('       ✅ VITE_GEMINI_API_KEY guardada en .env.');
+      console.log('      [OK] VITE_GEMINI_API_KEY guardada en .env.');
     } else {
-      console.log('       ℹ️  Omitido. La API Key puede configurarse más tarde en los Ajustes de la App.');
+      console.log('      [INFO] Omitido. La API Key puede configurarse en la ventana de Ajustes.');
     }
   } else {
-    console.log('       ℹ️  VITE_GEMINI_API_KEY vacía (se puede configurar en la ventana de Ajustes de Cristi).');
+    console.log('      [INFO] VITE_GEMINI_API_KEY vacia (puede configurarse en los Ajustes).');
   }
 
   console.log('\n================================================================');
   if (allChecksPassed) {
-    console.log('✨ ENTORNO DE CRISTI AI COMPANION 100% PREPARADO Y COMPILADO');
-    console.log('   Todos los modelos, scripts y bundles están listos.');
-    console.log('   Comandos siguientes:');
-    console.log('   • Iniciar en modo desarrollo:  pnpm run app:dev');
-    console.log('   • Empaquetar para producción: pnpm run app:build');
+    console.log('[OK] ENTORNO DE CRISTI AI COMPANION VERIFICADO Y PREPARADO');
+    console.log('     Modelos, scripts y bundles listos.');
+    console.log('     Comandos siguientes:');
+    console.log('     - Iniciar en desarrollo:  pnpm run dev');
+    console.log('     - Empaquetar instalador:  pnpm run app:build');
   } else {
-    console.warn('⚠️ Se completó la preparación del entorno con advertencias.');
+    console.warn('[WARN] Se completo la preparacion del entorno con advertencias.');
   }
   console.log('================================================================\n');
 

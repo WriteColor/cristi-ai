@@ -1,3 +1,4 @@
+import { publicSettings, redactText } from './shared/security.js';
 import { defineConfig, type Plugin, type ViteDevServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -24,17 +25,27 @@ interface TerminalLogPayload {
 function terminalLoggerPlugin(): Plugin {
   return {
     name: 'cristi-terminal-logger',
+    apply: 'serve',
     configureServer(server: ViteDevServer) {
       server.middlewares.use('/__log', (req: IncomingMessage, res: ServerResponse) => {
+        const address = req.socket.remoteAddress;
+        const origin = req.headers.origin;
+        if (req.method !== 'POST' || !['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(address || '') || origin !== 'http://localhost:5173') {
+          res.statusCode = 403; res.end('Forbidden'); return;
+        }
+        let bytes = 0;
         let body = '';
         req.setEncoding('utf8');
         req.on('data', (chunk: string) => {
+          bytes += Buffer.byteLength(chunk);
+          if (bytes > 16384) { res.statusCode = 413; res.end('Too large'); req.destroy(); return; }
           body += chunk;
         });
         req.on('end', () => {
+          if (res.writableEnded) return;
           try {
             if (body.trim()) {
-              const { level, tag = 'SYSTEM', message = '', data } = JSON.parse(body) as TerminalLogPayload;
+              const { level, tag = 'SYSTEM', message = '', data } = publicSettings(JSON.parse(redactText(body))) as TerminalLogPayload;
               const time = new Date().toLocaleTimeString('es-ES', { hour12: false });
               const chalkTime = `\x1b[90m[${time}]\x1b[0m`;
 
@@ -114,7 +125,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    sourcemap: true,
+    sourcemap: false,
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
       input: {

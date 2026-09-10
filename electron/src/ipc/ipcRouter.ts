@@ -1,3 +1,4 @@
+import { disposeCapabilities } from '../security/CapabilityRouter';
 import { registerWindowIpc, stopHitboxTracking } from './windowIpc';
 import { registerSystemIpc } from './systemIpc';
 import { registerAudioIpc } from './audioIpc';
@@ -31,5 +32,6 @@ export function registerAllIpcHandlers(rootDir: string): void {
  */
 export function unregisterAllIpcHandlers(): void {
   stopHitboxTracking();
+  disposeCapabilities();
   handlersRegistered = false;
 }

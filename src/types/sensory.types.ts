@@ -8,10 +8,10 @@
  * Can be defined in percentage terms (0 to 100) or normalized floating point (0.0 to 1.0).
  */
 export interface ScreenRegion {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
   x_pct?: number;
   y_pct?: number;
   w_pct?: number;

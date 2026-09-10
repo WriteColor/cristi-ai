@@ -1,3 +1,4 @@
+import { createSecureWebPreferences, secureWindow } from '../security/WindowPolicy';
 import { BrowserWindow, screen, app, nativeImage } from 'electron';
 import path from 'path';
 import fs from 'fs';
@@ -84,25 +85,8 @@ export class WindowManager {
   /**
    * Resolves the preload script path.
    */
-  public getPreloadPath(): string {
-    const appPath = app.isPackaged ? app.getAppPath() : this.rootDir;
-    const candidates = [
-      path.join(this.rootDir, 'electron/preload.cjs'),
-      path.join(this.rootDir, 'electron/dist/preload.cjs'),
-      path.join(appPath, 'electron/preload.cjs'),
-      path.join(appPath, 'electron/dist/preload.cjs'),
-      path.join(__dirname, 'preload.cjs'),
-      path.join(__dirname, '../preload.cjs'),
-      path.join(__dirname, '../../preload.cjs'),
-      path.join(process.resourcesPath, 'app.asar/electron/preload.cjs'),
-    ];
-
-    for (const candidate of candidates) {
-      try {
-        if (fs.existsSync(candidate)) return candidate;
-      } catch (_) {}
-    }
-    return path.join(this.rootDir, 'electron/preload.cjs');
+  public getPreloadPath(kind = 'main'): string {
+    return path.join(app.isPackaged ? app.getAppPath() : this.rootDir, 'electron/dist', kind + '.preload.cjs');
   }
 
   /**
@@ -134,20 +118,9 @@ export class WindowManager {
       movable: false,
       fullscreen: false,
       icon: this.getAppIcon() || undefined,
-      webPreferences: {
-        preload: this.getPreloadPath(),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: false,
-        webSecurity: false, // Allows local assets and Live2D model texture loading
-        backgroundThrottling: false, // Ensures constant 60 FPS animation
-      },
+      webPreferences: { ...createSecureWebPreferences(this.getPreloadPath('main')) },
     });
-
-    // Ensure Chromium does not throttle rendering when losing focus
-    if (this.mainWindow.webContents?.setBackgroundThrottling) {
-      this.mainWindow.webContents.setBackgroundThrottling(false);
-    }
+    secureWindow(this.mainWindow, 'main', this.isDev ? this.rendererUrl + '' : 'app://cristi/index.html');
 
     // Windows 11 Virtual Desktop & Workspaces Continuity
     try {
@@ -194,9 +167,7 @@ export class WindowManager {
       loadDevWithRetry();
     } else {
       this.mainWindow.loadURL('app://cristi/index.html').catch(() => {
-        this.mainWindow?.loadFile(path.join(this.rootDir, 'dist/index.html')).catch((err) => {
-          console.error('[WindowManager] Failed to load app://cristi/index.html:', err);
-        });
+        console.error('[WindowManager] No se pudo cargar la página segura.');
       });
     }
 
@@ -244,15 +215,9 @@ export class WindowManager {
       show: false,
       title: 'Cristi AI Companion - Panel de Control & Configuración',
       icon: this.getAppIcon() || undefined,
-      webPreferences: {
-        preload: this.getPreloadPath(),
-        nodeIntegration: false,
-        contextIsolation: true,
-        sandbox: false,
-        webSecurity: false,
-        backgroundThrottling: false,
-      },
+      webPreferences: { ...createSecureWebPreferences(this.getPreloadPath('settings')) },
     });
+    secureWindow(this.settingsWindow, 'settings', this.isDev ? this.rendererUrl + '/settings.html' : 'app://cristi/settings.html');
 
     this.settingsWindow.once('ready-to-show', () => {
       if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
@@ -277,7 +242,7 @@ export class WindowManager {
       loadSettingsDev();
     } else {
       this.settingsWindow.loadURL('app://cristi/settings.html').catch(() => {
-        this.settingsWindow?.loadFile(path.join(this.rootDir, 'dist/settings.html')).catch(() => {});
+        console.error('[WindowManager] No se pudo cargar la página segura.');
       });
     }
 
@@ -330,14 +295,9 @@ export class WindowManager {
       alwaysOnTop: true,
       autoHideMenuBar: true,
       icon: this.getAppIcon() || undefined,
-      webPreferences: {
-        preload: this.getPreloadPath(),
-        nodeIntegration: false,
-        contextIsolation: true,
-        sandbox: false,
-        backgroundThrottling: false,
-      },
+      webPreferences: { ...createSecureWebPreferences(this.getPreloadPath('camera')) },
     });
+    secureWindow(this.cameraWindow, 'camera', this.isDev ? this.rendererUrl + '/camera.html' : 'app://cristi/camera.html');
 
     this.cameraWindow.setAlwaysOnTop(true, 'pop-up-menu');
 
@@ -362,7 +322,7 @@ export class WindowManager {
       loadCameraDev();
     } else {
       this.cameraWindow.loadURL('app://cristi/camera.html').catch(() => {
-        this.cameraWindow?.loadFile(path.join(this.rootDir, 'dist/camera.html')).catch(() => {});
+        console.error('[WindowManager] No se pudo cargar la página segura.');
       });
     }
 

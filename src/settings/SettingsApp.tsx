@@ -1,20 +1,20 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, lazy, Suspense } from 'react';
 import {
   Zap, Volume2, Globe, Smile, Image as ImageIcon,
   Music, Database, Gamepad2, Layers, Save, X
 } from 'lucide-react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { soundFxService } from '../services/soundFxService.js';
+import { soundFxService } from '../domain/audio/SoundFxService.js';
 import { electronBridge } from '../services/desktop/ElectronBridge.js';
-import { GeneralTab } from './tabs/GeneralTab';
-import { VoiceTab } from './tabs/VoiceTab';
-import { TranslationTab } from './tabs/TranslationTab';
-import { ModelsTab } from './tabs/ModelsTab';
-import { SceneTab } from './tabs/SceneTab';
-import { SpotifyTab } from './tabs/SpotifyTab';
-import { MemoryTab } from './tabs/MemoryTab';
-import { GamesTab } from './tabs/GamesTab';
-import { McpTab } from './tabs/McpTab';
+const GeneralTab = lazy(() => import('./tabs/GeneralTab').then(module => ({ default: module.GeneralTab })));
+const VoiceTab = lazy(() => import('./tabs/VoiceTab').then(module => ({ default: module.VoiceTab })));
+const TranslationTab = lazy(() => import('./tabs/TranslationTab').then(module => ({ default: module.TranslationTab })));
+const ModelsTab = lazy(() => import('./tabs/ModelsTab').then(module => ({ default: module.ModelsTab })));
+const SceneTab = lazy(() => import('./tabs/SceneTab').then(module => ({ default: module.SceneTab })));
+const SpotifyTab = lazy(() => import('./tabs/SpotifyTab').then(module => ({ default: module.SpotifyTab })));
+const MemoryTab = lazy(() => import('./tabs/MemoryTab').then(module => ({ default: module.MemoryTab })));
+const GamesTab = lazy(() => import('./tabs/GamesTab').then(module => ({ default: module.GamesTab })));
+const McpTab = lazy(() => import('./tabs/McpTab').then(module => ({ default: module.McpTab })));
 
 export interface SettingsAppProps {
   isModal?: boolean;
@@ -36,7 +36,7 @@ const TABS = [
 export const SettingsApp: React.FC<SettingsAppProps> = ({ isModal = false, onClose = null }) => {
   const { activeTab, setActiveTab, saveStatus, saveSettings, loadConfig } = useSettingsStore();
 
-  useEffect(() => { void loadConfig(); }, [loadConfig]);
+  useEffect(() => { void loadConfig().catch(error => console.error('No se pudo cargar la configuración:', error)); }, [loadConfig]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -129,6 +129,7 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ isModal = false, onClo
         </aside>
 
         <main className="flex-1 p-6 overflow-hidden flex flex-col bg-zinc-950">
+          <Suspense fallback={<p className="text-sm text-zinc-400">Cargando ajustes…</p>}>
           {activeTab === 'general' && <GeneralTab />}
           {activeTab === 'voice' && <VoiceTab />}
           {activeTab === 'translation' && <TranslationTab />}
@@ -138,6 +139,7 @@ export const SettingsApp: React.FC<SettingsAppProps> = ({ isModal = false, onClo
           {activeTab === 'memory' && <MemoryTab />}
           {activeTab === 'games' && <GamesTab />}
           {activeTab === 'mcp' && <McpTab />}
+          </Suspense>
         </main>
       </div>
     </div>

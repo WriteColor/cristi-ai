@@ -1,5 +1,5 @@
 import type { IToolHandler } from '../IToolHandler';
-import { spotifyService } from '@/services/spotify/SpotifyService.js';
+import { spotifyService } from '../../integrations/spotify/SpotifyService.js';
 
 export const spotifyPlayHandler: IToolHandler = {
   name: 'spotify_play',
@@ -141,7 +141,7 @@ export const spotifySetVolumeHandler: IToolHandler = {
   },
   async execute(args: { direction?: string }) {
     return await spotifyService.setVolume({
-      direction: args?.direction || 'up'
+      direction: args?.direction === 'down' ? 'down' : 'up'
     });
   }
 };

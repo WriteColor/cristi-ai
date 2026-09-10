@@ -8,9 +8,9 @@ import {
   Trash2
 } from 'lucide-react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { sceneManager } from '../../services/sceneManager.js';
-import { soundFxService } from '../../services/soundFxService.js';
-import { toastService } from '../../services/toastService.js';
+import { sceneManager } from '../../domain/scenes/SceneManager.js';
+import { soundFxService } from '../../domain/audio/SoundFxService.js';
+import { toastService } from '../../infrastructure/notifications/toastService.js';
 
 export const SceneTab: React.FC = () => {
   const sceneId = useSettingsStore((s) => s.sceneId);

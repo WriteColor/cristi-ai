@@ -7,7 +7,7 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw, RotateCcw, Copy, Check, ChevronDown, ChevronUp, Terminal } from 'lucide-react';
 import { electronBridge } from '../services/desktop/ElectronBridge.js';
-import { soundFxService } from '../services/soundFxService.js';
+import { soundFxService } from '../domain/audio/SoundFxService.js';
 
 export interface ErrorBoundaryProps {
   children: React.ReactNode;

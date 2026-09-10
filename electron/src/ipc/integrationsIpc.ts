@@ -1,5 +1,8 @@
-import { ipcMain, shell } from 'electron';
-import { exec } from 'child_process';
+import { executeAutomation, disposeAutomation } from '../utility/AutomationClient';
+import { credentialVault } from '../security/CredentialVault';
+import { handleTrusted } from '../security/CapabilityRouter';
+import { shell } from 'electron';
+import { execFile } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { PassThrough } from 'stream';
@@ -17,50 +20,6 @@ import {
 // ============================================================================
 // 1. PLAYWRIGHT NATIVE BROWSER CONTROLLER (BRAVE POWERED)
 // ============================================================================
-
-const BRAVE_EXE_CANDIDATES = [
-  'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
-  'C:\\Program Files (x86)\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
-  'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\chrome_proxy.exe',
-];
-
-function getBraveExecutablePath(): string | null {
-  for (const candidate of BRAVE_EXE_CANDIDATES) {
-    if (fs.existsSync(candidate)) return candidate;
-  }
-  return null;
-}
-
-let playwrightBrowser: any = null;
-let playwrightContext: any = null;
-let playwrightPage: any = null;
-
-async function getOrCreatePlaywrightPage(options: PlaywrightExecuteParams = {}): Promise<any> {
-   
-  const { chromium } = require('playwright');
-  if (!playwrightBrowser || !playwrightBrowser.isConnected()) {
-    const bravePath = getBraveExecutablePath();
-    if (!bravePath) {
-      throw new Error('Brave.exe no está instalado en una ruta compatible; se rechazó usar otro navegador.');
-    }
-    const launchOptions = {
-      executablePath: bravePath,
-      headless: options.headless !== undefined ? Boolean(options.headless) : false,
-      args: [
-        '--disable-blink-features=AutomationControlled',
-        '--start-maximized',
-        '--no-default-browser-check',
-        '--disable-infobars',
-      ],
-    };
-    playwrightBrowser = await chromium.launch(launchOptions);
-    playwrightContext = await playwrightBrowser.newContext({ viewport: null });
-    playwrightPage = await playwrightContext.newPage();
-  } else if (!playwrightPage || playwrightPage.isClosed()) {
-    playwrightPage = await playwrightContext.newPage();
-  }
-  return playwrightPage;
-}
 
 // ============================================================================
 // 2. SPOTIFY NATIVE & MEDIA CONTROLLER
@@ -82,8 +41,7 @@ function isSpotifyDesktopInstalled(): boolean {
 
 function executePowerShellScript(script: string): Promise<{ success: boolean; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
-    exec(
-      `powershell -NoProfile -ExecutionPolicy Bypass -Command "${script.replace(/"/g, '\\"')}"`,
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script],
       { windowsHide: true, timeout: 15000 },
       (err, stdout, stderr) => {
         resolve({
@@ -353,7 +311,7 @@ function disconnectDiscordVoice({ preserveJoinConfig = false } = {}): void {
 
 export function registerIntegrationsIpc(): void {
   // Register cleanup hook
-  processManager.registerCleanupHook(async () => {
+  processManager.registerCleanupHook('integrations', async () => {
     try {
       disconnectDiscordVoice();
     } catch (_) {}
@@ -363,123 +321,14 @@ export function registerIntegrationsIpc(): void {
     try {
       disposeMinecraftBot('app_shutdown');
     } catch (_) {}
-    try {
-      if (playwrightBrowser) {
-        await playwrightBrowser.close().catch(() => {});
-        playwrightBrowser = null;
-      }
-    } catch (_) {}
+    await disposeAutomation();
   });
 
   // ── Playwright IPC Handlers ───────────────────────────────────────────────
-  ipcMain.handle('playwright-execute', async (_event, action: string, params: PlaywrightExecuteParams = {}) => {
-    try {
-      switch (action) {
-        case 'launch':
-        case 'navigate': {
-          const page = await getOrCreatePlaywrightPage(params);
-          if (params.url) {
-            await page.goto(params.url, { timeout: 30000, waitUntil: params.waitUntil || 'domcontentloaded' });
-          }
-          return {
-            success: true,
-            url: page.url(),
-            title: await page.title().catch(() => ''),
-          };
-        }
-        case 'click': {
-          const page = await getOrCreatePlaywrightPage();
-          await page.click(params.selector, { timeout: params.timeout || 10000 });
-          return { success: true, message: `Clic ejecutado en selector "${params.selector}".` };
-        }
-        case 'fill': {
-          const page = await getOrCreatePlaywrightPage();
-          await page.fill(params.selector, String(params.value ?? ''), { timeout: params.timeout || 10000 });
-          return { success: true, message: `Campo "${params.selector}" completado.` };
-        }
-        case 'type': {
-          const page = await getOrCreatePlaywrightPage();
-          await page.type(params.selector, String(params.text ?? ''), { delay: params.delay || 30 });
-          return { success: true, message: `Texto tecleado en "${params.selector}".` };
-        }
-        case 'press': {
-          const page = await getOrCreatePlaywrightPage();
-          await page.press(params.selector || 'body', params.key);
-          return { success: true, message: `Tecla "${params.key}" pulsada.` };
-        }
-        case 'screenshot': {
-          const page = await getOrCreatePlaywrightPage();
-          const buffer = await page.screenshot({ fullPage: Boolean(params.fullPage) });
-          return {
-            success: true,
-            base64: `data:image/png;base64,${buffer.toString('base64')}`,
-            size: buffer.length,
-          };
-        }
-        case 'evaluate': {
-          const page = await getOrCreatePlaywrightPage();
-          const result = await page.evaluate(params.script);
-          return { success: true, result };
-        }
-        case 'get_content': {
-          const page = await getOrCreatePlaywrightPage();
-          let content = '';
-          if (params.selector) {
-            content = await page.locator(params.selector).innerText({ timeout: 5000 }).catch(() => '');
-          } else {
-            content = await page.evaluate(() => document.body?.innerText || document.documentElement?.innerText || '');
-          }
-          return {
-            success: true,
-            url: page.url(),
-            title: await page.title().catch(() => ''),
-            content: content.slice(0, 5000),
-          };
-        }
-        case 'wait_for_selector': {
-          const page = await getOrCreatePlaywrightPage();
-          await page.waitForSelector(params.selector, {
-            state: params.state || 'visible',
-            timeout: params.timeout || 15000,
-          });
-          return { success: true, message: `Elemento "${params.selector}" presente en la página.` };
-        }
-        case 'hover': {
-          const page = await getOrCreatePlaywrightPage();
-          await page.hover(params.selector, { timeout: 10000 });
-          return { success: true, message: `Cursor posicionado sobre "${params.selector}".` };
-        }
-        case 'status': {
-          const isRunning = Boolean(
-            playwrightBrowser && playwrightBrowser.isConnected() && playwrightPage && !playwrightPage.isClosed()
-          );
-          return {
-            success: true,
-            isRunning,
-            url: isRunning ? playwrightPage.url() : null,
-            title: isRunning ? await playwrightPage.title().catch(() => null) : null,
-          };
-        }
-        case 'close': {
-          if (playwrightBrowser) {
-            await playwrightBrowser.close().catch(() => {});
-            playwrightBrowser = null;
-            playwrightContext = null;
-            playwrightPage = null;
-          }
-          return { success: true, message: 'Sesión de Playwright cerrada exitosamente.' };
-        }
-        default:
-          return { success: false, error: `Acción de Playwright no soportada: "${action}"` };
-      }
-    } catch (err) {
-      console.error('[Playwright Native Error]', err);
-      return { success: false, error: (err as Error).message };
-    }
-  });
+  handleTrusted('playwright-execute', (_event, action, params) => executeAutomation(action, params));
 
   // ── Spotify IPC Handlers ──────────────────────────────────────────────────
-  ipcMain.handle('spotify-control', async (_event, action: string, params: SpotifyControlParams = {}) => {
+  handleTrusted('spotify-control', async (_event, action: string, params: SpotifyControlParams = {}) => {
     try {
       switch (action) {
         case 'check_desktop_installed': {
@@ -612,7 +461,7 @@ export function registerIntegrationsIpc(): void {
   });
 
   // ── Minecraft IPC Handlers ────────────────────────────────────────────────
-  ipcMain.handle('minecraft-connect', async (_event, opts: MinecraftConnectOptions = {}) => {
+  handleTrusted('minecraft-connect', async (_event, opts: MinecraftConnectOptions = {}) => {
     try {
       disposeMinecraftBot('connection_replaced');
 
@@ -696,12 +545,12 @@ export function registerIntegrationsIpc(): void {
     }
   });
 
-  ipcMain.handle('minecraft-disconnect', () => {
+  handleTrusted('minecraft-disconnect', () => {
     disposeMinecraftBot('renderer_request');
     return { success: true };
   });
 
-  ipcMain.handle('minecraft-chat', (_event, message: unknown) => {
+  handleTrusted('minecraft-chat', (_event, message: unknown) => {
     if (mcBot) {
       try {
         mcBot.chat(String(message));
@@ -713,7 +562,7 @@ export function registerIntegrationsIpc(): void {
     return { success: false, error: 'Bot de Minecraft no conectado.' };
   });
 
-  ipcMain.handle('minecraft-get-status', (): MinecraftStatus => {
+  handleTrusted('minecraft-get-status', (): MinecraftStatus => {
     if (!mcBot) return { status: 'disconnected', connectionId: null };
     try {
       const pos = mcBot.entity?.position || { x: 0, y: 0, z: 0 };
@@ -766,7 +615,7 @@ export function registerIntegrationsIpc(): void {
     }
   });
 
-  ipcMain.handle('minecraft-move-to', (_event, { x, y, z }: { x: number; y: number; z: number }) => {
+  handleTrusted('minecraft-move-to', (_event, { x, y, z }: { x: number; y: number; z: number }) => {
     if (!mcBot || !mcBot.pathfinder) return { success: false, error: 'Bot no conectado.' };
     try {
        
@@ -780,7 +629,7 @@ export function registerIntegrationsIpc(): void {
     }
   });
 
-  ipcMain.handle('minecraft-follow', (_event, targetPlayer: string) => {
+  handleTrusted('minecraft-follow', (_event, targetPlayer: string) => {
     if (!mcBot || !mcBot.pathfinder) return { success: false, error: 'Bot no conectado.' };
     try {
       const player = mcBot.players[targetPlayer];
@@ -798,7 +647,7 @@ export function registerIntegrationsIpc(): void {
     }
   });
 
-  ipcMain.handle('minecraft-stop', () => {
+  handleTrusted('minecraft-stop', () => {
     if (mcBot && mcBot.pathfinder) {
       try {
         mcBot.pathfinder.setGoal(null);
@@ -810,7 +659,7 @@ export function registerIntegrationsIpc(): void {
     return { success: true };
   });
 
-  ipcMain.handle('minecraft-mine-block', async (_event, { x, y, z }: { x: number; y: number; z: number }) => {
+  handleTrusted('minecraft-mine-block', async (_event, { x, y, z }: { x: number; y: number; z: number }) => {
     if (!mcBot) return { success: false, error: 'Bot de Minecraft no conectado.' };
     try {
        
@@ -827,7 +676,7 @@ export function registerIntegrationsIpc(): void {
     }
   });
 
-  ipcMain.handle('minecraft-place-block', async (_event, { x, y, z, blockName }: { x: number; y: number; z: number; blockName: string }) => {
+  handleTrusted('minecraft-place-block', async (_event, { x, y, z, blockName }: { x: number; y: number; z: number; blockName: string }) => {
     if (!mcBot) return { success: false, error: 'Bot de Minecraft no conectado.' };
     try {
        
@@ -847,7 +696,7 @@ export function registerIntegrationsIpc(): void {
     }
   });
 
-  ipcMain.handle('minecraft-attack', async (_event, { entityName }: { entityName?: string }) => {
+  handleTrusted('minecraft-attack', async (_event, { entityName }: { entityName?: string }) => {
     if (!mcBot) return { success: false, error: 'Bot de Minecraft no conectado.' };
     try {
       const entity = mcBot.nearestEntity((e: any) =>
@@ -862,7 +711,8 @@ export function registerIntegrationsIpc(): void {
   });
 
   // ── Discord IPC Handlers ──────────────────────────────────────────────────
-  ipcMain.handle('discord-connect', async (_event, { token, statusMessage, activityType }: DiscordConnectOptions) => {
+  handleTrusted('discord-connect', async (_event, { statusMessage, activityType }) => {
+    const token = await credentialVault.get('discord.botToken');
     try {
       disconnectDiscordVoice();
       disposeDiscordClient();
@@ -968,13 +818,13 @@ export function registerIntegrationsIpc(): void {
     }
   });
 
-  ipcMain.handle('discord-disconnect', () => {
+  handleTrusted('discord-disconnect', () => {
     disconnectDiscordVoice();
     disposeDiscordClient();
     return { success: true };
   });
 
-  ipcMain.handle('discord-send-message', async (_event, { channelId, content }: { channelId: string; content: string }) => {
+  handleTrusted('discord-send-message', async (_event, { channelId, content }: { channelId: string; content: string }) => {
     if (!discordClient) return { success: false, error: 'Bot de Discord no conectado.' };
     try {
       const channel = await discordClient.channels.fetch(channelId);
@@ -988,7 +838,7 @@ export function registerIntegrationsIpc(): void {
     }
   });
 
-  ipcMain.handle('discord-set-status', (_event, { statusText, activityType }: { statusText: string; activityType?: string }) => {
+  handleTrusted('discord-set-status', (_event, { statusText, activityType }: { statusText: string; activityType?: string }) => {
     if (!discordClient || !discordClient.user) return { success: false };
     try {
        
@@ -1002,7 +852,7 @@ export function registerIntegrationsIpc(): void {
     }
   });
 
-  ipcMain.handle('discord-get-messages', async (_event, { channelId, limit = 20 }: { channelId: string; limit?: number }) => {
+  handleTrusted('discord-get-messages', async (_event, { channelId, limit = 20 }: { channelId: string; limit?: number }) => {
     if (!discordClient) return { success: false, error: 'Bot de Discord no conectado.' };
     try {
       const channel = await discordClient.channels.fetch(channelId);
@@ -1023,7 +873,7 @@ export function registerIntegrationsIpc(): void {
     }
   });
 
-  ipcMain.handle('discord-voice-join', async (_event, { guildId, channelId }: DiscordVoiceJoinOptions) => {
+  handleTrusted('discord-voice-join', async (_event, { guildId, channelId }: DiscordVoiceJoinOptions) => {
     if (!discordClient) return { success: false, error: 'Bot de Discord no conectado.' };
     if (!guildId || !channelId) return { success: false, error: 'guildId y channelId son obligatorios.' };
 
@@ -1078,13 +928,13 @@ export function registerIntegrationsIpc(): void {
     }
   });
 
-  ipcMain.handle('discord-voice-leave', () => {
+  handleTrusted('discord-voice-leave', () => {
     disconnectDiscordVoice();
     notifyDiscordVoiceEvent('disconnected');
     return { success: true };
   });
 
-  ipcMain.handle('discord-voice-send-audio', (_event, { data }: { data?: string } = {}) => {
+  handleTrusted('discord-voice-send-audio', (_event, { data }: { data?: string } = {}) => {
     if (!discordVoiceOutput || discordVoiceOutput.destroyed || !data) {
       return { success: false, error: 'No hay una conexión de voz de Discord activa.' };
     }

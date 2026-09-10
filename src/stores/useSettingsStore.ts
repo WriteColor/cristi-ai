@@ -1,9 +1,11 @@
+import { hasLegacyCredentials, migrateLegacySettings } from '../infrastructure/config/LegacySettingsMigration';
+import { publicSettings } from '../../shared/security';
 import { create } from 'zustand';
 import { AppConfig } from '@/types';
 import { DEFAULT_MODEL_ID, SYSTEM_PERSONA_PROMPT } from '../config/models.js';
 import { electronBridge } from '../services/desktop/ElectronBridge.js';
-import { toastService } from '../services/toastService.js';
-import { live2dModelRegistry } from '../services/live2d/index.js';
+import { toastService } from '../infrastructure/notifications/toastService.js';
+import { live2dModelRegistry } from '../domain/live2d/Live2DModelRegistry.js';
 
 const STORAGE_KEY_CONFIG = 'cristi_ai_settings_v1';
 
@@ -40,16 +42,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   translationGameAudioDeviceLabel: '',
 };
 
-function getEnvApiKey(): string {
-  try {
-    if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GEMINI_API_KEY) {
-      return import.meta.env.VITE_GEMINI_API_KEY.trim();
-    }
-  } catch (_) {
-    // Ignore environment read errors
-  }
-  return '';
-}
+function getEnvApiKey(): string { return ''; }
 
 function loadFromLocalStorage(): AppConfig {
   const envKey = getEnvApiKey();
@@ -61,8 +54,8 @@ function loadFromLocalStorage(): AppConfig {
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
           return {
             ...DEFAULT_APP_CONFIG,
-            ...parsed,
-            apiKey: parsed.apiKey || envKey,
+            ...publicSettings(parsed),
+            apiKey: '',
           };
         }
       }
@@ -79,7 +72,7 @@ function loadFromLocalStorage(): AppConfig {
 function saveToLocalStorage(config: AppConfig): void {
   try {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
+      if (!hasLegacyCredentials()) localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(publicSettings(config)));
     }
   } catch (_) {
     // Ignore storage quota errors
@@ -250,7 +243,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => {
     saveSettings: async () => {
       set({ saveStatus: 'saving' });
       try {
-        await get().updateConfig({});
+        const drafts = get();
+        for (const [key, value] of Object.entries({ 'gemini.apiKey': drafts.apiKey, 'spotify.clientSecret': drafts.spotifyClientSecret, 'discord.botToken': drafts.discordToken })) {
+          if (value.trim()) await electronBridge.setSecureSecret(key, value.trim());
+        }
+        set({ apiKey: '', spotifyClientSecret: '', discordToken: '' });
+        await get().updateConfig(await electronBridge.credentialStatus());
         set({ saveStatus: 'saved' });
         setTimeout(() => {
           if (get().saveStatus === 'saved') {
@@ -267,6 +265,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => {
 
     // Core Actions
     loadConfig: async () => {
+      await migrateLegacySettings();
       let activeConfig = loadFromLocalStorage();
 
       if (electronBridge.isElectron && typeof electronBridge.getAppConfig === 'function') {
@@ -276,7 +275,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => {
             activeConfig = {
               ...activeConfig,
               ...ipcConfig,
-              apiKey: ipcConfig.apiKey || activeConfig.apiKey,
+              apiKey: '',
             };
             saveToLocalStorage(activeConfig);
           }
@@ -306,17 +305,18 @@ export const useSettingsStore = create<SettingsState>()((set, get) => {
     },
 
     updateConfig: async (partial) => {
+      await migrateLegacySettings();
       const current = get().config;
       const updated: AppConfig = {
         ...current,
-        ...partial,
+        ...publicSettings(partial),
         updatedAt: new Date().toISOString(),
       };
 
       saveToLocalStorage(updated);
       set({
         config: updated,
-        apiKey: updated.apiKey,
+
         modelId: updated.modelId,
         temperature: updated.temperature,
         systemPrompt: updated.systemPrompt,
@@ -381,6 +381,9 @@ export const useSettingsStore = create<SettingsState>()((set, get) => {
     },
 
     setField: (field, value) => {
+      if (field === 'apiKey' || field === 'spotifyClientSecret' || field === 'discordToken') {
+        set({ [field]: String(value) }); return;
+      }
       if (field === 'showApiKey') {
         set({ showApiKey: Boolean(value) });
         return;

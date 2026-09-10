@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
 import { Smile, Sliders, Move } from 'lucide-react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { live2dModelRegistry } from '../../services/live2d/index.js';
-import { soundFxService } from '../../services/soundFxService.js';
+import { live2dModelRegistry } from '../../domain/live2d/Live2DModelRegistry.js';
+import { soundFxService } from '../../domain/audio/SoundFxService.js';
 import { ModelPreviewCanvas } from '../components/ModelPreviewCanvas';
 
 export const ModelsTab: React.FC = () => {

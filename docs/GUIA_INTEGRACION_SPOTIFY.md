@@ -1,4 +1,4 @@
-﻿# 🎵 Guía Completa de Integración de Spotify en Cristi AI Companion
+# Guia de Integracion de Spotify en Cristi AI Companion
 
 Cristi AI cuenta con un sistema de integración musical diseñado en tres niveles que le permite reproducir canciones, álbumes, listas de reproducción y controlar la reproducción de medios tanto en la aplicación de escritorio de **Spotify Desktop** como en **Spotify Web**, respondiendo de forma natural a la voz de Ariel en llamadas en vivo o a comandos de texto.
 

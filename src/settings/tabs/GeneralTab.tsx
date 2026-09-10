@@ -1,3 +1,5 @@
+import { electronBridge } from '../../services/desktop/ElectronBridge';
+import { toastService } from '../../infrastructure/notifications/toastService';
 import React from 'react';
 import {
   Key,
@@ -17,7 +19,7 @@ import {
 } from 'lucide-react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { GEMINI_MODELS_LIST, SYSTEM_PERSONA_PROMPT } from '../../config/models.js';
-import { soundFxService } from '../../services/soundFxService.js';
+import { soundFxService } from '../../domain/audio/SoundFxService.js';
 
 export interface PersonaPreset {
   id: string;
@@ -66,6 +68,7 @@ export const ORIGINAL_PERSONA_PRESETS: PersonaPreset[] = [
 ];
 
 export const GeneralTab: React.FC = () => {
+  const hasCredential = useSettingsStore(s => s.config.hasGeminiCredential);
   const apiKey = useSettingsStore((s) => s.apiKey);
   const showApiKey = useSettingsStore((s) => s.showApiKey);
   const modelId = useSettingsStore((s) => s.modelId);
@@ -85,6 +88,13 @@ export const GeneralTab: React.FC = () => {
         </p>
       </div>
 
+      <div className="border border-zinc-800 p-3 rounded-sm text-xs text-zinc-300">
+        <button type="button" className="border border-zinc-600 px-3 py-2 rounded" onClick={async () => {
+          try { if (await electronBridge.approveWorkspace()) toastService.info('Carpeta autorizada para esta sesión.'); }
+          catch (error) { toastService.error(String(error)); }
+        }}>Seleccionar carpeta para herramientas</button>
+        <p className="mt-2">Cristi podrá leer y escribir archivos dentro de la carpeta que selecciones. La autorización termina al cerrar la aplicación.</p>
+      </div>
       {/* Controles Principales en 3 Columnas Horizontales */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* API Key */}
@@ -108,7 +118,7 @@ export const GeneralTab: React.FC = () => {
               type={showApiKey ? 'text' : 'password'}
               value={apiKey}
               onChange={(e) => setField('apiKey', e.target.value)}
-              placeholder="Pega aquí tu API Key..."
+              placeholder={hasCredential ? 'Credencial guardada. Pega otra para reemplazarla.' : 'Pega aquí tu API Key y guarda...'}
               className="w-full px-3 py-1.5 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm focus:outline-none focus:border-zinc-500"
             />
             <button

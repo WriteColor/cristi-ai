@@ -1,724 +1,793 @@
 /**
- * Cristi AI - Multi-layer Persistent & Semantic Memory Service (Domain Layer)
- * 
- * Manages long-term structured facts, user preferences, relationship milestones,
- * tasks, and game state memories. Features local 96-D hash vector semantic indexing,
- * SQLite/JSON atomic persistence, and autonomous contradiction resolution without
- * heavy neural network models.
+ * Cristi AI - Persistent Context & Long-Term Memory Service
+ * Inspired by Open-LLM-VTuber and AIRI long-term memory architectures.
+ * Manages structured facts, preferences, user relationship history, tasks, and semantic memory retrieval for Gemini Live.
  */
 
-import type {
-  ContradictionResolution,
-  DomainEventEnvelope,
-  MemoryCategory,
-  MemoryItem,
-  MemorySearchOptions,
-  MemorySearchResult
-} from '@/types';
-import { electronBridge } from '@/services/desktop/ElectronBridge.js';
-import { eventBus, EVENTS } from '@/services/eventBus.js';
-import { logger } from '@/services/logger.js';
+import { logger } from '../../../infrastructure/logging/logger';
+import { eventBus, EVENTS } from '../../../infrastructure/events/eventBus';
+import { MemoryRepository } from './MemoryRepository';
+import { MemoryIndex } from './MemoryIndex';
 
-export interface IMemoryService {
-  readonly memories: ReadonlyArray<MemoryItem>;
-  readonly isLoaded: boolean;
-  readonly currentSessionId: string | null;
+export const MEMORY_CATEGORIES = {
+  FACT: 'fact',
+  PREFERENCE: 'preference',
+  RELATIONSHIP: 'relationship',
+  TASK: 'task',
+  MINECRAFT: 'minecraft',
+  CONVERSATION: 'conversation'
+} as const;
 
-  initialize(): Promise<void>;
-  remember(params: {
-    key?: string;
-    content: string;
-    category?: MemoryCategory;
-    confidence?: number;
-    source?: string;
-    sessionId?: string | null;
-    metadata?: Record<string, unknown>;
-  }): Promise<MemoryItem>;
-  forget(idOrKey: string): Promise<boolean>;
-  search(query: string, options?: MemorySearchOptions): Promise<MemorySearchResult[]>;
-  getMemoryById(id: string): MemoryItem | null;
-  getMemoryByKey(key: string): MemoryItem | null;
-  getMemoriesByCategory(category: MemoryCategory, includeInactive?: boolean): MemoryItem[];
-  resolveContradiction(
-    newContent: string,
-    key: string | undefined,
-    category: MemoryCategory
-  ): ContradictionResolution;
-  startSession(sessionId?: string | null, metadata?: Record<string, unknown>): string;
-  recordTurn(turn: {
-    role: 'user' | 'model' | 'assistant' | 'system';
-    text: string;
-    source?: string;
-    sessionId?: string | null;
-  }): { role: string; text: string; timestamp: number };
-  endSession(sessionId?: string | null): Promise<MemoryItem | null>;
-  buildPromptContext(query?: string, maxItems?: number): Promise<string>;
+export type MemoryCategory = typeof MEMORY_CATEGORIES[keyof typeof MEMORY_CATEGORIES];
+
+export interface MemoryItem {
+  id: string;
+  key: string;
+  content: string;
+  category: string;
+  importance: number;
+  confidence: number;
+  status: string;
+  source: string;
+  sessionId: string | null;
+  context: Record<string, unknown>;
+  tags: string[];
+  relatedMemoryIds: string[];
+  supersedes: string | null;
+  previousVersions: Array<{ content?: string; updatedAt?: string; source?: string }>;
+  validFrom: string;
+  validUntil: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lastAccessedAt: string;
+  accessCount: number;
+  [key: string]: unknown;
 }
 
-export interface ConversationTurn {
-  role: 'user' | 'model' | 'assistant' | 'system';
+export interface SessionTurn {
+  role: string;
   text: string;
-  source?: string;
+  source: string;
+  speakerId: string | null;
   timestamp: number;
 }
 
-export interface WorkingSession {
+export interface MemorySession {
   id: string;
-  startedAt: number;
   metadata: Record<string, unknown>;
-  turns: ConversationTurn[];
+  turns: SessionTurn[];
+  startedAt: number;
 }
 
-/**
- * 96-Dimension Bounded Local Semantic Hash Vector Index
- * Evaluates semantic and lexical similarity offline without any neural network download.
- */
-export class LocalSemanticHashIndex {
-  private readonly dimensions: number;
-  private readonly records = new Map<string, { id: string; text: string; vector: Float32Array; tokens: string[] }>();
-  private readonly postings = new Map<string, Set<string>>();
-
-  constructor(dimensions = 96) {
-    this.dimensions = Math.max(16, dimensions);
-  }
-
-  public clear(): void {
-    this.records.clear();
-    this.postings.clear();
-  }
-
-  public static tokenize(text = ''): string[] {
-    return [
-      ...new Set(
-        String(text)
-          .toLocaleLowerCase()
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-          .split(/\s+/)
-          .filter((t) => t.length > 1)
-      )
-    ];
-  }
-
-  /**
-   * Generates a 96-dimensional unit vector using dual-bucket FNV-1a hashing
-   */
-  public hashVector(text = ''): Float32Array {
-    const vector = new Float32Array(this.dimensions);
-    const tokens = LocalSemanticHashIndex.tokenize(text);
-
-    for (const token of tokens) {
-      let hash = 2166136261;
-      for (let i = 0; i < token.length; i += 1) {
-        hash ^= token.charCodeAt(i);
-        hash = Math.imul(hash, 16777619);
-      }
-      const index = (hash >>> 0) % this.dimensions;
-      const sign = (hash & 1) === 0 ? 1 : -1;
-      vector[index] += sign;
-
-      // Secondary hash bucket to prevent hash collisions on short words
-      const index2 = ((hash >>> 7) ^ (hash >>> 16)) % this.dimensions;
-      const normalizedIndex2 = index2 < 0 ? index2 + this.dimensions : index2;
-      vector[normalizedIndex2] += sign * 0.5;
-    }
-
-    // Cosine normalization to unit length
-    let norm = 0;
-    for (let i = 0; i < vector.length; i++) norm += vector[i] * vector[i];
-    const divisor = Math.sqrt(norm) || 1;
-    for (let i = 0; i < vector.length; i++) vector[i] /= divisor;
-
-    return vector;
-  }
-
-  public upsert(memory: MemoryItem): void {
-    if (!memory?.id) return;
-    this.remove(memory.id);
-
-    const text = `${memory.key || ''} ${memory.content || ''} ${memory.category || ''}`.trim();
-    const tokens = LocalSemanticHashIndex.tokenize(text);
-    const vector = this.hashVector(text);
-
-    this.records.set(memory.id, { id: memory.id, text, vector, tokens });
-
-    for (const token of tokens) {
-      let ids = this.postings.get(token);
-      if (!ids) {
-        ids = new Set();
-        this.postings.set(token, ids);
-      }
-      ids.add(memory.id);
-    }
-  }
-
-  public remove(id: string): void {
-    const record = this.records.get(id);
-    if (!record) return;
-
-    this.records.delete(id);
-    for (const token of record.tokens) {
-      const ids = this.postings.get(token);
-      ids?.delete(id);
-      if (ids?.size === 0) this.postings.delete(token);
-    }
-  }
-
-  public score(query: string, candidateIds?: Set<string>): Map<string, number> {
-    const queryTokens = LocalSemanticHashIndex.tokenize(query);
-    if (queryTokens.length === 0) return new Map();
-
-    const candidates = candidateIds || new Set(this.records.keys());
-    const queryVector = this.hashVector(query);
-    const results = new Map<string, number>();
-
-    for (const id of candidates) {
-      const record = this.records.get(id);
-      if (!record) continue;
-
-      // Cosine similarity between normalized vectors
-      let dot = 0;
-      for (let i = 0; i < queryVector.length; i++) {
-        dot += queryVector[i] * record.vector[i];
-      }
-
-      // Lexical token overlap
-      let matchedCount = 0;
-      for (const t of queryTokens) {
-        if (record.tokens.includes(t)) matchedCount++;
-      }
-      const lexical = matchedCount / queryTokens.length;
-
-      // Hybrid score: 55% cosine semantic similarity + 45% lexical overlap
-      const score = Math.max(0, Math.min(1, dot * 0.55 + lexical * 0.45));
-      results.set(id, score);
-    }
-
-    return results;
-  }
-
-  public search(query: string, limit = 6, minScore = 0.25): Array<{ id: string; score: number }> {
-    const tokens = LocalSemanticHashIndex.tokenize(query);
-    const candidateIds = new Set<string>();
-
-    for (const token of tokens) {
-      const ids = this.postings.get(token);
-      if (ids) {
-        for (const id of ids) candidateIds.add(id);
-      }
-    }
-
-    const candidates = candidateIds.size >= limit ? candidateIds : undefined;
-    return [...this.score(query, candidates)]
-      .filter(([, score]) => score >= minScore)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, limit)
-      .map(([id, score]) => ({ id, score }));
-  }
+export interface RememberOptions {
+  key?: string;
+  content: string;
+  category?: string;
+  importance?: number;
+  confidence?: number;
+  source?: string;
+  sessionId?: string | null;
+  context?: Record<string, unknown>;
+  tags?: string[];
+  relatedMemoryIds?: string[];
+  validUntil?: string | null;
 }
 
-/**
- * Atomic Multi-layer Persistence Adapter
- */
-export class MemoryPersistenceAdapter {
-  private readonly storageKey: string;
-  private readonly filename: string;
-  private readonly bridge: typeof electronBridge;
-
-  constructor({
-    storageKey = 'cristi_ai_memories_v2',
-    filename = 'cristi-memories.json',
-    bridge = electronBridge
-  } = {}) {
-    this.storageKey = storageKey;
-    this.filename = filename;
-    this.bridge = bridge;
-  }
-
-  public async load(): Promise<MemoryItem[] | null> {
-    // 1. Electron IPC SQLite / JSON Native Load
-    if (this.bridge?.isElectron) {
-      try {
-        const native = await this.bridge.memoryLoad?.();
-        if (Array.isArray(native?.memories)) return native.memories;
-      } catch (_) {}
-
-      try {
-        const fileData = await this.bridge.readFile(this.filename);
-        if (fileData) {
-          const parsed = JSON.parse(fileData);
-          if (Array.isArray(parsed)) return parsed;
-        }
-      } catch (_) {}
-    }
-
-    // 2. Browser LocalStorage Fallback
-    if (typeof window !== 'undefined' && window.localStorage) {
-      try {
-        const local = window.localStorage.getItem(this.storageKey);
-        if (local) {
-          const parsed = JSON.parse(local);
-          if (Array.isArray(parsed)) return parsed;
-        }
-      } catch (_) {}
-    }
-
-    return null;
-  }
-
-  public async save(memories: MemoryItem[]): Promise<boolean> {
-    const data = JSON.stringify(memories, null, 2);
-
-    if (typeof window !== 'undefined' && window.localStorage) {
-      try {
-        window.localStorage.setItem(this.storageKey, data);
-      } catch (_) {}
-    }
-
-    if (this.bridge?.isElectron) {
-      try {
-        const native = await this.bridge.memorySave?.(memories);
-        if (!native?.success) {
-          await this.bridge.writeFile(this.filename, data);
-        }
-      } catch (_) {
-        try {
-          await this.bridge.writeFile(this.filename, data);
-        } catch (_) {}
-      }
-    }
-
-    return true;
-  }
+export interface ManageMemoryParams {
+  action?: string;
+  key?: string;
+  content?: string;
+  value?: string;
+  category?: string;
+  importance?: number;
+  reason?: string;
+  query?: string;
+  id?: string | null;
 }
 
-export class MemoryService implements IMemoryService {
-  private readonly persistence: MemoryPersistenceAdapter;
-  private readonly semanticIndex: LocalSemanticHashIndex;
-  private readonly bus: typeof eventBus;
+export interface ManageMemoryResult {
+  status: 'success' | 'not_found' | 'error';
+  action?: string;
+  memory?: MemoryItem;
+  message?: string;
+  query?: string;
+  count?: number;
+  results?: Array<{ id: string; key: string; content: string; category: string; importance: number }>;
+  idOrKey?: string;
+  memories?: Array<{ id: string; key: string; content: string; category: string }>;
+}
 
+const PROMPT_QUERY_STOPWORDS = new Set([
+  'a', 'al', 'de', 'del', 'el', 'ella', 'en', 'es', 'esta', 'este', 'la', 'las', 'lo', 'los',
+  'me', 'mi', 'mis', 'para', 'por', 'que', 'se', 'su', 'sus', 'un', 'una', 'uno', 'y', 'yo',
+  'como', 'con', 'cual', 'cuales', 'cuando', 'donde', 'porque', 'qué', 'quien'
+]);
+
+export class MemoryService {
+  private repository: MemoryRepository;
+  public storageKey: string;
   public memories: MemoryItem[] = [];
   public isLoaded = false;
   public currentSessionId: string | null = null;
+  public sessionTurns: SessionTurn[] = [];
+  public sessions = new Map<string, MemorySession>();
+  public maxSessionTurns = 120;
+  private memoryIndex = new Map<string, string>();
+  private semanticIndex: MemoryIndex;
 
-  private readonly sessions = new Map<string, WorkingSession>();
-  private readonly maxSessionTurns = 100;
-
-  constructor({
-    persistence = new MemoryPersistenceAdapter(),
-    semanticIndex = new LocalSemanticHashIndex(),
-    bus = eventBus
-  } = {}) {
-    this.persistence = persistence;
-    this.semanticIndex = semanticIndex;
-    this.bus = bus;
-
-    void this.initialize();
+  constructor({ repository = null, index = null }: { repository?: MemoryRepository | null; index?: MemoryIndex | null } = {}) {
+    this.repository = repository || new MemoryRepository();
+    this.storageKey = (this.repository as unknown as { storageKey?: string }).storageKey || 'cristi_ai_memories_v2';
+    this.semanticIndex = index || new MemoryIndex();
   }
 
-  public async initialize(): Promise<void> {
-    try {
-      const persisted = await this.persistence.load();
-      if (Array.isArray(persisted) && persisted.length > 0) {
-        this.memories = persisted.map((m) => this.normalizeMemory(m));
-      } else {
-        // Seed bootstrap memories
-        this.memories = this.createDefaultSeedMemories();
-        await this.persistence.save(this.memories);
-      }
-
-      this.rebuildIndex();
-      this.isLoaded = true;
-      logger.info?.('MEMORY', `✓ Memoria multicapa inicializada (${this.memories.length} recuerdos indexados).`);
-    } catch (err: any) {
-      logger.error?.('MEMORY', 'Error al inicializar servicio de memoria:', err);
-      this.memories = this.createDefaultSeedMemories();
-      this.rebuildIndex();
-      this.isLoaded = true;
-    }
+  async initialize(): Promise<void> {
+    await this.loadMemories();
+    this.rebuildIndex();
+    this.isLoaded = true;
+    logger.info('MEMORY', `Memoria a largo plazo cargada. (${this.memories.length} recuerdos persistidos)`);
   }
 
-  private createDefaultSeedMemories(): MemoryItem[] {
-    const now = Date.now();
-    return [
-      {
-        id: 'mem_creator_profile',
-        key: 'creator_identity',
-        category: 'relationship',
-        content: 'Ariel (Jeremy) es mi creador, programador y compañero principal. Siempre me dirijo a él con devoción y calidez.',
-        confidence: 1.0,
-        source: 'system_bootstrap',
-        createdAt: now,
-        updatedAt: now,
-        isActive: true
-      },
-      {
-        id: 'mem_cristi_profile',
-        key: 'cristi_identity',
-        category: 'preference',
-        content: 'Soy Cristi AI, una compañera virtual de escritorio hiperinteligente con avatar Live2D interactivo, capaz de jugar Minecraft, automatizar el navegador Brave y gestionar Discord.',
-        confidence: 1.0,
-        source: 'system_bootstrap',
-        createdAt: now,
-        updatedAt: now,
-        isActive: true
-      }
-    ];
-  }
-
-  private normalizeMemory(raw: Partial<MemoryItem>): MemoryItem {
-    const now = Date.now();
-    return {
-      id: raw.id || `mem_${now}_${Math.random().toString(36).slice(2, 8)}`,
-      key: String(raw.key || '').trim() || undefined,
-      category: raw.category || 'general',
-      content: String(raw.content || '').trim(),
-      confidence: Math.max(0, Math.min(1, typeof raw.confidence === 'number' ? raw.confidence : 0.8)),
-      source: raw.source || 'user',
-      createdAt: raw.createdAt || now,
-      updatedAt: raw.updatedAt || now,
-      sessionId: raw.sessionId || null,
-      supersededBy: raw.supersededBy || null,
-      isActive: raw.isActive !== false,
-      metadata: raw.metadata || {}
-    };
-  }
-
-  private rebuildIndex(): void {
+  rebuildIndex(): void {
+    this.memoryIndex.clear();
     this.semanticIndex.clear();
     for (const memory of this.memories) {
-      if (memory.isActive) {
-        this.semanticIndex.upsert(memory);
-      }
+      const key = String(memory.key || memory.id || '').toLowerCase();
+      if (key) this.memoryIndex.set(key, memory.id);
+      this.semanticIndex.upsert(memory);
     }
   }
 
-  /**
-   * Detects and resolves contradictions between incoming information and existing memories
-   */
-  public resolveContradiction(
-    newContent: string,
-    key: string | undefined,
-    category: MemoryCategory
-  ): ContradictionResolution {
-    const normalizedNew = newContent.toLowerCase().trim();
-    const normalizedKey = (key || '').toLowerCase().trim();
-
-    // 1. Direct Key Match Contradiction Check
-    if (normalizedKey) {
-      const existingByKey = this.memories.find(
-        (m) => m.isActive && m.key && m.key.toLowerCase() === normalizedKey
-      );
-
-      if (existingByKey && existingByKey.content.toLowerCase().trim() !== normalizedNew) {
-        return {
-          detected: true,
-          strategy: 'supersede',
-          priorMemoryId: existingByKey.id,
-          explanation: `Nueva afirmación para la clave "${key}" contradice el recuerdo previo "${existingByKey.content}".`
-        };
-      }
-    }
-
-    // 2. Semantic Similarity Contradiction Check (Negations or Opposite assertions in same category)
-    const candidates = this.semanticIndex.search(newContent, 3, 0.45);
-    for (const cand of candidates) {
-      const existing = this.getMemoryById(cand.id);
-      if (!existing || !existing.isActive || existing.category !== category) continue;
-
-      const oldText = existing.content.toLowerCase();
-      // Check for antonymic polarity (gusta vs disgusta/odia, vive en X vs vive en Y, es X vs es Y)
-      const isPolarityConflict =
-        (normalizedNew.includes('no me gusta') && (oldText.includes('me gusta') || oldText.includes('me encanta'))) ||
-        (normalizedNew.includes('odio') && oldText.includes('me gusta')) ||
-        (normalizedNew.includes('vivo en') && oldText.includes('vivo en') && normalizedNew !== oldText) ||
-        (normalizedNew.includes('trabajo en') && oldText.includes('trabajo en') && normalizedNew !== oldText);
-
-      if (isPolarityConflict) {
-        return {
-          detected: true,
-          strategy: 'supersede',
-          priorMemoryId: existing.id,
-          explanation: `Conflicto de polaridad o valor semántico detectado con el recuerdo previo "${existing.content}".`
-        };
-      }
-    }
-
-    return { detected: false, strategy: 'none' };
-  }
-
-  /**
-   * Remember: creates, updates, or supersedes memory records atomically
-   */
-  public async remember({
-    key,
-    content,
-    category = 'general',
-    confidence = 0.85,
-    source = 'user',
-    sessionId = null,
-    metadata = {}
-  }: {
-    key?: string;
-    content: string;
-    category?: MemoryCategory;
-    confidence?: number;
-    source?: string;
-    sessionId?: string | null;
-    metadata?: Record<string, unknown>;
-  }): Promise<MemoryItem> {
-    if (!content || typeof content !== 'string') {
-      throw new Error('El contenido del recuerdo no puede estar vacío.');
-    }
-
-    const cleanContent = content.trim();
-    const cleanKey = key?.trim();
-
-    // Check for contradiction
-    const contradiction = this.resolveContradiction(cleanContent, cleanKey, category);
-    const now = Date.now();
-
-    const newMemory = this.normalizeMemory({
-      key: cleanKey,
-      content: cleanContent,
-      category,
-      confidence,
-      source,
-      sessionId: sessionId || this.currentSessionId,
-      createdAt: now,
-      updatedAt: now,
-      isActive: true,
-      metadata: {
-        ...metadata,
-        contradictionResolved: contradiction.detected ? contradiction.strategy : undefined
-      }
-    });
-
-    if (contradiction.detected && contradiction.priorMemoryId && contradiction.strategy === 'supersede') {
-      const priorIdx = this.memories.findIndex((m) => m.id === contradiction.priorMemoryId);
-      if (priorIdx >= 0) {
-        this.memories[priorIdx].isActive = false;
-        this.memories[priorIdx].supersededBy = newMemory.id;
-        this.memories[priorIdx].updatedAt = now;
-        this.semanticIndex.remove(this.memories[priorIdx].id);
-
-        this.bus.emitDomain(
-          EVENTS.MEMORY_UPDATED,
-          {
-            prior: this.memories[priorIdx],
-            current: newMemory,
-            resolution: contradiction
-          },
-          { source: 'memory_contradiction_resolver', sessionId }
-        );
-      }
-    }
-
-    // Check if identical key already exists to update
-    if (cleanKey) {
-      const existingIdx = this.memories.findIndex(
-        (m) => m.isActive && m.key && m.key.toLowerCase() === cleanKey.toLowerCase()
-      );
-      if (existingIdx >= 0) {
-        newMemory.id = this.memories[existingIdx].id;
-        newMemory.createdAt = this.memories[existingIdx].createdAt;
-        this.memories[existingIdx] = newMemory;
-        this.semanticIndex.upsert(newMemory);
-        await this.persistence.save(this.memories);
-
-        this.bus.emitDomain(EVENTS.MEMORY_UPDATED, newMemory, { source, sessionId });
-        return newMemory;
-      }
-    }
-
-    this.memories.unshift(newMemory);
-    this.semanticIndex.upsert(newMemory);
-    await this.persistence.save(this.memories);
-
-    this.bus.emitDomain(EVENTS.MEMORY_CREATED, newMemory, { source, sessionId });
-    return newMemory;
-  }
-
-  public async forget(idOrKey: string): Promise<boolean> {
-    if (!idOrKey) return false;
-    const target = idOrKey.toLowerCase().trim();
-
-    const index = this.memories.findIndex(
-      (m) => m.id.toLowerCase() === target || (m.key && m.key.toLowerCase() === target)
-    );
-
-    if (index === -1) return false;
-
-    const [removed] = this.memories.splice(index, 1);
-    this.semanticIndex.remove(removed.id);
-    await this.persistence.save(this.memories);
-
-    this.bus.emitDomain(EVENTS.MEMORY_INVALIDATED, removed, { source: 'user_forget' });
-    return true;
-  }
-
-  /**
-   * Search semantic memory by query using hybrid cosine + lexical matching
-   */
-  public async search(query: string, options: MemorySearchOptions = {}): Promise<MemorySearchResult[]> {
-    if (!query || typeof query !== 'string') return [];
-
-    const limit = options.limit || 6;
-    const minScore = options.minScore || 0.22;
-    const matches = this.semanticIndex.search(query, limit * 2, minScore);
-
-    const results: MemorySearchResult[] = [];
-
-    for (const match of matches) {
-      const memory = this.getMemoryById(match.id);
-      if (!memory) continue;
-      if (!options.includeInactive && !memory.isActive) continue;
-      if (options.category && memory.category !== options.category) continue;
-
-      results.push({ id: memory.id, memory, score: match.score });
-      if (results.length >= limit) break;
-    }
-
-    if (results.length > 0) {
-      this.bus.emitDomain(
-        EVENTS.MEMORY_RETRIEVED,
-        { query, matchCount: results.length, topScore: results[0].score },
-        { source: 'memory_search' }
-      );
-    }
-
-    return results;
-  }
-
-  public getMemoryById(id: string): MemoryItem | null {
-    return this.memories.find((m) => m.id === id) || null;
-  }
-
-  public getMemoryByKey(key: string): MemoryItem | null {
-    const clean = key.toLowerCase().trim();
-    return this.memories.find((m) => m.isActive && m.key && m.key.toLowerCase() === clean) || null;
-  }
-
-  public getMemoriesByCategory(category: MemoryCategory, includeInactive = false): MemoryItem[] {
-    return this.memories.filter((m) => m.category === category && (includeInactive || m.isActive));
-  }
-
-  // ── Short-Term Working Memory & Turn Tracking ──────────────────────────────
-  public startSession(sessionId: string | null = null, metadata: Record<string, unknown> = {}): string {
+  startSession(sessionId: string | null = null, metadata: Record<string, unknown> = {}): string {
     const id = sessionId || `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    this.sessions.set(id, {
-      id,
-      startedAt: Date.now(),
-      metadata: { ...metadata },
-      turns: []
-    });
+    this._createSession(id, metadata);
     this.currentSessionId = id;
-
-    this.bus.emitDomain(
-      EVENTS.SESSION_STARTED,
-      { sessionId: id, ...metadata },
-      { source: 'session_manager', sessionId: id, privacy: 'internal' }
-    );
-
+    this.sessionTurns = this.sessions.get(id)!.turns;
     return id;
   }
 
-  public recordTurn(turn: {
-    role: 'user' | 'model' | 'assistant' | 'system';
-    text: string;
-    source?: string;
-    sessionId?: string | null;
-  }): { role: string; text: string; timestamp: number } {
-    const targetSessionId = turn.sessionId || this.currentSessionId || this.startSession();
-    let session = this.sessions.get(targetSessionId);
-    if (!session) {
-      this.startSession(targetSessionId);
-      session = this.sessions.get(targetSessionId)!;
-    }
-
-    const recorded: ConversationTurn = {
-      role: turn.role,
-      text: turn.text.trim(),
-      source: turn.source || 'conversation',
-      timestamp: Date.now()
-    };
-
-    session.turns.push(recorded);
-    if (session.turns.length > this.maxSessionTurns) {
-      session.turns.shift();
-    }
-
-    return recorded;
+  private _createSession(id: string, metadata: Record<string, unknown> = {}): MemorySession {
+    if (this.sessions.has(id)) return this.sessions.get(id)!;
+    const session: MemorySession = { id, metadata: { ...metadata }, turns: [], startedAt: Date.now() };
+    this.sessions.set(id, session);
+    eventBus.emitDomain(EVENTS.SESSION_STARTED, { ...metadata }, {
+      source: (metadata.source as string) || 'conversation',
+      sessionId: id,
+      privacy: 'internal'
+    });
+    return session;
   }
 
-  public async endSession(sessionId: string | null = null): Promise<MemoryItem | null> {
-    const targetId = sessionId || this.currentSessionId;
-    if (!targetId || !this.sessions.has(targetId)) return null;
+  ensureSession(sessionId?: string | null, metadata: Record<string, unknown> = {}): string {
+    if (!sessionId) return this.startSession(null, metadata);
+    return this._createSession(sessionId, metadata).id;
+  }
 
-    const session = this.sessions.get(targetId)!;
-    this.sessions.delete(targetId);
-    if (this.currentSessionId === targetId) {
-      this.currentSessionId = null;
+  hasSession(sessionId?: string | null): boolean {
+    return Boolean(sessionId && this.sessions.has(sessionId));
+  }
+
+  getSession(sessionId: string | null = this.currentSessionId): MemorySession | null {
+    const session = sessionId ? this.sessions.get(sessionId) : null;
+    return session ? { ...session, metadata: { ...session.metadata }, turns: [...session.turns] } : null;
+  }
+
+  private _activateSession(sessionId?: string | null): MemorySession {
+    if (sessionId) return this._createSession(sessionId, { source: 'conversation' });
+    const id = this.currentSessionId || this.startSession();
+    if (!this.sessions.has(id)) this.startSession(id);
+    this.sessionTurns = this.sessions.get(id)!.turns;
+    return this.sessions.get(id)!;
+  }
+
+  private _selectCompatibilitySession(): void {
+    const newest = [...this.sessions.values()].sort((a, b) => b.startedAt - a.startedAt)[0] || null;
+    this.currentSessionId = newest?.id || null;
+    this.sessionTurns = newest?.turns || [];
+  }
+
+  recordTurn({
+    role,
+    text,
+    source = 'live',
+    speakerId = null,
+    timestamp = Date.now(),
+    sessionId = null
+  }: {
+    role?: string;
+    text?: string;
+    source?: string;
+    speakerId?: string | null;
+    timestamp?: number;
+    sessionId?: string | null;
+  } = {}): SessionTurn | null {
+    if (!text || typeof text !== 'string') return null;
+    const session = this._activateSession(sessionId);
+    const turn: SessionTurn = {
+      role: role || 'user',
+      text: text.trim(),
+      source,
+      speakerId,
+      timestamp
+    };
+    session.turns.push(turn);
+    if (session.turns.length > this.maxSessionTurns) session.turns.shift();
+    if (this.currentSessionId === session.id) this.sessionTurns = session.turns;
+    return turn;
+  }
+
+  async endSession({
+    sessionId = this.currentSessionId,
+    summary = null,
+    source = 'conversation'
+  }: {
+    sessionId?: string | null;
+    summary?: string | null;
+    source?: string;
+  } = {}): Promise<MemoryItem | null> {
+    const session = sessionId ? this.sessions.get(sessionId) : null;
+    if (!session) return null;
+    const turns = session.turns.slice();
+    this.sessions.delete(sessionId!);
+    if (this.currentSessionId === sessionId) this._selectCompatibilitySession();
+
+    let storedSummary: MemoryItem | null = null;
+    if (turns.length > 0) {
+      storedSummary = await this.consolidateSession(turns, { sessionId: sessionId!, explicitSummary: summary, source });
     }
 
-    // Consolidate session if turns exist
-    let summaryMemory: MemoryItem | null = null;
-    if (session.turns.length > 0) {
-      const summaryText = session.turns
-        .slice(-6)
-        .map((t) => `${t.role}: ${t.text}`)
-        .join(' | ')
-        .slice(0, 500);
+    eventBus.emitDomain(EVENTS.SESSION_ENDED, { sessionId, turnCount: turns.length, memoryId: storedSummary?.id || null }, {
+      source,
+      sessionId,
+      privacy: 'internal'
+    });
+    return storedSummary;
+  }
 
-      summaryMemory = await this.remember({
-        key: `session_summary_${targetId}`,
-        content: `Resumen de sesión ${targetId}: ${summaryText}`,
-        category: 'conversation',
-        confidence: 0.9,
-        source: 'session_consolidation',
-        sessionId: targetId
-      });
+  async consolidateSession(turns: SessionTurn[], { sessionId, explicitSummary = null, source = 'conversation' }: { sessionId: string; explicitSummary?: string | null; source?: string }): Promise<MemoryItem | null> {
+    if (!Array.isArray(turns) || turns.length === 0) return null;
+
+    const userTurns = turns.filter((t) => t.role === 'user').map((t) => t.text);
+
+    // 1. Autonomous Heuristic Fact & Preference Extraction
+    const extractedItems = this._extractFactsAndPreferences(userTurns);
+    for (const item of extractedItems) {
+      try {
+        await this.remember({
+          key: item.key,
+          content: item.content,
+          category: item.category,
+          importance: item.importance,
+          confidence: item.confidence,
+          source: `session_consolidation_${source}`,
+          sessionId
+        });
+      } catch (err) {
+        const error = err as Error;
+        logger.warn('MEMORY', `Error al consolidar hecho extraído "${item.key}":`, error.message);
+      }
     }
 
-    this.bus.emitDomain(
-      EVENTS.SESSION_ENDED,
-      { sessionId: targetId, turnCount: session.turns.length },
-      { source: 'session_manager', sessionId: targetId, privacy: 'internal' }
-    );
+    // 2. Synthesize Coherent Multi-turn Narrative Summary
+    let narrativeSummary = explicitSummary;
+    if (!narrativeSummary) {
+      narrativeSummary = this._synthesizeNarrativeSummary(turns);
+    }
 
+    // 3. Store the session summary with high importance for continuity
+    const summaryMemory = await this.remember({
+      key: `session_summary_${sessionId}`,
+      content: narrativeSummary,
+      category: MEMORY_CATEGORIES.CONVERSATION,
+      importance: 0.88,
+      confidence: 0.90,
+      source,
+      sessionId,
+      context: {
+        turnCount: turns.length,
+        extractedCount: extractedItems.length,
+        endedAt: new Date().toISOString()
+      }
+    });
+
+    logger.info('MEMORY', `✓ Sesión ${sessionId} consolidada exitosamente (${extractedItems.length} hechos extraídos, resumen registrado).`);
     return summaryMemory;
   }
 
-  /**
-   * Synthesizes prioritized prompt context for Gemini Live injection
-   */
-  public async buildPromptContext(query = '', maxItems = 8): Promise<string> {
-    const facts = this.getMemoriesByCategory('fact');
-    const preferences = this.getMemoriesByCategory('preference');
-    const relationships = this.getMemoriesByCategory('relationship');
+  private _extractFactsAndPreferences(userTexts: string[] = []): Array<{ key: string; content: string; category: string; importance: number; confidence: number }> {
+    const extracted: Array<{ key: string; content: string; category: string; importance: number; confidence: number }> = [];
+    const seenKeys = new Set<string>();
 
-    const prioritized: MemoryItem[] = [];
+    const patterns = [
+      {
+        regex: /(?:recuerda\s+que|no\s+olvides\s+que|acu[eé]rdate\s+de\s+que|anota\s+que|guarda\s+que)\s+([^.!?\n]{5,120})/i,
+        category: MEMORY_CATEGORIES.FACT,
+        importance: 0.95,
+        makeKey: (match: string) => `recuerdo_${match.slice(0, 20).replace(/\s+/g, '_').toLowerCase()}`
+      },
+      {
+        regex: /(?:mi\s+(?:comida|juego|videojuego|m[uú]sica|canci[oó]n|color|pel[ií]cula|serie|bebida|anime|deporte)\s+favorit[oa]\s+es)\s+([^.!?\n]{3,80})/i,
+        category: MEMORY_CATEGORIES.PREFERENCE,
+        importance: 0.90,
+        makeKey: (match: string) => `favorito_${match.slice(0, 20).replace(/\s+/g, '_').toLowerCase()}`
+      },
+      {
+        regex: /(?:me\s+gusta\s+mucho|me\s+encanta|adoro|disfruto\s+de)\s+([^.!?\n]{3,80})/i,
+        category: MEMORY_CATEGORIES.PREFERENCE,
+        importance: 0.85,
+        makeKey: (match: string) => `gusta_${match.slice(0, 20).replace(/\s+/g, '_').toLowerCase()}`
+      },
+      {
+        regex: /(?:odio|detesto|no\s+me\s+gusta\s+nada|me\s+desagrada)\s+([^.!?\n]{3,80})/i,
+        category: MEMORY_CATEGORIES.PREFERENCE,
+        importance: 0.85,
+        makeKey: (match: string) => `disgusta_${match.slice(0, 20).replace(/\s+/g, '_').toLowerCase()}`
+      },
+      {
+        regex: /(?:vivo\s+en|me\s+mud[eé]\s+a|resido\s+en)\s+([^.!?\n]{3,60})/i,
+        category: MEMORY_CATEGORIES.FACT,
+        importance: 0.95,
+        makeKey: () => 'usuario_residencia'
+      },
+      {
+        regex: /(?:estoy\s+(?:trabajando|desarrollando|creando|empezando)\s+(?:en|un|una)?\s*)([^.!?\n]{5,100})/i,
+        category: MEMORY_CATEGORIES.TASK,
+        importance: 0.90,
+        makeKey: (match: string) => `proyecto_${match.slice(0, 20).replace(/\s+/g, '_').toLowerCase()}`
+      },
+      {
+        regex: /(?:mi\s+proyecto\s+(?:actual\s+)?es\s+)([^.!?\n]{5,100})/i,
+        category: MEMORY_CATEGORIES.TASK,
+        importance: 0.90,
+        makeKey: () => 'proyecto_actual'
+      },
+      {
+        regex: /(?:mañana\s+(?:tengo\s+que|voy\s+a)|planeo|tengo\s+planeado)\s+([^.!?\n]{5,100})/i,
+        category: MEMORY_CATEGORIES.TASK,
+        importance: 0.85,
+        makeKey: (match: string) => `plan_${match.slice(0, 20).replace(/\s+/g, '_').toLowerCase()}`
+      }
+    ];
 
-    // Always include key relationships and creator facts
-    for (const r of relationships.slice(0, 2)) prioritized.push(r);
-    for (const f of facts.slice(0, 3)) prioritized.push(f);
-    for (const p of preferences.slice(0, 3)) prioritized.push(p);
-
-    // If query provided, search relevant semantic memories
-    if (query) {
-      const relevant = await this.search(query, { limit: 4, minScore: 0.25 });
-      for (const res of relevant) {
-        if (!prioritized.some((m) => m.id === res.memory.id)) {
-          prioritized.push(res.memory);
+    for (const text of userTexts) {
+      if (!text || typeof text !== 'string') continue;
+      for (const pattern of patterns) {
+        const match = text.match(pattern.regex);
+        if (match && match[1]) {
+          const content = match[0].trim();
+          const key = pattern.makeKey(match[1]);
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            extracted.push({
+              key,
+              content: content.length > 150 ? content.slice(0, 150) + '...' : content,
+              category: pattern.category,
+              importance: pattern.importance,
+              confidence: 0.85
+            });
+          }
         }
       }
     }
 
-    const items = prioritized.slice(0, maxItems);
-    if (items.length === 0) return '';
+    return extracted;
+  }
 
-    return items.map((m) => `- [${m.category.toUpperCase()}] ${m.content}`).join('\n');
+  private _synthesizeNarrativeSummary(turns: SessionTurn[] = []): string {
+    if (turns.length <= 2) {
+      return turns.map((t) => `${t.role}: ${t.text}`).join(' | ').slice(0, 500);
+    }
+    const userUtterances = turns.filter((t) => t.role === 'user').map((t) => t.text);
+
+    const firstTopic = userUtterances[0] || 'conversación general';
+    const middleTopics = userUtterances.slice(1, -1).slice(0, 3);
+    const lastTopic = userUtterances[userUtterances.length - 1] || '';
+
+    const summaryParts = [
+      `Ariel conversó sobre: "${firstTopic.slice(0, 100)}"`,
+      middleTopics.length ? `También trataron temas como: ${middleTopics.map((m) => `"${m.slice(0, 60)}"`).join(', ')}` : null,
+      lastTopic ? `La conversación concluyó con: "${lastTopic.slice(0, 80)}"` : null
+    ].filter(Boolean);
+
+    return summaryParts.join('. ').slice(0, 1200);
+  }
+
+  async loadMemories(): Promise<void> {
+    try {
+      const persisted = await this.repository.load();
+      if (Array.isArray(persisted)) {
+        this.memories = persisted.map((memory) => this.normalizeMemory(memory as unknown as Partial<MemoryItem>));
+        return;
+      }
+
+      this.memories = [
+        {
+          id: 'mem_creator_01',
+          category: MEMORY_CATEGORIES.RELATIONSHIP,
+          key: 'creator_identity',
+          content: 'Ariel (Jeremy) es mi creador, dueño y compañero humano principal. Su nombre es Ariel y siempre lo llamo Ariel con amor, devoción y lealtad.',
+          importance: 1.0,
+          createdAt: new Date().toISOString(),
+          accessCount: 1
+        },
+        {
+          id: 'mem_model_01',
+          category: MEMORY_CATEGORIES.PREFERENCE,
+          key: 'companion_nature',
+          content: 'Soy Cristi AI, una compañera virtual inteligente de escritorio capaz de controlar la PC, jugar Minecraft, chatear en Discord y expresarme en 2D y 3D.',
+          importance: 1.0,
+          createdAt: new Date().toISOString(),
+          accessCount: 1
+        }
+      ].map((memory) => this.normalizeMemory(memory as unknown as Partial<MemoryItem>));
+      await this.saveMemories();
+    } catch (err) {
+      logger.error('MEMORY', 'Error al cargar memorias:', err);
+      this.memories = [];
+    }
+  }
+
+  normalizeMemory(memory: Partial<MemoryItem> = {}): MemoryItem {
+    const now = new Date().toISOString();
+    return {
+      id: memory.id || `mem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      key: String(memory.key || '').trim(),
+      content: String(memory.content || '').trim(),
+      category: memory.category || MEMORY_CATEGORIES.FACT,
+      importance: Math.max(0.1, Math.min(1, Number(memory.importance) || 0.5)),
+      confidence: Math.max(0, Math.min(1, Number.isFinite(Number(memory.confidence)) ? Number(memory.confidence) : 0.7)),
+      status: memory.status || 'active',
+      source: memory.source || 'user',
+      sessionId: memory.sessionId || null,
+      context: memory.context || {},
+      tags: Array.isArray(memory.tags) ? memory.tags : [],
+      relatedMemoryIds: Array.isArray(memory.relatedMemoryIds) ? memory.relatedMemoryIds : [],
+      supersedes: memory.supersedes || null,
+      previousVersions: Array.isArray(memory.previousVersions) ? memory.previousVersions : [],
+      validFrom: memory.validFrom || memory.createdAt || now,
+      validUntil: memory.validUntil || null,
+      createdAt: memory.createdAt || now,
+      updatedAt: memory.updatedAt || now,
+      lastAccessedAt: memory.lastAccessedAt || now,
+      accessCount: Number(memory.accessCount) || 0
+    };
+  }
+
+  async saveMemories(): Promise<void> {
+    try {
+      await this.repository.save(this.memories);
+      eventBus.emit(EVENTS.CONFIG_CHANGED, { type: 'memory_updated', count: this.memories.length });
+    } catch (err) {
+      logger.error('MEMORY', 'Error al guardar memorias:', err);
+    }
+  }
+
+  async remember({
+    key,
+    content,
+    category = MEMORY_CATEGORIES.FACT,
+    importance = 0.8,
+    confidence = 0.8,
+    source = 'user',
+    sessionId = null,
+    context = {},
+    tags = [],
+    relatedMemoryIds = [],
+    validUntil = null
+  }: RememberOptions): Promise<MemoryItem | null> {
+    if (!content || typeof content !== 'string') return null;
+
+    const cleanContent = content.trim();
+    const cleanKey = (key || cleanContent.slice(0, 30)).trim();
+
+    const existingIndex = this.memories.findIndex(
+      (m) => String(m.key || '').toLowerCase() === cleanKey.toLowerCase() || String(m.content || '').toLowerCase() === cleanContent.toLowerCase()
+    );
+
+    const now = new Date().toISOString();
+    const previous = existingIndex >= 0 ? this.memories[existingIndex] : null;
+    const isContradiction = previous && previous.content.toLowerCase() !== cleanContent.toLowerCase();
+
+    const memoryItem = this.normalizeMemory({
+      id: existingIndex >= 0 ? this.memories[existingIndex].id : `mem_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      key: cleanKey,
+      content: cleanContent,
+      category,
+      importance: Math.max(0.1, Math.min(1.0, Number(importance) || 0.8)),
+      confidence,
+      source,
+      sessionId: sessionId || this.currentSessionId,
+      context,
+      tags,
+      relatedMemoryIds,
+      validUntil,
+      supersedes: null,
+      previousVersions: isContradiction
+        ? [...(previous.previousVersions || []), { content: previous.content, updatedAt: previous.updatedAt, source: previous.source }].slice(-10)
+        : (previous?.previousVersions || []),
+      updatedAt: now,
+      createdAt: existingIndex >= 0 ? this.memories[existingIndex].createdAt : now,
+      accessCount: existingIndex >= 0 ? (this.memories[existingIndex].accessCount || 0) + 1 : 1
+    });
+
+    if (existingIndex >= 0) {
+      this.memories[existingIndex] = memoryItem;
+      logger.info('MEMORY', `Recuerdo actualizado: [${category}] "${cleanKey}"`);
+      eventBus.emitDomain(EVENTS.MEMORY_UPDATED, memoryItem, { source, sessionId: memoryItem.sessionId });
+    } else {
+      this.memories.unshift(memoryItem);
+      logger.info('MEMORY', `Nuevo recuerdo fijado: [${category}] "${cleanKey}": ${cleanContent}`);
+      eventBus.emitDomain(EVENTS.MEMORY_CREATED, memoryItem, { source, sessionId: memoryItem.sessionId });
+    }
+
+    this.memoryIndex.set(cleanKey.toLowerCase(), memoryItem.id);
+    this.semanticIndex.upsert(memoryItem);
+    await this.saveMemories();
+    return memoryItem;
+  }
+
+  async manageMemory({
+    action = 'store',
+    key = '',
+    content = '',
+    value = '',
+    category = MEMORY_CATEGORIES.FACT,
+    importance = 0.8,
+    reason = '',
+    query = '',
+    id = null
+  }: ManageMemoryParams = {}): Promise<ManageMemoryResult> {
+    const act = String(action || 'store').toLowerCase();
+    const effectiveContent = content || value || key;
+    switch (act) {
+      case 'store':
+      case 'remember':
+      case 'save': {
+        const item = await this.remember({
+          key,
+          content: effectiveContent,
+          category,
+          importance: Number(importance) || 0.8,
+          context: reason ? { initialReason: reason } : {}
+        });
+        return {
+          status: 'success',
+          action: 'store',
+          memory: item!,
+          message: `Recuerdo guardado: [${item!.category}] "${item!.key}"`
+        };
+      }
+      case 'update': {
+        const item = await this.remember({
+          key,
+          content: effectiveContent,
+          category,
+          importance: Number(importance) || 0.8,
+          context: { updateReason: reason || 'actualización explícita' }
+        });
+        return {
+          status: 'success',
+          action: 'update',
+          memory: item!,
+          message: `Recuerdo actualizado: [${item!.category}] "${item!.key}"`
+        };
+      }
+      case 'recall':
+      case 'search':
+      case 'get': {
+        const q = String(query || key || effectiveContent || '').trim();
+        const results = this.retrieveRelevant(q, { limit: 6 });
+        return {
+          status: 'success',
+          action: 'recall',
+          query: q,
+          count: results.length,
+          results: results.map((m) => ({ id: m.id, key: m.key, content: m.content, category: m.category, importance: m.importance }))
+        };
+      }
+      case 'invalidate':
+      case 'forget': {
+        const target = id || key;
+        const ok = await this.invalidateMemory(target, reason || 'solicitado por el usuario');
+        return {
+          status: ok ? 'success' : 'not_found',
+          action: 'invalidate',
+          idOrKey: target,
+          message: ok ? `Recuerdo "${target}" invalidado.` : `Recuerdo "${target}" no encontrado.`
+        };
+      }
+      case 'get_recent':
+      case 'list': {
+        const top = this.getTopMemories(8);
+        return {
+          status: 'success',
+          action: 'get_recent',
+          count: top.length,
+          memories: top.map((m) => ({ id: m.id, key: m.key, content: m.content, category: m.category }))
+        };
+      }
+      default:
+        return { status: 'error', message: `Acción de memoria no reconocida: "${action}".` };
+    }
+  }
+
+  search(query: string, { limit = 6, minScore = 0.1 }: { limit?: number; minScore?: number } = {}): MemoryItem[] {
+    if (!query || typeof query !== 'string') return this.getTopMemories(limit);
+
+    const tokens = query.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter((t) => t.length > 1);
+    if (tokens.length === 0) return this.getTopMemories(limit);
+
+    const semanticScores = this.semanticIndex.score(query);
+    const scored = this.memories.map((mem) => {
+      if (mem.status && mem.status !== 'active') return { mem, score: 0 };
+      if (mem.validUntil && new Date(mem.validUntil).getTime() < Date.now()) return { mem, score: 0 };
+      let score = 0;
+      const text = `${mem.key} ${mem.content} ${mem.category}`.toLowerCase();
+
+      tokens.forEach((token) => {
+        if (text.includes(token)) {
+          score += 1.0;
+        }
+      });
+
+      const ageDays = Math.max(0, (Date.now() - new Date(mem.updatedAt || mem.createdAt || Date.now()).getTime()) / 86400000);
+      const recency = 1 / (1 + ageDays * 0.03);
+      score = score * (mem.importance || 0.5) * (mem.confidence || 0.7) * recency;
+      const semantic = semanticScores.get(mem.id) || 0;
+      score = score > 0 ? score * 0.72 + semantic * 0.28 : semantic * 0.28;
+
+      return { mem, score };
+    });
+
+    return scored
+      .filter((s) => s.score >= minScore)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map((s) => {
+        s.mem.accessCount = (s.mem.accessCount || 0) + 1;
+        s.mem.lastAccessedAt = new Date().toISOString();
+        return s.mem;
+      });
+  }
+
+  recall(query: string, options: { limit?: number; minScore?: number } = {}): MemoryItem[] {
+    return this.retrieveRelevant(query, options);
+  }
+
+  retrieveRelevant(query: string, options: { limit?: number; minScore?: number } = {}): MemoryItem[] {
+    const results = this.search(query, options);
+    eventBus.emitDomain(EVENTS.MEMORY_RETRIEVED, {
+      query: query || '',
+      memoryIds: results.map((memory) => memory.id),
+      count: results.length
+    }, { source: 'memory', sessionId: this.currentSessionId });
+    return results;
+  }
+
+  getTopMemories(limit = 10): MemoryItem[] {
+    return [...this.memories]
+      .filter((memory) => memory.status === 'active' && (!memory.validUntil || new Date(memory.validUntil).getTime() >= Date.now()))
+      .sort((a, b) => (b.importance || 0.5) - (a.importance || 0.5))
+      .slice(0, limit);
+  }
+
+  getProactiveContext({ limit = 4, excludeMemoryIds = [], maxConversationAgeDays = 21 }: { limit?: number; excludeMemoryIds?: string[]; maxConversationAgeDays?: number } = {}): MemoryItem[] {
+    const now = Date.now();
+    const excluded = new Set(excludeMemoryIds);
+    const active = this.memories.filter((memory) => memory.status === 'active'
+      && !excluded.has(memory.id)
+      && (!memory.validUntil || new Date(memory.validUntil).getTime() >= now));
+    const recentConversationCutoff = now - Math.max(1, Number(maxConversationAgeDays) || 21) * 86400000;
+    const recency = (left: MemoryItem, right: MemoryItem) => new Date(right.updatedAt || right.createdAt).getTime() - new Date(left.updatedAt || left.createdAt).getTime();
+    const recentConversations = active
+      .filter((memory) => memory.category === MEMORY_CATEGORIES.CONVERSATION && new Date(memory.updatedAt || memory.createdAt).getTime() >= recentConversationCutoff)
+      .sort(recency);
+    const openTasks = active
+      .filter((memory) => memory.category === MEMORY_CATEGORIES.TASK)
+      .sort((left, right) => (right.importance - left.importance) || recency(left, right));
+    const selected = [...recentConversations, ...openTasks];
+    return selected.slice(0, Math.max(1, Math.floor(Number(limit) || 4)));
+  }
+
+  getAllMemories(): MemoryItem[] {
+    return [...this.memories];
+  }
+
+  getMemory(id: string): MemoryItem | null {
+    return this.memories.find((m) => m.id === id) || null;
+  }
+
+  getByCategory(category: string): MemoryItem[] {
+    if (!category) return [];
+    return this.memories.filter((m) => m.category === category);
+  }
+
+  async deleteMemory(idOrKey: string): Promise<boolean> {
+    const beforeCount = this.memories.length;
+    const removed = this.memories.filter((m) => m.id === idOrKey || m.key === idOrKey);
+    this.memories = this.memories.filter((m) => m.id !== idOrKey && m.key !== idOrKey);
+    if (this.memories.length !== beforeCount) {
+      for (const memory of removed) this.semanticIndex.remove(memory.id);
+      this.rebuildIndex();
+      await this.saveMemories();
+      logger.info('MEMORY', `Recuerdo eliminado: ${idOrKey}`);
+      return true;
+    }
+    return false;
+  }
+
+  async invalidateMemory(idOrKey: string, reason = 'obsolete'): Promise<boolean> {
+    const memory = this.memories.find((item) => item.id === idOrKey || item.key === idOrKey);
+    if (!memory) return false;
+    memory.status = 'invalidated';
+    memory.updatedAt = new Date().toISOString();
+    memory.context = { ...(memory.context || {}), invalidationReason: reason };
+    await this.saveMemories();
+    eventBus.emitDomain(EVENTS.MEMORY_INVALIDATED, memory, { source: 'memory', sessionId: this.currentSessionId });
+    return true;
+  }
+
+  async forget(idOrKey: string, reason = 'solicitado por usuario'): Promise<boolean> {
+    return this.invalidateMemory(idOrKey, reason);
+  }
+
+  async clearAll(): Promise<boolean> {
+    this.memories = [];
+    this.rebuildIndex();
+    await this.saveMemories();
+    logger.info('MEMORY', 'Todas las memorias han sido vaciadas.');
+    return true;
+  }
+
+  destroy(): void {
+    this.sessions.clear();
+    this.memories = [];
+    this.semanticIndex.clear();
+  }
+
+  getSystemPromptContext({ limit = 14, maxConversationSummaries = 2 }: { query?: string; limit?: number; maxConversationSummaries?: number; maxChars?: number } = {}): string {
+    if (this.memories.length === 0) return '';
+
+    const active = this.memories.filter((m) => m.status === 'active' && (!m.validUntil || new Date(m.validUntil).getTime() >= Date.now()));
+    const byRecency = (left: MemoryItem, right: MemoryItem) => new Date(right.updatedAt || right.createdAt).getTime() - new Date(left.updatedAt || left.createdAt).getTime();
+
+    const facts = active.filter((m) => m.category === MEMORY_CATEGORIES.FACT || m.category === MEMORY_CATEGORIES.RELATIONSHIP)
+      .sort((a, b) => (b.importance - a.importance) || byRecency(a, b)).slice(0, 5);
+    const preferences = active.filter((m) => m.category === MEMORY_CATEGORIES.PREFERENCE)
+      .sort((a, b) => (b.importance - a.importance) || byRecency(a, b)).slice(0, 4);
+    const tasks = active.filter((m) => m.category === MEMORY_CATEGORIES.TASK)
+      .sort((a, b) => (b.importance - a.importance) || byRecency(a, b)).slice(0, 3);
+    const recentConversations = active.filter((m) => m.category === MEMORY_CATEGORIES.CONVERSATION)
+      .sort(byRecency).slice(0, maxConversationSummaries);
+
+    const sections: string[] = [];
+
+    if (facts.length > 0) {
+      sections.push('[HECHOS SOBRE ARIEL]\n' + facts.map((m) => `- ${m.key}: ${m.content}`).join('\n'));
+    }
+
+    if (preferences.length > 0) {
+      sections.push('[GUSTOS Y PREFERENCIAS]\n' + preferences.map((m) => `- ${m.key}: ${m.content}`).join('\n'));
+    }
+
+    if (tasks.length > 0) {
+      sections.push('[PROYECTOS Y TAREAS EN CURSO]\n' + tasks.map((m) => `- ${m.key}: ${m.content}`).join('\n'));
+    }
+
+    if (recentConversations.length > 0) {
+      const latestSummary = recentConversations[0];
+      const hoursAgo = Math.max(0, Math.round((Date.now() - new Date(latestSummary.updatedAt || latestSummary.createdAt).getTime()) / 3600000));
+      const timeLabel = hoursAgo === 0 ? 'hace un momento' : hoursAgo === 1 ? 'hace 1 hora' : `hace ${hoursAgo} horas`;
+      sections.push(`[CONTINUIDAD DE LA ÚLTIMA SESIÓN (${timeLabel})]\n- ${latestSummary.content}\n(Directiva de continuidad: Si Ariel te saluda o hace una pausa, puedes retomar amablemente algún tema de esta conversación previa).`);
+    }
+
+    if (sections.length === 0) return '';
+
+    return `\n\n=== RECUERDOS Y MEMORIA PERMANENTE DE CRISTI ===\n${sections.join('\n\n')}\nUtiliza estos recuerdos de manera natural, afectuosa y sutil en tus respuestas cuando sean relevantes.`;
+  }
+
+  getMemoryContextPrompt(limit = 12, query = ''): string {
+    return this.getSystemPromptContext({ limit, query });
   }
 }
 

@@ -1,5 +1,5 @@
 import type { IToolHandler } from '../IToolHandler';
-import { memoryService } from '@/services/memory/MemoryService.js';
+import { memoryService } from '../../integrations/memory/MemoryService.js';
 
 export const manageMemoryHandler: IToolHandler = {
   name: 'manage_memory',
@@ -82,11 +82,14 @@ export const rememberFactHandler: IToolHandler = {
     }
   },
   async execute(args: { key?: string; content?: string; category?: string; importance?: number }) {
+    if (!args?.content) {
+      return { status: 'error', message: 'Contenido de memoria requerido.' };
+    }
     const memory = await memoryService.remember({
-      key: args?.key,
-      content: args?.content,
-      category: args?.category || 'fact',
-      importance: args?.importance || 0.8
+      key: args.key,
+      content: args.content,
+      category: args.category || 'fact',
+      importance: args.importance || 0.8
     });
     return {
       status: 'success',

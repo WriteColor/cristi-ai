@@ -1,77 +1,65 @@
-# 🤝 Guía de Contribución para Cristi AI Companion
+# Guia de Contribucion para Cristi AI Companion
 
-¡Gracias por tu interés en contribuir a **Cristi AI Companion**! Este proyecto es una plataforma de código abierto de alto rendimiento para asistentes virtuales de escritorio con avatares Live2D e inteligencia artificial multimodal en tiempo real.
-
----
-
-## 📜 Código de Conducta
-Mantenemos una comunidad abierta, respetuosa e inclusiva. Por favor, asegúrate de mantener un tono constructivo y profesional en issues, discusiones y Pull Requests.
+Gracias por tu interes en contribuir a **Cristi AI Companion**. Este proyecto es una plataforma de codigo abierto de alto rendimiento para companeros virtuales de escritorio con avatares Live2D, streaming multimodal con Gemini Live y persistencia estructurada con SQLite.
 
 ---
 
-## 🛠️ Entorno de Desarrollo y Requisitos
+## 1. Codigo de Conducta
+Mantenemos una comunidad abierta, respetuosa e inclusiva. Asegurate de mantener un tono constructivo y profesional en issues, discusiones y Pull Requests.
 
-### 1. Gestor de Paquetes Exclusivo: pnpm
-> ⚠️ **Regla Crítica:** Este proyecto utiliza **estrictamente pnpm**. No utilices 
-pm ni yarn bajo ninguna circunstancia.
+---
+
+## 2. Entorno de Desarrollo y Requisitos
+
+### Gestor de Paquetes Exclusivo: pnpm
+> **Regla Critica:** Este proyecto utiliza **estrictamente pnpm**. No utilices `npm` ni `yarn` bajo ninguna circunstancia.
 
 Para habilitar pnpm en tu sistema:
-`powershell
+```powershell
 corepack enable
 corepack prepare pnpm@latest --activate
-`
+```
 
-### 2. Puesta en Marcha en 1 Clic
-* Ejecuta setup.bat (Windows Explorer) o .\setup.ps1 (PowerShell).
-* O manualmente:
-  `powershell
-  pnpm install
-  pnpm run setup:env
-  `
+### Puesta en Marcha en 1 Clic
+```powershell
+pnpm install
+pnpm run setup:env
+```
 
 ---
 
-## 🏛️ Estándares de Arquitectura y Rendimiento
+## 3. Estandares de Arquitectura y Rendimiento
 
-Al desarrollar nuevas características o refactorizar:
+Todo desarrollo debe respetar las normas detalladas en [docs/DEVELOPMENT_GUIDELINES.md](file:///c:/React-Nextjs-Projects/Cristi%20AI/docs/DEVELOPMENT_GUIDELINES.md):
 
 1. **Rendimiento de la UI & Zero-Lag:**
-   * Nunca utilices ackdrop-filter: blur(...) sobre ventanas transparentes de Electron. Usa colores alfa Obsidian (gba(13, 14, 21, 0.96)).
-   * Envuelve los componentes y modales con React.memo para evitar re-renderizados innecesarios del árbol.
+   - Prohibido el uso de `backdrop-filter: blur(...)` sobre ventanas transparentes de Electron.
+   - Todo componente pesado debe envolverse con `React.memo` para evitar re-renderizados innecesarios.
 2. **Ciclo de Vida de Live2D & WebGL:**
-   * Nunca acoples el ciclo de vida del canvas WebGL a estados reactivos dinámicos (isSpeaking, isListening, etc.).
-   * Libera siempre los recursos de modelos y texturas con model.destroy({ children: true, texture: true, baseTexture: true }).
+   - Nunca acoplar el ciclo de vida del canvas WebGL a estados reactivos de texto o audio.
+   - Liberar siempre los recursos de modelos y texturas con `model.destroy({ children: true, texture: true, baseTexture: true })`.
 3. **Fronteras IPC Seguras & No Bloqueantes:**
-   * Todos los handlers de Electron IPC en electron/main.cjs deben manejar errores con 	ry/catch y timeouts estrictos.
-   * Utiliza la API nativa de captura desktopCapturer en lugar de invocar subprocesos bloqueantes.
-4. **Protección de Credenciales & Privacidad:**
-   * Nunca hagas hardcoding de claves de API en el código fuente.
-   * Todas las credenciales deben cargarse desde variables de entorno (.env) o el gestor persistente de ajustes del usuario.
+   - Todos los canales de IPC deben estar tipados y validados en `shared/contracts.ts`.
+   - Prohibido ejecutar operaciones intensivas de I/O o scraping en el hilo principal de Electron. Utilizar hilos de trabajo dedicados (`Worker Threads`).
+4. **Proteccion de Credenciales & Privacidad:**
+   - Prohibido el hardcoding de claves de API en el codigo fuente.
+   - Toda salida de logs debe procesarse con `publicSettings` y `redactText`.
 
 ---
 
-## 🧪 Verificación y Diagnósticos Obligatorios
+## 4. Verificacion y Pipeline de CI Obligatorio
 
-Antes de abrir un Pull Request o enviar cambios, debes verificar que todas las suites de diagnóstico pasen al 100%:
+Antes de abrir un Pull Request o enviar cambios a produccion, debes verificar que el pipeline completo de 7 compuertas pase con exito:
 
-`powershell
-pnpm run build
-pnpm run test:diagnostics
-`
+```powershell
+pnpm run ci
+```
 
-Debe mostrar: **12/12 SUITES COMPLETADAS CON ÉXITO (100% PASS)**.
-
----
-
-## 🚀 Proceso de Pull Request
-
-1. Haz un Fork del repositorio: [https://github.com/WriteColor/cristi-ai](https://github.com/WriteColor/cristi-ai)
-2. Crea tu rama de características: git checkout -b feature/mi-mejora
-3. Realiza tus cambios asegurando formato limpio y pruebas verdes.
-4. Haz commit siguiendo conventional commits: git commit -m "feat: descripción clara"
-5. Haz push a tu repositorio y abre un Pull Request hacia la rama master.
-
----
-
-## 📄 Licencia
-Al contribuir al proyecto, aceptas que tus contribuciones se licencien bajo la [Licencia MIT](LICENSE).
+Este comando ejecuta de manera secuencial:
+1. `pnpm run clean`: Limpieza de temporales y caches.
+2. `pnpm run typecheck`: Validacion de TypeScript estricto en renderer y electron.
+3. `pnpm run lint`: Analisis estatico con ESLint.
+4. `pnpm run test`: Ejecucion de la suite completa de 65+ pruebas unitarias y de contratos.
+5. `pnpm run build`: Compilacion del frontend con Vite.
+6. `pnpm run build:electron`: Compilacion de procesos Main y Preloads.
+7. `pnpm run test:e2e`: Prueba de integracion E2E en Electron headless.

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Globe, Radio, Volume2, Cpu } from 'lucide-react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { virtualAudioOutputService } from '../../services/translation/VirtualAudioOutputService.js';
+import { virtualAudioOutputService } from '../../domain/audio/VirtualAudioOutputService.js';
 
 export const TranslationTab: React.FC = () => {
   const externalTranslationEnabled = useSettingsStore((s) => s.externalTranslationEnabled);

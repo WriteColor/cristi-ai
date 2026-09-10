@@ -1,8 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022", "DOM"],
-    "module": "CommonJS",
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
+    "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
     "noImplicitAny": true,
@@ -11,9 +14,11 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": "..",
     "resolveJsonModule": true,
-    "sourceMap": true
+    "sourceMap": false
   },
-  "include": ["src/**/*"]
+  "include": [
+    "src/**/*"
+  ]
 }

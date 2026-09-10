@@ -1,4 +1,5 @@
-import { ipcMain, app, WebContents } from 'electron';
+import { handleTrusted } from '../security/CapabilityRouter';
+import { app, WebContents } from 'electron';
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
@@ -69,11 +70,11 @@ export function registerAudioIpc(rootDir?: string): void {
   const baseDir = rootDir || getAppRootDir();
 
   // Register cleanup hook with process manager
-  processManager.registerCleanupHook(() => {
+  processManager.registerCleanupHook('audio', () => {
     stopNativeDesktopAudioCapture('app_shutdown');
   });
 
-  ipcMain.handle('desktop-audio-native-start', async (event, options: DesktopAudioStartOptions = {}) => {
+  handleTrusted('desktop-audio-native-start', async (event, options: DesktopAudioStartOptions = {}) => {
     const requestedSourceId = String(options.sourceId || 'system_loopback').trim().slice(0, 120) || 'system_loopback';
 
     if (process.platform !== 'win32') {
@@ -209,9 +210,9 @@ export function registerAudioIpc(rootDir?: string): void {
     return { success: true, available: true, transport: 'wasapi', sourceId: requestedSourceId };
   });
 
-  ipcMain.handle('desktop-audio-native-stop', () => stopNativeDesktopAudioCapture('renderer_request'));
+  handleTrusted('desktop-audio-native-stop', () => stopNativeDesktopAudioCapture('renderer_request'));
 
-  ipcMain.handle('desktop-audio-native-status', (): DesktopAudioStatus => {
+  handleTrusted('desktop-audio-native-status', (): DesktopAudioStatus => {
     const state = nativeDesktopAudioState;
     return {
       running: Boolean(state && !state.child.killed),

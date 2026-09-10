@@ -5,6 +5,8 @@
  * @type {import('electron-builder').Configuration}
  */
 module.exports = {
+  afterPack: require('./scripts/harden-package.cjs'),
+  forceCodeSigning: true,
   appId: 'com.writecolor.cristiaicompanion',
   productName: 'Cristi AI Companion',
   directories: {
@@ -15,7 +17,8 @@ module.exports = {
     'dist/**/*',
     'electron/dist/**/*',
     'electron/main.cjs',
-    'electron/preload.cjs',
+    '!**/*.map',
+    '!**/.env*',
     'native/**/*',
     'public/icon.png',
     'public/tray-icon.png',

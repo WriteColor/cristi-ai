@@ -1,3 +1,4 @@
+import { CompanionRuntimeProvider } from './app/CompanionRuntimeProvider';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -9,7 +10,7 @@ if (rootElement) {
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
       <ErrorBoundary>
-        <App />
+        <CompanionRuntimeProvider><App /></CompanionRuntimeProvider>
       </ErrorBoundary>
     </React.StrictMode>
   );

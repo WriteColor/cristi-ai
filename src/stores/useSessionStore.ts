@@ -1,9 +1,13 @@
+import { connectionTransition, connectionView, type ConnectionEvent } from '../domain/gemini/ConnectionState';
 import { create } from 'zustand';
 import { GeminiLiveConnectionState, SessionLog } from '@/types';
 
 const MAX_LOGS = 100;
 
 export interface SessionState {
+  dispatchConnection: (event: ConnectionEvent) => void;
+  inputInterim: string; inputFinal: string; outputInterim: string; outputFinal: string;
+  setTranscript: (direction: 'input' | 'output', text: string, final: boolean) => void;
   // --- Core Estado Requerido ---
   connectionState: GeminiLiveConnectionState;
   userSubtitle: string;
@@ -41,6 +45,11 @@ export interface SessionState {
 }
 
 export const useSessionStore = create<SessionState>()((set) => ({
+  dispatchConnection: event => set(state => connectionView(connectionTransition(state.connectionState, event))),
+  inputInterim: '', inputFinal: '', outputInterim: '', outputFinal: '',
+  setTranscript: (direction, text, final) => set(direction === 'input'
+    ? { inputInterim: final ? '' : text, inputFinal: final ? text : '', userTranscript: text, userSubtitle: text }
+    : { outputInterim: final ? '' : text, outputFinal: final ? text : '', modelTranscript: text, assistantSubtitle: text }),
   // Core initial state
   connectionState: 'DISCONNECTED',
   userSubtitle: '',
@@ -58,12 +67,7 @@ export const useSessionStore = create<SessionState>()((set) => ({
   errorMessage: null,
 
   // Core Actions
-  setConnectionState: (connectionState) =>
-    set({
-      connectionState,
-      isConnected: connectionState === 'READY' || connectionState === 'TRANSMITTING',
-      isConnecting: connectionState === 'CONNECTING' || connectionState === 'RECONNECTING',
-    }),
+  setConnectionState: connectionState => set(connectionView(connectionState)),
 
   setUserSubtitle: (userSubtitle) => set({ userSubtitle, userTranscript: userSubtitle }),
   setAssistantSubtitle: (assistantSubtitle) => set({ assistantSubtitle, modelTranscript: assistantSubtitle }),
@@ -97,7 +101,7 @@ export const useSessionStore = create<SessionState>()((set) => ({
     }),
 
   clearSubtitles: () =>
-    set({
+    set({ inputInterim: '', inputFinal: '', outputInterim: '', outputFinal: '',
       userSubtitle: '',
       assistantSubtitle: '',
       userTranscript: '',
@@ -106,21 +110,12 @@ export const useSessionStore = create<SessionState>()((set) => ({
     }),
 
   // Extended Actions
-  setIsConnected: (isConnected) =>
-    set({
-      isConnected,
-      connectionState: isConnected ? 'READY' : 'DISCONNECTED',
-      isConnecting: false,
-    }),
+  setIsConnected: isConnected => set(connectionView(isConnected ? 'READY' : 'DISCONNECTED')),
+  setIsConnecting: isConnecting => set(state => connectionView(isConnecting ? 'CONNECTING' :
+    state.connectionState === 'CONNECTING' || state.connectionState === 'RECONNECTING' ? 'DISCONNECTED' : state.connectionState)),
 
-  setIsConnecting: (isConnecting) =>
-    set({
-      isConnecting,
-      connectionState: isConnecting ? 'CONNECTING' : 'DISCONNECTED',
-    }),
-
-  setUserTranscript: (userTranscript) => set({ userTranscript, userSubtitle: userTranscript }),
-  setModelTranscript: (modelTranscript) => set({ modelTranscript, assistantSubtitle: modelTranscript }),
+  setUserTranscript: (userTranscript) => set({ userTranscript, userSubtitle: userTranscript, inputInterim: '', inputFinal: userTranscript }),
+  setModelTranscript: (modelTranscript) => set({ modelTranscript, assistantSubtitle: modelTranscript, outputInterim: '', outputFinal: modelTranscript }),
   setTranslationTranscript: (translationTranscript) => set({ translationTranscript }),
   setErrorMessage: (errorMessage) => set({ errorMessage }),
   setSubtitleText: (text) => set({ assistantSubtitle: text, modelTranscript: text }),

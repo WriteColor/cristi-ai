@@ -1,437 +1,82 @@
-/**
- * Cristi AI - Audio Input Processor (Web Audio API & AudioWorklet)
- * 
- * Captures microphone stream at 16,000 Hz 16-bit PCM Little Endian for Gemini Live API.
- * Features:
- * - Dedicated low-latency AudioWorkletNode with ScriptProcessorNode fallback
- * - High-Pass Filter (HPF @ 80 Hz, Q: 0.707) eliminating sub-bass rumble, plosives, and table vibration
- * - Real-time Root-Mean-Square (RMS) computation for volume visualizers
- * - Built-in Voice Activity Detection (VAD) with configurable hangover time
- * - High-quality linear resampling to 16,000 Hz if hardware runs at 44.1kHz or 48kHz
- * - Instantaneous mute/unmute control
- */
-
+import type { AudioCapturePort } from '../../app/ports';
+import captureUrl from '../../worklets/capture.worklet?worker&url';
 export interface AudioInputProcessorOptions {
-  targetSampleRate?: number;
-  bufferDurationMs?: number;
-  noiseGateThreshold?: number;
-  vadThreshold?: number;
-  vadHangoverMs?: number;
-  gainMultiplier?: number;
-  deviceId?: string;
-  onAudioChunk?: (pcm16: Int16Array, base64: string) => void;
+  onAudioChunk?: (data: ArrayBuffer) => void;
+  onAudioData?: (data: ArrayBuffer) => void;
+  onRawPCMChunk?: (data: Float32Array) => void;
   onVolumeChange?: (volume: number) => void;
-  onSpeechStateChange?: (isSpeaking: boolean) => void;
+  onStreamEnd?: () => void;
   onError?: (error: Error) => void;
 }
-
-export interface AudioInputTelemetry {
-  isRecording: boolean;
-  isMuted: boolean;
-  isSpeaking: boolean;
-  processorType: 'AudioWorklet' | 'ScriptProcessor' | 'None';
-  sampleRate: number;
-  targetSampleRate: number;
-  processedChunks: number;
-}
-
-const WORKLET_PROCESSOR_CODE = `
-class GeminiPcmProcessor extends AudioWorkletProcessor {
-  constructor() {
-    super();
-    // 20ms buffer @ sample rate
-    this.bufferSize = Math.max(128, Math.round(sampleRate * 0.02));
-    this.buffer = new Float32Array(this.bufferSize);
-    this.bufferIndex = 0;
-    this.noiseGateThreshold = 0.008; // -42dB soft noise floor
-  }
-
-  process(inputs) {
-    const input = inputs[0];
-    if (!input || !input[0]) return true;
-
-    const channel = input[0];
-    const len = channel.length;
-
-    for (let i = 0; i < len; i++) {
-      let sample = channel[i];
-
-      // Soft noise gate attenuation
-      const abs = Math.abs(sample);
-      if (abs < this.noiseGateThreshold) {
-        sample = sample * (abs / this.noiseGateThreshold);
-      }
-
-      this.buffer[this.bufferIndex++] = sample;
-
-      if (this.bufferIndex >= this.bufferSize) {
-        const chunk = new Float32Array(this.buffer);
-        this.port.postMessage({ pcm: chunk }, [chunk.buffer]);
-        this.bufferIndex = 0;
-      }
-    }
-
-    return true;
-  }
-}
-
-registerProcessor('gemini-pcm-processor', GeminiPcmProcessor);
-`;
-
-export class AudioInputProcessor {
-  private targetSampleRate: number;
-  private vadThreshold: number;
-  private vadHangoverMs: number;
-  private gainMultiplier: number;
-  private deviceId?: string;
-
-  private onAudioChunk?: (pcm16: Int16Array, base64: string) => void;
-  private onVolumeChange?: (volume: number) => void;
-  private onSpeechStateChange?: (isSpeaking: boolean) => void;
-  private onError?: (error: Error) => void;
-
-  private audioContext: AudioContext | null = null;
-  private mediaStream: MediaStream | null = null;
-  private sourceNode: MediaStreamAudioSourceNode | null = null;
-  private hpfFilterNode: BiquadFilterNode | null = null;
-  private gainNode: GainNode | null = null;
-  private analyserNode: AnalyserNode | null = null;
-  private workletNode: AudioWorkletNode | null = null;
-  private processorNode: ScriptProcessorNode | null = null;
-  private sinkGainNode: GainNode | null = null;
-
-  private isRecordingState = false;
-  private isMutedState = false;
-  private isSpeakingState = false;
-  private lastSpeechTime = 0;
-  private processedChunksCount = 0;
-  private processorType: 'AudioWorklet' | 'ScriptProcessor' | 'None' = 'None';
+export class AudioInputProcessor implements AudioCapturePort {
+  audioContext: AudioContext | null = null;
+  mediaStream: MediaStream | null = null;
+  isRecording = false;
+  isMuted = false;
+  private node: AudioWorkletNode | null = null;
+  private source: MediaStreamAudioSourceNode | null = null;
+  private muteNode: GainNode | null = null;
   private generation = 0;
-
-  constructor(options: AudioInputProcessorOptions = {}) {
-    this.targetSampleRate = options.targetSampleRate ?? 16000;
-    this.vadThreshold = options.vadThreshold ?? 0.015;
-    this.vadHangoverMs = options.vadHangoverMs ?? 250;
-    this.gainMultiplier = options.gainMultiplier ?? 1.35;
-    this.deviceId = options.deviceId;
-
-    this.onAudioChunk = options.onAudioChunk;
-    this.onVolumeChange = options.onVolumeChange;
-    this.onSpeechStateChange = options.onSpeechStateChange;
-    this.onError = options.onError;
+  private pending: Promise<void> | null = null;
+  private lastVolume = 0;
+  private processed = 0;
+  private streamEpoch = 0;
+  constructor(private readonly options: AudioInputProcessorOptions = {}) {}
+  start(): Promise<void> {
+    if (this.isRecording) return Promise.resolve();
+    if (this.pending) return this.pending;
+    const epoch = ++this.generation;
+    const pending = this.open(epoch).finally(() => { if (this.pending === pending) this.pending = null; });
+    this.pending = pending;
+    return pending;
   }
-
-  public isRecording(): boolean {
-    return this.isRecordingState;
-  }
-
-  public isMuted(): boolean {
-    return this.isMutedState;
-  }
-
-  public isSpeaking(): boolean {
-    return this.isSpeakingState;
-  }
-
-  public mute(): void {
-    this.isMutedState = true;
-    this.onVolumeChange?.(0);
-  }
-
-  public unmute(): void {
-    this.isMutedState = false;
-  }
-
-  public toggleMute(): boolean {
-    if (this.isMutedState) {
-      this.unmute();
-    } else {
-      this.mute();
-    }
-    return this.isMutedState;
-  }
-
-  public getTelemetry(): AudioInputTelemetry {
-    return {
-      isRecording: this.isRecordingState,
-      isMuted: this.isMutedState,
-      isSpeaking: this.isSpeakingState,
-      processorType: this.processorType,
-      sampleRate: this.audioContext?.sampleRate ?? 0,
-      targetSampleRate: this.targetSampleRate,
-      processedChunks: this.processedChunksCount
-    };
-  }
-
-  public async start(): Promise<void> {
-    if (this.isRecordingState) return;
-
-    this.generation++;
-    const currentGeneration = this.generation;
-
+  private async open(epoch: number): Promise<void> {
+    let context: AudioContext | null = null;
+    let stream: MediaStream | null = null;
     try {
-      const constraints: MediaStreamConstraints = {
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          ...(this.deviceId ? { deviceId: { exact: this.deviceId } } : {})
-        }
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      if (epoch !== this.generation) { stream.getTracks().forEach(track => track.stop()); return; }
+      context = new AudioContext({ latencyHint: 'interactive' });
+      await context.audioWorklet.addModule(captureUrl);
+      await context.resume();
+      if (epoch !== this.generation) { stream.getTracks().forEach(track => track.stop()); await context.close(); return; }
+      this.mediaStream = stream; this.audioContext = context;
+      this.node = new AudioWorkletNode(context, 'cristi-capture');
+      this.node.port.postMessage({ muted: this.isMuted, epoch: this.streamEpoch });
+      this.node.port.onmessage = (event: MessageEvent<{ pcm: ArrayBuffer; volume: number; epoch: number }>) => {
+        if (!this.isRecording || this.isMuted || epoch !== this.generation || event.data.epoch !== this.streamEpoch) return;
+        this.processed++;
+        const now = performance.now();
+        if (now - this.lastVolume >= 50) { this.options.onVolumeChange?.(Math.min(1, event.data.volume * 4.5)); this.lastVolume = now; }
+        if (this.options.onRawPCMChunk) this.options.onRawPCMChunk(Float32Array.from(new Int16Array(event.data.pcm), sample => sample / 32768));
+        (this.options.onAudioChunk ?? this.options.onAudioData)?.(event.data.pcm);
       };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      if (currentGeneration !== this.generation) {
-        stream.getTracks().forEach((t) => t.stop());
-        return;
-      }
-      this.mediaStream = stream;
-
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContextClass) {
-        throw new Error('Web Audio API (AudioContext) is not supported in this browser');
-      }
-
-      this.audioContext = new AudioContextClass({
-        sampleRate: this.targetSampleRate,
-        latencyHint: 'interactive'
-      });
-
-      if (this.audioContext.state === 'suspended' || (this.audioContext.state as string) === 'interrupted') {
-        await this.audioContext.resume();
-      }
-
-      if (currentGeneration !== this.generation) return;
-
-      const hardwareSampleRate = this.audioContext.sampleRate;
-      this.sourceNode = this.audioContext.createMediaStreamSource(stream);
-
-      // 1. High-Pass Filter (HPF @ 80 Hz, Q: 0.707)
-      this.hpfFilterNode = this.audioContext.createBiquadFilter();
-      this.hpfFilterNode.type = 'highpass';
-      this.hpfFilterNode.frequency.setValueAtTime(80, this.audioContext.currentTime);
-      this.hpfFilterNode.Q.setValueAtTime(0.707, this.audioContext.currentTime);
-      this.sourceNode.connect(this.hpfFilterNode);
-
-      // 2. Pre-amplifier gain node for vocal clarity
-      this.gainNode = this.audioContext.createGain();
-      this.gainNode.gain.setValueAtTime(this.gainMultiplier, this.audioContext.currentTime);
-      this.hpfFilterNode.connect(this.gainNode);
-
-      // 3. Analyser node for fast visual frequency monitoring
-      this.analyserNode = this.audioContext.createAnalyser();
-      this.analyserNode.fftSize = 256;
-      this.gainNode.connect(this.analyserNode);
-
-      // 4. Sink gain node (muted destination to keep DSP active in Chromium)
-      this.sinkGainNode = this.audioContext.createGain();
-      this.sinkGainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-      this.sinkGainNode.connect(this.audioContext.destination);
-
-      // 5. Try loading AudioWorklet processor; fallback to ScriptProcessorNode
-      let workletSuccess = false;
-      if (this.audioContext.audioWorklet && typeof AudioWorkletNode !== 'undefined') {
-        try {
-          const blob = new Blob([WORKLET_PROCESSOR_CODE], { type: 'application/javascript' });
-          const workletUrl = URL.createObjectURL(blob);
-          try {
-            await this.audioContext.audioWorklet.addModule(workletUrl);
-          } finally {
-            URL.revokeObjectURL(workletUrl);
-          }
-
-          if (currentGeneration !== this.generation) return;
-
-          this.workletNode = new AudioWorkletNode(this.audioContext, 'gemini-pcm-processor');
-          this.workletNode.port.onmessage = (event: MessageEvent) => {
-            if (!this.isRecordingState) return;
-            const floatData = event.data.pcm as Float32Array;
-            this.handleAudioSamples(floatData, hardwareSampleRate);
-          };
-
-          this.gainNode.connect(this.workletNode);
-          this.workletNode.connect(this.sinkGainNode);
-          this.processorType = 'AudioWorklet';
-          workletSuccess = true;
-        } catch (_) {
-          workletSuccess = false;
-        }
-      }
-
-      if (!workletSuccess) {
-        // Fallback: ScriptProcessorNode (2048 samples = ~42ms @ 48kHz)
-        const bufferSize = 2048;
-        this.processorNode = this.audioContext.createScriptProcessor(bufferSize, 1, 1);
-        this.processorNode.onaudioprocess = (e: AudioProcessingEvent) => {
-          if (!this.isRecordingState) return;
-          const channel = e.inputBuffer.getChannelData(0);
-          this.handleAudioSamples(channel, hardwareSampleRate);
-        };
-
-        this.gainNode.connect(this.processorNode);
-        this.processorNode.connect(this.sinkGainNode);
-        this.processorType = 'ScriptProcessor';
-      }
-
-      this.isRecordingState = true;
-    } catch (err: any) {
-      if (currentGeneration !== this.generation) return;
-      this.stop();
-      this.onError?.(err instanceof Error ? err : new Error(String(err)));
-      throw err;
+      this.source = context.createMediaStreamSource(stream);
+      this.muteNode = context.createGain(); this.muteNode.gain.value = 0;
+      this.source.connect(this.node); this.node.connect(this.muteNode); this.muteNode.connect(context.destination);
+      this.isRecording = true;
+    } catch (error) {
+      stream?.getTracks().forEach(track => track.stop());
+      if (context && context.state !== 'closed') await context.close();
+      if (epoch === this.generation) this.options.onError?.(error as Error);
+      throw error;
     }
   }
-
-  public stop(): void {
+  mute(): void { if (!this.isMuted) this.options.onStreamEnd?.(); this.isMuted = true; this.node?.port.postMessage({ muted: true, epoch: ++this.streamEpoch }); this.options.onVolumeChange?.(0); }
+  unmute(): void { this.node?.port.postMessage({ muted: false, epoch: ++this.streamEpoch }); this.isMuted = false; }
+  toggleMute(): boolean { if (this.isMuted) this.unmute(); else this.mute(); return this.isMuted; }
+  async resumeContext(): Promise<void> { if (this.audioContext?.state === 'suspended') await this.audioContext.resume(); }
+  stop(): void {
     this.generation++;
-    this.isRecordingState = false;
-    this.processorType = 'None';
-    this.isSpeakingState = false;
-
-    if (this.workletNode) {
-      try {
-        this.workletNode.port.onmessage = null;
-        this.workletNode.disconnect();
-      } catch (_) {}
-      this.workletNode = null;
-    }
-
-    if (this.processorNode) {
-      try {
-        this.processorNode.onaudioprocess = null;
-        this.processorNode.disconnect();
-      } catch (_) {}
-      this.processorNode = null;
-    }
-
-    if (this.sinkGainNode) {
-      try { this.sinkGainNode.disconnect(); } catch (_) {}
-      this.sinkGainNode = null;
-    }
-
-    if (this.gainNode) {
-      try { this.gainNode.disconnect(); } catch (_) {}
-      this.gainNode = null;
-    }
-
-    if (this.hpfFilterNode) {
-      try { this.hpfFilterNode.disconnect(); } catch (_) {}
-      this.hpfFilterNode = null;
-    }
-
-    if (this.analyserNode) {
-      try { this.analyserNode.disconnect(); } catch (_) {}
-      this.analyserNode = null;
-    }
-
-    if (this.sourceNode) {
-      try { this.sourceNode.disconnect(); } catch (_) {}
-      this.sourceNode = null;
-    }
-
-    if (this.mediaStream) {
-      try {
-        this.mediaStream.getTracks().forEach((track) => track.stop());
-      } catch (_) {}
-      this.mediaStream = null;
-    }
-
-    if (this.audioContext && this.audioContext.state !== 'closed') {
-      try {
-        void this.audioContext.close();
-      } catch (_) {}
-      this.audioContext = null;
-    }
-
-    this.onVolumeChange?.(0);
+    this.pending = null;
+    if (this.isRecording && !this.isMuted) this.options.onStreamEnd?.();
+    this.isRecording = false;
+    if (this.node) { this.node.port.onmessage = null; this.node.port.close(); this.node.disconnect(); this.node = null; }
+    this.source?.disconnect(); this.source = null; this.muteNode?.disconnect(); this.muteNode = null;
+    this.mediaStream?.getTracks().forEach(track => track.stop()); this.mediaStream = null;
+    if (this.audioContext && this.audioContext.state !== 'closed') void this.audioContext.close();
+    this.audioContext = null; this.options.onVolumeChange?.(0);
   }
-
-  // ---------------------------------------------------------------------------
-  // Audio Signal DSP & Transformation
-  // ---------------------------------------------------------------------------
-
-  private handleAudioSamples(inputSamples: Float32Array, inputRate: number): void {
-    if (this.isMutedState) {
-      this.onVolumeChange?.(0);
-      if (this.isSpeakingState) {
-        this.isSpeakingState = false;
-        this.onSpeechStateChange?.(false);
-      }
-      return;
-    }
-
-    // 1. RMS Energy computation
-    let sumSquares = 0;
-    const len = inputSamples.length;
-    for (let i = 0; i < len; i++) {
-      sumSquares += inputSamples[i] * inputSamples[i];
-    }
-    const rms = Math.sqrt(sumSquares / len);
-    const volumeNormalized = Math.min(1, Math.max(0, rms * 4.5));
-    this.onVolumeChange?.(volumeNormalized);
-
-    // 2. Voice Activity Detection (VAD) with Hangover
-    const isVoicePresent = volumeNormalized > this.vadThreshold;
-    const now = Date.now();
-
-    if (isVoicePresent) {
-      this.lastSpeechTime = now;
-      if (!this.isSpeakingState) {
-        this.isSpeakingState = true;
-        this.onSpeechStateChange?.(true);
-      }
-    } else if (this.isSpeakingState && now - this.lastSpeechTime > this.vadHangoverMs) {
-      this.isSpeakingState = false;
-      this.onSpeechStateChange?.(false);
-    }
-
-    // 3. Resample to target rate (16,000 Hz) if needed
-    const resampled = this.resampleAudio(inputSamples, inputRate, this.targetSampleRate);
-
-    // 4. Convert Float32 to 16-bit Int PCM Little Endian
-    const pcm16 = this.floatToInt16PCM(resampled);
-    const base64 = this.int16ArrayToBase64(pcm16);
-
-    this.processedChunksCount++;
-    this.onAudioChunk?.(pcm16, base64);
-  }
-
-  private resampleAudio(samples: Float32Array, fromRate: number, toRate: number): Float32Array {
-    if (fromRate === toRate) return samples;
-    const ratio = fromRate / toRate;
-    const newLen = Math.round(samples.length / ratio);
-    const result = new Float32Array(newLen);
-
-    for (let i = 0; i < newLen; i++) {
-      const origPos = i * ratio;
-      const lowIndex = Math.floor(origPos);
-      const highIndex = Math.min(lowIndex + 1, samples.length - 1);
-      const frac = origPos - lowIndex;
-      result[i] = samples[lowIndex] * (1 - frac) + samples[highIndex] * frac;
-    }
-
-    return result;
-  }
-
-  private floatToInt16PCM(float32: Float32Array): Int16Array {
-    const len = float32.length;
-    const pcm16 = new Int16Array(len);
-    for (let i = 0; i < len; i++) {
-      const s = Math.max(-1, Math.min(1, float32[i]));
-      pcm16[i] = s < 0 ? Math.round(s * 0x8000) : Math.round(s * 0x7fff);
-    }
-    return pcm16;
-  }
-
-  private int16ArrayToBase64(pcm16: Int16Array): string {
-    const uint8 = new Uint8Array(pcm16.buffer, pcm16.byteOffset, pcm16.byteLength);
-    let binary = '';
-    const chunkSize = 8192;
-    const len = uint8.length;
-    for (let i = 0; i < len; i += chunkSize) {
-      const slice = uint8.subarray(i, Math.min(i + chunkSize, len));
-      binary += String.fromCharCode.apply(null, slice as unknown as number[]);
-    }
-    return btoa(binary);
-  }
+  destroy(): void { this.stop(); }
+  getTelemetry() { return { isRecording: this.isRecording, isMuted: this.isMuted, sampleRate: this.audioContext?.sampleRate ?? 0, targetRate: 16000, processorType: 'AudioWorklet', processedChunksCount: this.processed }; }
 }

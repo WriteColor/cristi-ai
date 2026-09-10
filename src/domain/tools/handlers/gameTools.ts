@@ -1,8 +1,8 @@
 import type { IToolHandler } from '../IToolHandler';
-import { minecraftCompanion } from '@/services/gameIntegration/MinecraftCompanionService.js';
-import { discordCompanion } from '@/services/discord/DiscordCompanionService.js';
-import { discordVoiceService } from '@/services/discord/DiscordVoiceService.js';
-import { translationService } from '@/services/translation/TranslationService.js';
+import { minecraftCompanion } from '../../integrations/minecraft/MinecraftCompanionService.js';
+import { discordCompanion } from '../../integrations/discord/DiscordCompanionService.js';
+import { discordVoiceService } from '../../integrations/discord/DiscordVoiceService.js';
+import { translationService } from '../../audio/TranslationService.js';
 
 export const minecraftConnectHandler: IToolHandler = {
   name: 'minecraft_connect',
@@ -59,7 +59,8 @@ export const minecraftChatHandler: IToolHandler = {
     }
   },
   async execute(args: { message?: string }) {
-    return await minecraftCompanion.sendChat(args?.message);
+    if (!args?.message) return { status: 'error', message: 'Mensaje requerido.' };
+    return await minecraftCompanion.sendChat(args.message);
   }
 };
 
@@ -79,7 +80,8 @@ export const minecraftMoveToHandler: IToolHandler = {
     }
   },
   async execute(args: { x?: number; y?: number; z?: number }) {
-    return await minecraftCompanion.moveTo(args?.x, args?.y, args?.z);
+    if (args?.x === undefined || args?.y === undefined || args?.z === undefined) return { status: 'error', message: 'Coordenadas requeridas.' };
+    return await minecraftCompanion.moveTo(args.x, args.y, args.z);
   }
 };
 
@@ -128,7 +130,8 @@ export const minecraftMineBlockHandler: IToolHandler = {
     }
   },
   async execute(args: { x?: number; y?: number; z?: number }) {
-    return await minecraftCompanion.mineBlock(args?.x, args?.y, args?.z);
+    if (args?.x === undefined || args?.y === undefined || args?.z === undefined) return { status: 'error', message: 'Coordenadas requeridas.' };
+    return await minecraftCompanion.mineBlock(args.x, args.y, args.z);
   }
 };
 
@@ -149,7 +152,8 @@ export const minecraftPlaceBlockHandler: IToolHandler = {
     }
   },
   async execute(args: { x?: number; y?: number; z?: number; block_name?: string }) {
-    return await minecraftCompanion.placeBlock(args?.x, args?.y, args?.z, args?.block_name);
+    if (args?.x === undefined || args?.y === undefined || args?.z === undefined || !args?.block_name) return { status: 'error', message: 'Parámetros requeridos.' };
+    return await minecraftCompanion.placeBlock(args.x, args.y, args.z, args.block_name);
   }
 };
 
@@ -166,7 +170,8 @@ export const minecraftAttackEntityHandler: IToolHandler = {
     }
   },
   async execute(args: { entity_name?: string }) {
-    return await minecraftCompanion.attackEntity(args?.entity_name);
+    if (!args?.entity_name) return { status: 'error', message: 'Nombre de entidad requerido.' };
+    return await minecraftCompanion.attackEntity(args.entity_name);
   }
 };
 
@@ -185,7 +190,8 @@ export const discordSendMessageHandler: IToolHandler = {
     }
   },
   async execute(args: { channel_id?: string; content?: string }) {
-    return await discordCompanion.sendMessage(args?.channel_id, args?.content);
+    if (!args?.channel_id || !args?.content) return { status: 'error', message: 'Canal y contenido requeridos.' };
+    return await discordCompanion.sendMessage(args.channel_id, args.content);
   }
 };
 
@@ -204,7 +210,8 @@ export const discordSetStatusHandler: IToolHandler = {
     }
   },
   async execute(args: { status_text?: string; activity_type?: string }) {
-    return await discordCompanion.setStatus(args?.status_text, args?.activity_type);
+    if (!args?.status_text) return { status: 'error', message: 'Texto de estado requerido.' };
+    return await discordCompanion.setStatus(args.status_text, args.activity_type);
   }
 };
 
@@ -236,7 +243,8 @@ export const discordVoiceJoinHandler: IToolHandler = {
     target_language?: string;
     output_route?: string;
   }) {
-    const result = await discordVoiceService.join({ guildId: args?.guild_id, channelId: args?.channel_id });
+    if (!args?.guild_id || !args?.channel_id) return { success: false, error: 'guild_id y channel_id requeridos.' };
+    const result = await discordVoiceService.join({ guildId: args.guild_id, channelId: args.channel_id });
     if (args?.translate !== true) {
       translationService.detachEventSource('discord.voice_audio');
     }

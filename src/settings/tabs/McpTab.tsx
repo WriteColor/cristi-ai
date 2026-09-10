@@ -11,10 +11,10 @@ import {
   ChevronDown,
   ChevronRight
 } from 'lucide-react';
-import { mcpClientManager } from '../../services/mcp/MCPClientManager.js';
-import { playwrightService } from '../../services/playwright/PlaywrightService.js';
-import { soundFxService } from '../../services/soundFxService.js';
-import { toastService } from '../../services/toastService.js';
+import { mcpClientManager } from '../../domain/integrations/mcp/MCPClientManager.js';
+import { playwrightService } from '../../domain/integrations/playwright/PlaywrightService.js';
+import { soundFxService } from '../../domain/audio/SoundFxService.js';
+import { toastService } from '../../infrastructure/notifications/toastService.js';
 
 export interface PlaywrightStatusData {
   isRunning: boolean;
@@ -50,11 +50,11 @@ export const McpTab: React.FC = () => {
 
   const refreshPlaywrightStatus = async () => {
     try {
-      const st = await playwrightService.getStatus();
+      const st = await playwrightService.getStatus() as { isRunning?: boolean; success?: boolean; url?: string; title?: string } | null;
       setPlaywrightStatus({
-        isRunning: Boolean((st as any)?.isRunning || st?.success),
-        url: st?.url || null,
-        title: st?.title || null
+        isRunning: Boolean(st?.isRunning || st?.success),
+        url: typeof st?.url === 'string' ? st.url : null,
+        title: typeof st?.title === 'string' ? st.title : null
       });
     } catch (_) {}
   };

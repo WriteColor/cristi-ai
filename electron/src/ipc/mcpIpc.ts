@@ -1,4 +1,6 @@
-import { ipcMain, app } from 'electron';
+import { approveMcpLaunch } from '../security/McpPolicy';
+import { handleTrusted } from '../security/CapabilityRouter';
+import { app } from 'electron';
 import { spawn, ChildProcess } from 'child_process';
 import { processManager } from '../core/processManager';
 import { McpStdioConfig, McpToolCallPayload } from '../types/electron.types';
@@ -158,14 +160,15 @@ async function closeMcpState(state: McpState, reason = 'Servidor MCP desconectad
  * Registers Model Context Protocol (MCP) IPC handlers.
  */
 export function registerMcpIpc(): void {
-  processManager.registerCleanupHook(async () => {
+  processManager.registerCleanupHook('mcp', async () => {
     for (const state of mcpProcesses.values()) {
       await closeMcpState(state, 'App cerrada.');
     }
     mcpProcesses.clear();
   });
 
-  ipcMain.handle('mcp-connect', async (_event, config: McpStdioConfig = { id: '' }) => {
+  handleTrusted('mcp-connect', async (_event, config: McpStdioConfig = { id: '' }) => {
+    await approveMcpLaunch(config);
     const serverId = String(config.id || '').trim();
     const transportType = String(config.type || 'stdio').trim().toLowerCase();
 
@@ -194,15 +197,15 @@ export function registerMcpIpc(): void {
       Object.entries(config.env || {}).filter(([key, value]) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key) && value !== undefined)
     );
 
-    const shellCommand = process.platform === 'win32' ? quoteWindowsShellArg(command) : command;
-    const shellArgs = process.platform === 'win32' ? args.map(quoteWindowsShellArg) : args;
+    const shellCommand = command;
+    const shellArgs = args;
 
     let child: ChildProcess;
     try {
       child = spawn(shellCommand, shellArgs, {
         cwd: app.isPackaged ? app.getPath('userData') : process.cwd(),
         env: { ...process.env, ...env },
-        shell: process.platform === 'win32',
+        shell: false,
         windowsHide: true,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
@@ -284,7 +287,7 @@ export function registerMcpIpc(): void {
     }
   });
 
-  ipcMain.handle('mcp-call-tool', async (_event, payload: McpToolCallPayload = { serverId: '', name: '' }) => {
+  handleTrusted('mcp-call-tool', async (_event, payload: McpToolCallPayload = { serverId: '', name: '' }) => {
     const serverId = String(payload.serverId || '');
     const state = mcpProcesses.get(serverId);
     if (!state) return { success: false, error: 'Servidor MCP no conectado.' };
@@ -308,7 +311,7 @@ export function registerMcpIpc(): void {
     }
   });
 
-  ipcMain.handle('mcp-disconnect', async (_event, serverId: unknown) => {
+  handleTrusted('mcp-disconnect', async (_event, serverId: unknown) => {
     const id = String(serverId || '');
     const state = mcpProcesses.get(id);
     if (!state) return { success: true, alreadyDisconnected: true };

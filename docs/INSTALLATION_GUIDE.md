@@ -1,5 +1,5 @@
-# 🚀 Manual de Instalación y Puesta a Punto desde Cero — Cristi AI Companion
-> **Autor:** Write_Color | **Versión:** 1.0.0 | **Motor:** Electron 32 + React 19 + Vite 8 + Live2D Cubism
+# Guia de Instalacion, Configuracion y Verificacion — Cristi AI Companion
+> **Autor:** Write_Color | **Versión:** 2.0.0 (Auditoría Integral 2026) | **Motor:** Electron 43.6 + React 19 + Vite 8 + Live2D Cubism 4
 
 Esta guía explica paso a paso **cómo instalar, configurar, optimizar y ejecutar Cristi AI Companion** en cualquier entorno Windows 10/11 limpio, desde el clonado inicial hasta el despliegue con aceleración de hardware y observabilidad en tiempo real.
 

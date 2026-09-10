@@ -9,7 +9,7 @@
 
 import * as PIXI from 'pixi.js';
 
-export type FpsMode = 'active_60' | 'idle_30' | 'suspended_0';
+export type FpsMode = 'active_60' | 'idle_30' | 'idle_8' | 'suspended_0';
 
 export interface AdaptiveTickerOptions {
   /** Target FPS during active interactions (default: 60) */
@@ -55,6 +55,7 @@ export class AdaptiveTicker {
     this.onFpsModeChange = options.onFpsModeChange;
 
     this.currentFps = this.activeFps;
+    this.isWindowHidden = typeof document !== 'undefined' && document.hidden;
 
     if (this.autoListenDom && typeof window !== 'undefined') {
       this.attachDomListeners();
@@ -69,7 +70,7 @@ export class AdaptiveTicker {
    */
   public attachTicker(ticker: PIXI.Ticker): void {
     this.pixiTicker = ticker;
-    this.applyToTicker();
+    this.evaluate();
   }
 
   /**
@@ -163,6 +164,8 @@ export class AdaptiveTicker {
     ) {
       nextMode = 'active_60';
       nextFps = this.activeFps;
+    } else if (now - this.lastActivityTime >= 30000) {
+      nextMode = 'idle_8'; nextFps = 8;
     } else {
       nextMode = 'idle_30';
       nextFps = this.idleFps;
@@ -269,7 +272,7 @@ export class AdaptiveTicker {
 
     this.checkIntervalId = setInterval(() => {
       // Only evaluate if we are currently in active mode and neither interacting nor voice playing
-      if (this.currentMode === 'active_60' && !this.isInteracting && !this.isVoicePlaying) {
+      if (this.currentMode !== 'suspended_0' && !this.isInteracting && !this.isVoicePlaying) {
         const now = performance.now();
         if (now - this.lastActivityTime >= this.inactivityThresholdMs) {
           this.evaluate();

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { TelemetryMetrics } from '@/types';
-import { toastService } from '../services/toastService.js';
+import { toastService } from '../infrastructure/notifications/toastService.js';
 
 export interface TelemetryState extends TelemetryMetrics {
   // --- Core Estado Requerido ---

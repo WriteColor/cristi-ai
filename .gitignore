@@ -22,7 +22,6 @@ neutralinojs.log
 .env*.local
 
 # Temporary Test Artifacts & Videos
-tests/* 
 
 *.rar
 *.zip
@@ -42,3 +41,9 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+electron/preload.cjs
+electron/dist/
+.test-build/
+*-memories.json
+memories.db*

@@ -1,4 +1,5 @@
-import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import type { FileRequest, DisplayInfo, ProcessMemoryInfo, ScreenRegion, ElectronApiBridge } from '../../shared/ipc/contracts';
+import { ipcRenderer, IpcRendererEvent } from 'electron';
 import { IPC_CHANNELS } from './types/ipcChannels';
 
 const ALLOWED_SHORTCUT_CHANNELS = new Set([
@@ -9,126 +10,16 @@ const ALLOWED_SHORTCUT_CHANNELS = new Set([
   'shortcut-toggle-always-on-top',
 ]);
 
-export interface ElectronApiBridge {
-  isElectron: boolean;
+export type { ElectronApiBridge };
 
-  // Window & Hitboxes
-  setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => void;
-  syncHitboxes: (hitboxes: unknown[]) => void;
-  syncInteractiveHitboxes: (hitboxes: unknown[]) => void;
-  setAlwaysOnTop: (value: boolean) => void;
-  getAlwaysOnTop: () => Promise<boolean>;
-  minimizeWindow: () => void;
-  showWindow: () => void;
-  hideWindow: () => void;
-  quitApp: () => void;
-  relaunchApp: () => Promise<{ success: boolean; error?: string }>;
-  reloadWindow: () => Promise<{ success: boolean; error?: string }>;
-  getDisplayInfo: () => Promise<any>;
-  getProcessMemoryInfo: () => Promise<any>;
-  getGpuFeatureStatus: () => Promise<any>;
-  getGpuInfo: () => Promise<any>;
-  getAppVersion: () => Promise<string>;
-
-  // Native OS & System
-  execCommand: (command: string, options?: any) => Promise<any>;
-  readFile: (filePath: string) => Promise<string>;
-  writeFile: (filePath: string, data: string) => Promise<boolean>;
-  appendFile: (filePath: string, data: string) => Promise<boolean>;
-  readDirectory: (dirPath: string) => Promise<any>;
-  openExternal: (url: string) => Promise<boolean>;
-  openPath: (targetPath: string) => Promise<any>;
-  showItemInFolder: (targetPath: string) => Promise<boolean>;
-  getClipboardText: () => Promise<string>;
-  setClipboardText: (text: string) => Promise<boolean>;
-  showNotification: (payload: { title?: string; body?: string }) => Promise<boolean>;
-
-  // Security & Secrets
-  setSecureSecret: (key: string, value: string) => Promise<{ success: boolean; error?: string }>;
-  getSecureSecret: (key: string) => Promise<string | null>;
-  deleteSecureSecret: (key: string) => Promise<{ success: boolean; error?: string }>;
-  secureSetSecret: (key: string, value: string) => Promise<{ success: boolean; error?: string }>;
-  secureGetSecret: (key: string) => Promise<string | null>;
-  secureDeleteSecret: (key: string) => Promise<{ success: boolean; error?: string }>;
-
-  // Audio Loopback & Screen
-  captureScreenNative: (region?: any) => Promise<string | null>;
-  importCustomSceneFile: () => Promise<any>;
-  desktopAudioNativeStart: (options?: any) => Promise<any>;
-  desktopAudioNativeStop: () => Promise<any>;
-  desktopAudioNativeStatus: () => Promise<any>;
-  onDesktopAudioNativeFrame: (callback: (data: any) => void) => () => void;
-  onDesktopAudioNativeEvent: (callback: (data: any) => void) => () => void;
-
-  // Memory
-  memoryLoad: () => Promise<any>;
-  memorySave: (memories: any[]) => Promise<any>;
-
-  // Subwindows
-  openSettingsWindow: () => Promise<any>;
-  closeSettingsWindow: () => Promise<any>;
-  openCameraWindow: () => Promise<any>;
-  closeCameraWindow: () => Promise<any>;
-  isCameraWindowOpen: () => Promise<boolean>;
-  onSettingsWindowState: (callback: (data: any) => void) => () => void;
-  onCameraWindowState: (callback: (data: any) => void) => () => void;
-
-  // MCP
-  mcpConnect: (config: any) => Promise<any>;
-  mcpCallTool: (payload: any) => Promise<any>;
-  mcpDisconnect: (serverId: string) => Promise<any>;
-
-  // Playwright & Spotify
-  playwrightExecute: (action: string, params?: any) => Promise<any>;
-  spotifyControl: (action: string, params?: any) => Promise<any>;
-
-  // Minecraft
-  minecraftConnect: (opts?: any) => Promise<any>;
-  minecraftDisconnect: () => Promise<any>;
-  minecraftChat: (msg: string) => Promise<any>;
-  minecraftGetStatus: () => Promise<any>;
-  minecraftMoveTo: (coords: { x: number; y: number; z: number }) => Promise<any>;
-  minecraftFollow: (player: string) => Promise<any>;
-  minecraftStop: () => Promise<any>;
-  minecraftMineBlock: (coords: { x: number; y: number; z: number }) => Promise<any>;
-  minecraftPlaceBlock: (payload: { x: number; y: number; z: number; blockName: string }) => Promise<any>;
-  minecraftAttack: (payload: { entityName?: string }) => Promise<any>;
-  onMinecraftChat: (callback: (data: any) => void) => () => void;
-  onMinecraftEvent: (callback: (data: any) => void) => () => void;
-
-  // Discord
-  discordConnect: (opts: any) => Promise<any>;
-  discordDisconnect: () => Promise<any>;
-  discordSendMessage: (payload: { channelId: string; content: string }) => Promise<any>;
-  discordGetMessages: (payload: { channelId: string; limit?: number }) => Promise<any>;
-  discordSetStatus: (opts: { statusText: string; activityType?: string }) => Promise<any>;
-  discordVoiceJoin: (opts: { guildId: string; channelId: string }) => Promise<any>;
-  discordVoiceLeave: () => Promise<any>;
-  discordVoiceSendAudio: (payload: { data: string }) => Promise<any>;
-  onDiscordMessage: (callback: (data: any) => void) => () => void;
-  onDiscordEvent: (callback: (data: any) => void) => () => void;
-  onDiscordVoiceEvent: (callback: (data: any) => void) => () => void;
-  onDiscordVoiceAudio: (callback: (data: any) => void) => () => void;
-
-  // Auto-Updater
-  checkForUpdates: () => Promise<any>;
-  downloadUpdate: () => Promise<any>;
-  installUpdate: () => Promise<any>;
-  onUpdateStatus: (callback: (data: any) => void) => () => void;
-
-  // Global Shortcuts
-  onShortcutEvent: (channel: string, callback: (...args: any[]) => void) => () => void;
-
-  // Settings & Config
-  saveAppConfig: (config: any) => Promise<any>;
-  getAppConfig: () => Promise<any>;
-  onConfigUpdated: (callback: (data: any) => void) => () => void;
-  onCompanionPause: (callback: () => void) => () => void;
-  onCompanionResume: (callback: () => void) => () => void;
-}
-
-const electronBridgeApi: ElectronApiBridge = {
+export const electronBridgeApi: ElectronApiBridge = {
   isElectron: true,
+  credentialStatus: () => ipcRenderer.invoke('credential-status'),
+  requestLiveToken: model => ipcRenderer.invoke('live-token', model),
+  geminiGenerate: (model, body) => ipcRenderer.invoke('gemini-generate', model, body),
+  spotifyToken: () => ipcRenderer.invoke('spotify-token'),
+  systemExecute: request => ipcRenderer.invoke('system-execute', request),
+  approveWorkspace: () => ipcRenderer.invoke('approve-workspace'),
 
   // ── Click-Through & Hitboxes ──────────────────────────────────────────────
   setIgnoreMouseEvents: (ignore: boolean, options: { forward?: boolean } = {}) => {
@@ -161,35 +52,30 @@ const electronBridgeApi: ElectronApiBridge = {
   getAppVersion: () => ipcRenderer.invoke(IPC_CHANNELS.GET_APP_VERSION),
 
   // ── Native OS Operations ──────────────────────────────────────────────────
-  execCommand: (command: string, options?: any) => ipcRenderer.invoke(IPC_CHANNELS.EXEC_COMMAND, command, options),
-  readFile: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.READ_FILE, filePath),
-  writeFile: (filePath: string, data: string) => ipcRenderer.invoke(IPC_CHANNELS.WRITE_FILE, filePath, data),
-  appendFile: (filePath: string, data: string) => ipcRenderer.invoke(IPC_CHANNELS.APPEND_FILE, filePath, data),
-  readDirectory: (dirPath: string) => ipcRenderer.invoke(IPC_CHANNELS.READ_DIRECTORY, dirPath),
+  readFile: (filePath: FileRequest) => ipcRenderer.invoke(IPC_CHANNELS.READ_FILE, filePath),
+  writeFile: (filePath: FileRequest, data: string) => ipcRenderer.invoke(IPC_CHANNELS.WRITE_FILE, filePath, data),
+  appendFile: (filePath: FileRequest, data: string) => ipcRenderer.invoke(IPC_CHANNELS.APPEND_FILE, filePath, data),
+  readDirectory: (dirPath: FileRequest) => ipcRenderer.invoke(IPC_CHANNELS.READ_DIRECTORY, dirPath),
   openExternal: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.OPEN_EXTERNAL, url),
-  openPath: (targetPath: string) => ipcRenderer.invoke(IPC_CHANNELS.OPEN_PATH, targetPath),
-  showItemInFolder: (targetPath: string) => ipcRenderer.invoke(IPC_CHANNELS.SHOW_ITEM_IN_FOLDER, targetPath),
+  openPath: (targetPath: FileRequest) => ipcRenderer.invoke(IPC_CHANNELS.OPEN_PATH, targetPath),
+  showItemInFolder: (targetPath: FileRequest) => ipcRenderer.invoke(IPC_CHANNELS.SHOW_ITEM_IN_FOLDER, targetPath),
   getClipboardText: () => ipcRenderer.invoke(IPC_CHANNELS.GET_CLIPBOARD_TEXT),
   setClipboardText: (text: string) => ipcRenderer.invoke(IPC_CHANNELS.SET_CLIPBOARD_TEXT, text),
   showNotification: (payload: { title?: string; body?: string }) => ipcRenderer.invoke(IPC_CHANNELS.SHOW_NOTIFICATION, payload),
 
   // ── Security & Secrets ────────────────────────────────────────────────────
   setSecureSecret: (key: string, value: string) => ipcRenderer.invoke(IPC_CHANNELS.SECURE_SET_SECRET, key, value),
-  getSecureSecret: (key: string) => ipcRenderer.invoke(IPC_CHANNELS.SECURE_GET_SECRET, key),
   deleteSecureSecret: (key: string) => ipcRenderer.invoke(IPC_CHANNELS.SECURE_DELETE_SECRET, key),
-  secureSetSecret: (key: string, value: string) => ipcRenderer.invoke(IPC_CHANNELS.SECURE_SET_SECRET, key, value),
-  secureGetSecret: (key: string) => ipcRenderer.invoke(IPC_CHANNELS.SECURE_GET_SECRET, key),
-  secureDeleteSecret: (key: string) => ipcRenderer.invoke(IPC_CHANNELS.SECURE_DELETE_SECRET, key),
 
   // ── Audio Loopback & Screen Capture ───────────────────────────────────────
-  captureScreenNative: (region?: any) => ipcRenderer.invoke(IPC_CHANNELS.CAPTURE_SCREEN_NATIVE, region),
+  captureScreenNative: (region?: ScreenRegion | null) => ipcRenderer.invoke(IPC_CHANNELS.CAPTURE_SCREEN_NATIVE, region),
   importCustomSceneFile: () => ipcRenderer.invoke('import-custom-scene-file'),
-  desktopAudioNativeStart: (options?: any) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_AUDIO_NATIVE_START, options),
+  desktopAudioNativeStart: (options?: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_AUDIO_NATIVE_START, options),
   desktopAudioNativeStop: () => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_AUDIO_NATIVE_STOP),
   desktopAudioNativeStatus: () => ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_AUDIO_NATIVE_STATUS),
-  onDesktopAudioNativeFrame: (callback: (data: any) => void) => {
+  onDesktopAudioNativeFrame: (callback: (data: unknown) => void) => {
     if (typeof callback !== 'function') return () => {};
-    const listener = (_event: IpcRendererEvent, data: any) => callback(data);
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
     ipcRenderer.on('desktop-audio-native-frame', listener);
     return () => {
       try {
@@ -197,9 +83,9 @@ const electronBridgeApi: ElectronApiBridge = {
       } catch (_) {}
     };
   },
-  onDesktopAudioNativeEvent: (callback: (data: any) => void) => {
+  onDesktopAudioNativeEvent: (callback: (data: unknown) => void) => {
     if (typeof callback !== 'function') return () => {};
-    const listener = (_event: IpcRendererEvent, data: any) => callback(data);
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
     ipcRenderer.on('desktop-audio-native-event', listener);
     return () => {
       try {
@@ -210,7 +96,7 @@ const electronBridgeApi: ElectronApiBridge = {
 
   // ── Memory ────────────────────────────────────────────────────────────────
   memoryLoad: () => ipcRenderer.invoke(IPC_CHANNELS.MEMORY_LOAD),
-  memorySave: (memories: any[]) => ipcRenderer.invoke(IPC_CHANNELS.MEMORY_SAVE, memories),
+  memorySave: (memories: Record<string, unknown>[]) => ipcRenderer.invoke(IPC_CHANNELS.MEMORY_SAVE, memories),
 
   // ── Subwindows ────────────────────────────────────────────────────────────
   openSettingsWindow: () => ipcRenderer.invoke(IPC_CHANNELS.OPEN_SETTINGS_WINDOW),
@@ -218,9 +104,9 @@ const electronBridgeApi: ElectronApiBridge = {
   openCameraWindow: () => ipcRenderer.invoke(IPC_CHANNELS.OPEN_CAMERA_WINDOW),
   closeCameraWindow: () => ipcRenderer.invoke(IPC_CHANNELS.CLOSE_CAMERA_WINDOW),
   isCameraWindowOpen: () => ipcRenderer.invoke(IPC_CHANNELS.IS_CAMERA_WINDOW_OPEN),
-  onSettingsWindowState: (callback: (data: any) => void) => {
+  onSettingsWindowState: (callback: (data: unknown) => void) => {
     if (typeof callback !== 'function') return () => {};
-    const listener = (_event: IpcRendererEvent, data: any) => callback(data);
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
     ipcRenderer.on('settings-window-state', listener);
     return () => {
       try {
@@ -228,9 +114,9 @@ const electronBridgeApi: ElectronApiBridge = {
       } catch (_) {}
     };
   },
-  onCameraWindowState: (callback: (data: any) => void) => {
+  onCameraWindowState: (callback: (data: unknown) => void) => {
     if (typeof callback !== 'function') return () => {};
-    const listener = (_event: IpcRendererEvent, data: any) => callback(data);
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
     ipcRenderer.on('camera-window-state', listener);
     return () => {
       try {
@@ -240,16 +126,16 @@ const electronBridgeApi: ElectronApiBridge = {
   },
 
   // ── MCP ───────────────────────────────────────────────────────────────────
-  mcpConnect: (config: any) => ipcRenderer.invoke(IPC_CHANNELS.MCP_CONNECT, config),
-  mcpCallTool: (payload: any) => ipcRenderer.invoke(IPC_CHANNELS.MCP_CALL_TOOL, payload),
+  mcpConnect: (config: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.MCP_CONNECT, config),
+  mcpCallTool: (payload: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.MCP_CALL_TOOL, payload),
   mcpDisconnect: (serverId: string) => ipcRenderer.invoke(IPC_CHANNELS.MCP_DISCONNECT, serverId),
 
   // ── Integrations ──────────────────────────────────────────────────────────
-  playwrightExecute: (action: string, params?: any) => ipcRenderer.invoke(IPC_CHANNELS.PLAYWRIGHT_EXECUTE, action, params),
-  spotifyControl: (action: string, params?: any) => ipcRenderer.invoke(IPC_CHANNELS.SPOTIFY_CONTROL, action, params),
+  playwrightExecute: (action: string, params?: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.PLAYWRIGHT_EXECUTE, action, params),
+  spotifyControl: (action: string, params?: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.SPOTIFY_CONTROL, action, params),
 
   // Minecraft
-  minecraftConnect: (opts?: any) => ipcRenderer.invoke(IPC_CHANNELS.MINECRAFT_CONNECT, opts),
+  minecraftConnect: (opts?: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.MINECRAFT_CONNECT, opts),
   minecraftDisconnect: () => ipcRenderer.invoke(IPC_CHANNELS.MINECRAFT_DISCONNECT),
   minecraftChat: (msg: string) => ipcRenderer.invoke(IPC_CHANNELS.MINECRAFT_CHAT, msg),
   minecraftGetStatus: () => ipcRenderer.invoke(IPC_CHANNELS.MINECRAFT_GET_STATUS),
@@ -259,9 +145,9 @@ const electronBridgeApi: ElectronApiBridge = {
   minecraftMineBlock: (coords: { x: number; y: number; z: number }) => ipcRenderer.invoke(IPC_CHANNELS.MINECRAFT_MINE_BLOCK, coords),
   minecraftPlaceBlock: (payload: { x: number; y: number; z: number; blockName: string }) => ipcRenderer.invoke(IPC_CHANNELS.MINECRAFT_PLACE_BLOCK, payload),
   minecraftAttack: (payload: { entityName?: string }) => ipcRenderer.invoke(IPC_CHANNELS.MINECRAFT_ATTACK, payload),
-  onMinecraftChat: (callback: (data: any) => void) => {
+  onMinecraftChat: (callback: (data: unknown) => void) => {
     if (typeof callback !== 'function') return () => {};
-    const listener = (_event: IpcRendererEvent, data: any) => callback(data);
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
     ipcRenderer.on('minecraft-chat', listener);
     return () => {
       try {
@@ -269,9 +155,9 @@ const electronBridgeApi: ElectronApiBridge = {
       } catch (_) {}
     };
   },
-  onMinecraftEvent: (callback: (data: any) => void) => {
+  onMinecraftEvent: (callback: (data: unknown) => void) => {
     if (typeof callback !== 'function') return () => {};
-    const listener = (_event: IpcRendererEvent, data: any) => callback(data);
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
     ipcRenderer.on('minecraft-event', listener);
     return () => {
       try {
@@ -281,7 +167,7 @@ const electronBridgeApi: ElectronApiBridge = {
   },
 
   // Discord
-  discordConnect: (opts: any) => ipcRenderer.invoke(IPC_CHANNELS.DISCORD_CONNECT, opts),
+  discordConnect: (opts: { statusMessage?: string; activityType?: string }) => ipcRenderer.invoke(IPC_CHANNELS.DISCORD_CONNECT, opts),
   discordDisconnect: () => ipcRenderer.invoke(IPC_CHANNELS.DISCORD_DISCONNECT),
   discordSendMessage: (payload: { channelId: string; content: string }) => ipcRenderer.invoke(IPC_CHANNELS.DISCORD_SEND_MESSAGE, payload),
   discordGetMessages: (payload: { channelId: string; limit?: number }) => ipcRenderer.invoke(IPC_CHANNELS.DISCORD_GET_MESSAGES, payload),
@@ -289,9 +175,9 @@ const electronBridgeApi: ElectronApiBridge = {
   discordVoiceJoin: (opts: { guildId: string; channelId: string }) => ipcRenderer.invoke(IPC_CHANNELS.DISCORD_VOICE_JOIN, opts),
   discordVoiceLeave: () => ipcRenderer.invoke(IPC_CHANNELS.DISCORD_VOICE_LEAVE),
   discordVoiceSendAudio: (payload: { data: string }) => ipcRenderer.invoke(IPC_CHANNELS.DISCORD_VOICE_SEND_AUDIO, payload),
-  onDiscordMessage: (callback: (data: any) => void) => {
+  onDiscordMessage: (callback: (data: unknown) => void) => {
     if (typeof callback !== 'function') return () => {};
-    const listener = (_event: IpcRendererEvent, data: any) => callback(data);
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
     ipcRenderer.on('discord-message', listener);
     return () => {
       try {
@@ -299,9 +185,9 @@ const electronBridgeApi: ElectronApiBridge = {
       } catch (_) {}
     };
   },
-  onDiscordEvent: (callback: (data: any) => void) => {
+  onDiscordEvent: (callback: (data: unknown) => void) => {
     if (typeof callback !== 'function') return () => {};
-    const listener = (_event: IpcRendererEvent, data: any) => callback(data);
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
     ipcRenderer.on('discord-event', listener);
     return () => {
       try {
@@ -309,9 +195,9 @@ const electronBridgeApi: ElectronApiBridge = {
       } catch (_) {}
     };
   },
-  onDiscordVoiceEvent: (callback: (data: any) => void) => {
+  onDiscordVoiceEvent: (callback: (data: unknown) => void) => {
     if (typeof callback !== 'function') return () => {};
-    const listener = (_event: IpcRendererEvent, data: any) => callback(data);
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
     ipcRenderer.on('discord-voice-event', listener);
     return () => {
       try {
@@ -319,9 +205,9 @@ const electronBridgeApi: ElectronApiBridge = {
       } catch (_) {}
     };
   },
-  onDiscordVoiceAudio: (callback: (data: any) => void) => {
+  onDiscordVoiceAudio: (callback: (data: unknown) => void) => {
     if (typeof callback !== 'function') return () => {};
-    const listener = (_event: IpcRendererEvent, data: any) => callback(data);
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
     ipcRenderer.on('discord-voice-audio', listener);
     return () => {
       try {
@@ -334,9 +220,9 @@ const electronBridgeApi: ElectronApiBridge = {
   checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.CHECK_FOR_UPDATES),
   downloadUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.DOWNLOAD_UPDATE),
   installUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.INSTALL_UPDATE),
-  onUpdateStatus: (callback: (data: any) => void) => {
+  onUpdateStatus: (callback: (data: unknown) => void) => {
     if (typeof callback !== 'function') return () => {};
-    const listener = (_event: IpcRendererEvent, data: any) => callback(data);
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
     ipcRenderer.on('update-status', listener);
     return () => {
       try {
@@ -346,11 +232,11 @@ const electronBridgeApi: ElectronApiBridge = {
   },
 
   // ── Shortcuts ─────────────────────────────────────────────────────────────
-  onShortcutEvent: (channel: string, callback: (...args: any[]) => void) => {
+  onShortcutEvent: (channel: string, callback: (...args: unknown[]) => void) => {
     if (!ALLOWED_SHORTCUT_CHANNELS.has(channel) || typeof callback !== 'function') {
       return () => {};
     }
-    const listener = (_event: IpcRendererEvent, ...args: any[]) => callback(...args);
+    const listener = (_event: IpcRendererEvent, ...args: unknown[]) => callback(...args);
     ipcRenderer.on(channel, listener);
     return () => {
       try {
@@ -360,11 +246,11 @@ const electronBridgeApi: ElectronApiBridge = {
   },
 
   // ── Settings & Config ─────────────────────────────────────────────────────
-  saveAppConfig: (config: any) => ipcRenderer.invoke(IPC_CHANNELS.SAVE_APP_CONFIG, config),
+  saveAppConfig: (config: Record<string, unknown>) => ipcRenderer.invoke(IPC_CHANNELS.SAVE_APP_CONFIG, config),
   getAppConfig: () => ipcRenderer.invoke(IPC_CHANNELS.GET_APP_CONFIG),
-  onConfigUpdated: (callback: (data: any) => void) => {
+  onConfigUpdated: (callback: (data: unknown) => void) => {
     if (typeof callback !== 'function') return () => {};
-    const listener = (_event: IpcRendererEvent, data: any) => callback(data);
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
     ipcRenderer.on('config-updated', listener);
     return () => {
       try {
@@ -395,6 +281,3 @@ const electronBridgeApi: ElectronApiBridge = {
 };
 
 // Expose on window.electron, window.electronBridge, and window.electronAPI for universal compatibility
-contextBridge.exposeInMainWorld('electron', electronBridgeApi);
-contextBridge.exposeInMainWorld('electronBridge', electronBridgeApi);
-contextBridge.exposeInMainWorld('electronAPI', electronBridgeApi);

@@ -10,7 +10,7 @@ import {
   VideoOff, Camera, RefreshCw, Check, ChevronDown
 } from 'lucide-react';
 import { electronBridge } from '../services/desktop/ElectronBridge.js';
-import { soundFxService } from '../services/soundFxService.js';
+import { soundFxService } from '../domain/audio/SoundFxService.js';
 
 export const CameraApp: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);

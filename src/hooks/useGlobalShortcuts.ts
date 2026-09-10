@@ -4,10 +4,10 @@ import { useTelemetryStore } from '../stores/useTelemetryStore.js';
 import { useAudioStore } from '../stores/useAudioStore.js';
 import { useVisionStore } from '../stores/useVisionStore.js';
 import { useSettingsStore } from '../stores/useSettingsStore.js';
-import { proactiveTriggerService } from '../services/proactiveTriggerService.js';
+import { proactiveTriggerService } from '../domain/interaction/ProactiveTriggerService.js';
 import { electronBridge } from '../services/desktop/ElectronBridge.js';
-import { toastService } from '../services/toastService.js';
-import { eventBus, EVENTS } from '../services/eventBus.js';
+import { toastService } from '../infrastructure/notifications/toastService.js';
+import { eventBus, EVENTS } from '../infrastructure/events/eventBus.js';
 
 interface UseGlobalShortcutsOptions {
   resetInactivityTimer?: () => void;

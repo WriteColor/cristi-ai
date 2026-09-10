@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { Widget, Alarm } from '@/types';
-import { eventBus, EVENTS } from '../services/eventBus.js';
-import { proactiveScheduler } from '../services/proactiveScheduler.js';
+import { eventBus, EVENTS } from '../infrastructure/events/eventBus.js';
+import { proactiveScheduler } from '../domain/interaction/ProactiveScheduler.js';
 
 const STORAGE_KEY_CRISTI_WIDGETS = 'cristi_ai_active_widgets';
 const STORAGE_KEY_CRISTI_ALARMS = 'cristi_ai_active_alarms';

@@ -17,7 +17,7 @@ const { execSync } = require('node:child_process');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 
-console.log('📦 [PostInstall] Configurando entorno de Cristi AI Companion...');
+console.log('[PostInstall] Configurando entorno de Cristi AI Companion...');
 
 // 1. Ensure Electron binary is present
 try {
@@ -32,15 +32,15 @@ try {
   if (!hasBinary) {
     const installScript = path.join(electronPkgDir, 'install.js');
     if (fs.existsSync(installScript)) {
-      console.log('   ⏳ Descargando binario nativo de Electron...');
+      console.log('   [INFO] Descargando binario nativo de Electron...');
       execSync(`node "${installScript}"`, { stdio: 'inherit', cwd: ROOT_DIR });
-      console.log('   ✓ Binario de Electron listo.');
+      console.log('   [OK] Binario de Electron listo.');
     }
   } else {
-    console.log('   ✓ Binario de Electron verificado.');
+    console.log('   [OK] Binario de Electron verificado.');
   }
 } catch (err) {
-  console.warn('   ⚠️ Aviso al verificar binario de Electron:', err.message);
+  console.warn('   [WARN] Aviso al verificar binario de Electron:', err.message);
 }
 
 // 2. Ensure .env exists from .env.example
@@ -49,12 +49,12 @@ try {
   const envExamplePath = path.join(ROOT_DIR, '.env.example');
   if (!fs.existsSync(envPath) && fs.existsSync(envExamplePath)) {
     fs.copyFileSync(envExamplePath, envPath);
-    console.log('   ✓ Archivo .env inicializado desde .env.example');
+    console.log('   [OK] Archivo .env inicializado desde .env.example');
   } else if (fs.existsSync(envPath)) {
-    console.log('   ✓ Archivo .env verificado.');
+    console.log('   [OK] Archivo .env verificado.');
   }
 } catch (err) {
-  console.warn('   ⚠️ No se pudo copiar .env.example:', err.message);
+  console.warn('   [WARN] No se pudo copiar .env.example:', err.message);
 }
 
 // 3. Compile Electron main and preload scripts
@@ -62,7 +62,7 @@ try {
   const { buildElectron } = require('./build-electron.cjs');
   buildElectron();
 } catch (err) {
-  console.warn('   ⚠️ Falló compilación inicial de Electron:', err.message);
+  console.warn('   [WARN] Fallo compilacion inicial de Electron:', err.message);
 }
 
 // 4. Validate Environment Integrity
@@ -70,11 +70,11 @@ try {
   const publicDir = path.join(ROOT_DIR, 'public');
   const cubismCore = path.join(publicDir, 'live2dcubismcore.min.js');
   if (fs.existsSync(cubismCore)) {
-    console.log('   ✓ Live2D Cubism Core presente en public/');
+    console.log('   [OK] Live2D Cubism Core presente en public/');
   } else {
-    console.warn('   ⚠️ live2dcubismcore.min.js no detectado en public/');
+    console.warn('   [WARN] live2dcubismcore.min.js no detectado en public/');
   }
 } catch (_) {}
 
-console.log('✅ [PostInstall] Entorno base listo con éxito.\n');
+console.log('[OK] [PostInstall] Entorno base listo con exito.\n');
 process.exit(0);

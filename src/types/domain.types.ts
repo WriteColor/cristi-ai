@@ -77,6 +77,9 @@ export interface DomainEventEnvelope<T = unknown> {
 }
 
 export interface AppConfig {
+  hasGeminiCredential?: boolean;
+  hasDiscordCredential?: boolean;
+  hasSpotifyCredential?: boolean;
   apiKey: string;
   modelId: string;
   voiceName: string;

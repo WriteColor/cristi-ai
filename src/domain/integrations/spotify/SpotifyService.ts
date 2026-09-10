@@ -1,462 +1,363 @@
 /**
- * Cristi AI - Spotify Desktop & Web API Music Service (Domain Layer)
- * 
- * Provides unified playback control for Spotify Desktop and Spotify Web API:
- * global search for tracks/albums, playback by Spotify URI, play/pause toggling,
- * track skipping, and volume adjustment.
+ * Cristi AI - Spotify Music Service
+ * Comprehensive Spotify integration allowing Cristi to play music, search songs,
+ * skip tracks, control playback and volume via Spotify Desktop, Web API, and Playwright Web Player.
  */
 
-import type {
-  SpotifyAlbum,
-  SpotifyCommandResult,
-  SpotifyPlaybackState,
-  SpotifySearchResult,
-  SpotifyTrack
-} from '@/types';
-import { electronBridge } from '@/services/desktop/ElectronBridge.js';
-import { logger } from '@/services/logger.js';
+import { electronBridge } from '../../../services/desktop/ElectronBridge';
+import { playwrightService } from '../playwright/PlaywrightService';
+import { browserAutomationService } from '../browser/BrowserAutomationService';
+import { configManager } from '../../../infrastructure/config/ConfigManager';
+import { logger } from '../../../infrastructure/logging/logger';
 
-export interface ISpotifyService {
-  readonly currentTrack: string | null;
-  readonly currentArtist: string | null;
-  readonly isPlaying: boolean;
-
-  configure(credentials: { clientId?: string; clientSecret?: string }): void;
-  isDesktopInstalled(): Promise<boolean>;
-  getClientCredentialsToken(): Promise<string | null>;
-  search(query: string, type?: 'track' | 'album' | 'all'): Promise<SpotifySearchResult>;
-  searchTracks(query: string): Promise<SpotifySearchResult>;
-  searchAlbums(query: string): Promise<SpotifySearchResult>;
-  play(params?: { query?: string; uri?: string; useWeb?: boolean }): Promise<SpotifyCommandResult>;
-  playUri(uri: string): Promise<SpotifyCommandResult>;
-  pause(): Promise<SpotifyCommandResult>;
-  playPause(): Promise<SpotifyCommandResult>;
-  next(): Promise<SpotifyCommandResult>;
-  previous(): Promise<SpotifyCommandResult>;
-  volumeUp(): Promise<SpotifyCommandResult>;
-  volumeDown(): Promise<SpotifyCommandResult>;
-  setVolume(level: number): Promise<SpotifyCommandResult>;
-  getStatus(): Promise<SpotifyPlaybackState>;
+export interface SpotifyTrackInfo {
+  id?: string;
+  name?: string;
+  artists?: Array<{ name: string }>;
+  uri?: string;
+  external_urls?: { spotify?: string };
+  owner?: { display_name?: string };
 }
 
-export class SpotifyService implements ISpotifyService {
-  private readonly bridge: typeof electronBridge;
-  private clientId = '';
-  private clientSecret = '';
-  private accessToken: string | null = null;
-  private tokenExpiresAt = 0;
+export interface SpotifySearchResultItem {
+  id?: string;
+  name?: string;
+  artist?: string;
+  uri?: string;
+  url?: string;
+}
 
+export interface SpotifyActionResult {
+  status: 'success' | 'idle' | 'error';
+  action?: string;
+  mode?: string;
+  uri?: string;
+  url?: string;
+  track?: string | null;
+  artist?: string | null;
+  title?: string;
+  query?: string;
+  type?: string;
+  count?: number;
+  results?: SpotifySearchResultItem[];
+  isRunning?: boolean;
+  isPlaying?: boolean;
+  message?: string;
+}
+
+export class SpotifyService {
+  public clientId = '';
+  public clientSecret = '';
+  public accessToken: string | null = null;
+  public tokenExpiresAt = 0;
   public currentTrack: string | null = null;
   public currentArtist: string | null = null;
   public isPlaying = false;
 
-  constructor({ bridge = electronBridge } = {}) {
-    this.bridge = bridge;
-
-    const envClientId =
-      (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SPOTIFY_CLIENT_ID) ||
-      (typeof process !== 'undefined' && (process.env?.VITE_SPOTIFY_CLIENT_ID || process.env?.SPOTIFY_CLIENT_ID)) ||
-      '';
-    const envClientSecret =
-      (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SPOTIFY_CLIENT_SECRET) ||
-      (typeof process !== 'undefined' && (process.env?.VITE_SPOTIFY_CLIENT_SECRET || process.env?.SPOTIFY_CLIENT_SECRET)) ||
-      '';
-
-    this.clientId = envClientId.trim();
-    this.clientSecret = envClientSecret.trim();
-
-    // Auto-load config if available
-    this.loadSavedConfig();
-  }
-
-  private loadSavedConfig(): void {
+  constructor() {
+    // Eagerly auto-load saved credentials from configManager
     try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const stored = window.localStorage.getItem('cristi_app_config');
-        if (stored) {
-          const cfg = JSON.parse(stored);
-          if (cfg?.spotifyClientId && cfg?.spotifyClientSecret) {
-            this.configure({ clientId: cfg.spotifyClientId, clientSecret: cfg.spotifyClientSecret });
-          }
+      const cfg = configManager.loadConfig();
+      if (cfg && typeof cfg === 'object') {
+        const clientCfg = cfg as { spotifyClientId?: string; spotifyClientSecret?: string };
+        if (clientCfg.spotifyClientId && clientCfg.spotifyClientSecret) {
+          this.configure({ clientId: clientCfg.spotifyClientId, clientSecret: clientCfg.spotifyClientSecret });
         }
       }
-    } catch (_) {}
+    } catch {
+      // ignore
+    }
   }
 
-  public configure({ clientId, clientSecret }: { clientId?: string; clientSecret?: string }): void {
+  configure({ clientId, clientSecret }: { clientId?: string; clientSecret?: string } = {}): void {
     if (clientId) this.clientId = clientId.trim();
     if (clientSecret) this.clientSecret = clientSecret.trim();
   }
 
-  public async isDesktopInstalled(): Promise<boolean> {
+  async isDesktopInstalled(): Promise<boolean> {
     try {
-      if (this.bridge?.isElectron) {
-        const res = await this.bridge.spotifyControl('check_desktop_installed');
-        if (res && res.installed !== undefined) return Boolean(res.installed);
-        if (res && res.success !== undefined) return Boolean(res.success);
-      }
-    } catch (_) {}
+      const res = await electronBridge.spotifyControl('check_desktop_installed');
+      if (res?.installed !== undefined) return Boolean(res.installed);
+    } catch {
+      // fallback
+    }
     return false;
   }
 
-  /**
-   * Retrieves an app access token from Spotify Accounts API via Client Credentials flow
-   */
-  public async getClientCredentialsToken(): Promise<string | null> {
-    if (!this.clientId || !this.clientSecret) {
-      this.loadSavedConfig();
-    }
-    if (!this.clientId || !this.clientSecret) return null;
-
-    if (this.accessToken && Date.now() < this.tokenExpiresAt - 60000) {
-      return this.accessToken;
-    }
-
-    try {
-      const basic = typeof globalThis.btoa === 'function'
-        ? globalThis.btoa(`${this.clientId}:${this.clientSecret}`)
-        : Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
-
-      const res = await fetch('https://accounts.spotify.com/api/token', {
-        method: 'POST',
-        headers: {
-          Authorization: `Basic ${basic}`,
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: 'grant_type=client_credentials'
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        this.accessToken = data.access_token;
-        this.tokenExpiresAt = Date.now() + (Number(data.expires_in) || 3600) * 1000;
-        logger.info?.('SPOTIFY', 'Token de Spotify Web API obtenido con éxito.');
-        return this.accessToken;
-      }
-    } catch (err: any) {
-      logger.warn?.('SPOTIFY', 'Fallo al obtener token de Spotify Web API:', err?.message || err);
-    }
-
-    return null;
+  async getClientCredentialsToken(): Promise<string | null> {
+    if (this.accessToken && Date.now() < this.tokenExpiresAt) return this.accessToken;
+    this.accessToken = await electronBridge.spotifyToken();
+    this.tokenExpiresAt = Date.now() + 5 * 60 * 1000;
+    return this.accessToken;
   }
 
-  /**
-   * Global search for tracks and albums in Spotify catalog
-   */
-  public async search(query: string, type: 'track' | 'album' | 'all' = 'all'): Promise<SpotifySearchResult> {
-    if (!query || typeof query !== 'string') {
-      return { success: false, query: '', tracks: [], albums: [], error: 'Consulta de búsqueda vacía.' };
-    }
+  async play({ query, uri, useWeb = false }: { query?: string; uri?: string; useWeb?: boolean } = {}): Promise<SpotifyActionResult> {
+    logger.info('SPOTIFY', `Solicitud de reproducción: ${query ? `"${query}"` : uri || 'Reanudar'}`);
 
-    const token = await this.getClientCredentialsToken();
-    if (!token) {
-      // Offline fallback: return a synthesized search response with direct search URI
-      const encoded = encodeURIComponent(query);
-      return {
-        success: true,
-        query,
-        tracks: [
-          {
-            id: `search_${Date.now()}`,
-            name: query,
-            artists: ['Spotify'],
-            albumName: 'Resultado de búsqueda',
-            uri: `spotify:search:${encoded}`
-          }
-        ],
-        albums: []
-      };
-    }
-
-    try {
-      const apiType = type === 'all' ? 'track,album' : type;
-      const url = `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=${apiType}&limit=10`;
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (!res.ok) {
-        return { success: false, query, tracks: [], albums: [], error: `Spotify API Error: ${res.statusText}` };
-      }
-
-      const data = await res.json();
-      const tracks: SpotifyTrack[] = (data.tracks?.items || []).map((t: any) => ({
-        id: t.id,
-        name: t.name,
-        artists: (t.artists || []).map((a: any) => a.name),
-        albumName: t.album?.name || '',
-        uri: t.uri,
-        durationMs: t.duration_ms,
-        previewUrl: t.preview_url || null,
-        coverImage: t.album?.images?.[0]?.url || null
-      }));
-
-      const albums: SpotifyAlbum[] = (data.albums?.items || []).map((a: any) => ({
-        id: a.id,
-        name: a.name,
-        artists: (a.artists || []).map((art: any) => art.name),
-        uri: a.uri,
-        totalTracks: a.total_tracks,
-        coverImage: a.images?.[0]?.url || null
-      }));
-
-      return { success: true, query, tracks, albums };
-    } catch (err: any) {
-      logger.error?.('SPOTIFY', 'Error en búsqueda:', err);
-      return { success: false, query, tracks: [], albums: [], error: err?.message || String(err) };
-    }
-  }
-
-  public async searchTracks(query: string): Promise<SpotifySearchResult> {
-    return this.search(query, 'track');
-  }
-
-  public async searchAlbums(query: string): Promise<SpotifySearchResult> {
-    return this.search(query, 'album');
-  }
-
-  /**
-   * Play music on Spotify: resolves query or URI and directs to Desktop or Web
-   */
-  public async play({
-    query,
-    uri,
-    useWeb = false
-  }: { query?: string; uri?: string; useWeb?: boolean } = {}): Promise<SpotifyCommandResult> {
     const hasDesktop = await this.isDesktopInstalled();
 
-    // 1. Direct Spotify URI provided
     if (uri && typeof uri === 'string') {
-      return this.playUri(uri);
-    }
-
-    // 2. Query provided: search catalog first to get exact URI
-    if (query && typeof query === 'string') {
-      logger.info?.('SPOTIFY', `Buscando pista para reproducir: "${query}"`);
-      const searchRes = await this.search(query, 'track');
-      const topTrack = searchRes.tracks?.[0];
-
-      if (topTrack?.uri) {
-        this.currentTrack = topTrack.name;
-        this.currentArtist = topTrack.artists.join(', ');
-        this.isPlaying = true;
-        return this.playUri(topTrack.uri);
-      }
-
-      // If no exact match via Web API, trigger native desktop search
-      if (hasDesktop && !useWeb && this.bridge?.isElectron) {
-        await this.bridge.spotifyControl('search_desktop', { query });
-        this.isPlaying = true;
+      if (hasDesktop && !useWeb) {
+        await electronBridge.spotifyControl('open_uri', { uri });
         return {
-          success: true,
           status: 'success',
-          action: 'search_desktop',
-          message: `Buscando y reproduciendo "${query}" en Spotify Desktop.`
+          action: 'open_uri',
+          uri,
+          message: `Abriendo y reproduciendo en Spotify Desktop: ${uri}`
+        };
+      } else {
+        const trackId = uri.replace('spotify:track:', '');
+        const webUrl = uri.startsWith('spotify:track:')
+          ? `https://open.spotify.com/track/${trackId}`
+          : 'https://open.spotify.com';
+        await browserAutomationService.openInBrave(webUrl);
+        return {
+          status: 'success',
+          action: 'open_web',
+          uri: webUrl,
+          message: `Reproduciendo en Spotify Web (Brave): ${webUrl}`
         };
       }
-
-      const webSearchUrl = `https://open.spotify.com/search/${encodeURIComponent(query)}`;
-      if (this.bridge?.isElectron) {
-        await this.bridge.openExternal(webSearchUrl);
-      } else if (typeof window !== 'undefined') {
-        window.open(webSearchUrl, '_blank');
-      }
-
-      return {
-        success: true,
-        status: 'success',
-        action: 'open_web_search',
-        uri: webSearchUrl,
-        isWebFallback: true,
-        message: `Buscando "${query}" en Spotify Web.`
-      };
     }
 
-    // 3. Resume current playback
-    return this.playPause();
-  }
+    if (query && typeof query === 'string' && query.trim()) {
+      const cleanQuery = query.trim();
 
-  /**
-   * Play specific Spotify URI (track, album, playlist)
-   */
-  public async playUri(uri: string): Promise<SpotifyCommandResult> {
-    if (!uri || typeof uri !== 'string') {
-      return { success: false, status: 'error', error: 'URI de Spotify inválida.' };
-    }
-
-    const hasDesktop = await this.isDesktopInstalled();
-
-    if (hasDesktop && this.bridge?.isElectron) {
-      await this.bridge.spotifyControl('open_uri', { uri });
-      this.isPlaying = true;
-      return {
-        success: true,
-        status: 'success',
-        action: 'open_uri',
-        uri,
-        message: `Reproduciendo en Spotify Desktop: ${uri}`
-      };
-    }
-
-    // Web player fallback
-    let webUrl = 'https://open.spotify.com';
-    if (uri.startsWith('spotify:track:')) {
-      const trackId = uri.replace('spotify:track:', '');
-      webUrl = `https://open.spotify.com/track/${trackId}`;
-    } else if (uri.startsWith('spotify:album:')) {
-      const albumId = uri.replace('spotify:album:', '');
-      webUrl = `https://open.spotify.com/album/${albumId}`;
-    } else if (uri.startsWith('spotify:playlist:')) {
-      const playlistId = uri.replace('spotify:playlist:', '');
-      webUrl = `https://open.spotify.com/playlist/${playlistId}`;
-    }
-
-    if (this.bridge?.isElectron) {
-      await this.bridge.openExternal(webUrl);
-    } else if (typeof window !== 'undefined') {
-      window.open(webUrl, '_blank');
-    }
-
-    this.isPlaying = true;
-    return {
-      success: true,
-      status: 'success',
-      action: 'open_web',
-      uri: webUrl,
-      isWebFallback: true,
-      message: `Reproduciendo en Spotify Web: ${webUrl}`
-    };
-  }
-
-  public async pause(): Promise<SpotifyCommandResult> {
-    try {
-      if (this.bridge?.isElectron) {
-        await this.bridge.spotifyControl('play_pause');
-        this.isPlaying = false;
-        return { success: true, status: 'success', message: 'Reproducción pausada.' };
-      }
-      this.isPlaying = false;
-      return { success: true, status: 'success', message: 'Pausa simulada.' };
-    } catch (err: any) {
-      return { success: false, status: 'error', error: err?.message || String(err) };
-    }
-  }
-
-  public async playPause(): Promise<SpotifyCommandResult> {
-    try {
-      if (this.bridge?.isElectron) {
-        await this.bridge.spotifyControl('play_pause');
-        this.isPlaying = !this.isPlaying;
-        return {
-          success: true,
-          status: 'success',
-          message: this.isPlaying ? 'Reproducción reanudada.' : 'Reproducción pausada.'
-        };
-      }
-      this.isPlaying = !this.isPlaying;
-      return { success: true, status: 'success', message: 'Play/Pause conmutado.' };
-    } catch (err: any) {
-      return { success: false, status: 'error', error: err?.message || String(err) };
-    }
-  }
-
-  public async next(): Promise<SpotifyCommandResult> {
-    try {
-      if (this.bridge?.isElectron) {
-        await this.bridge.spotifyControl('next');
-        return { success: true, status: 'success', message: 'Siguiente pista.' };
-      }
-      return { success: true, status: 'success', message: 'Siguiente pista simulada.' };
-    } catch (err: any) {
-      return { success: false, status: 'error', error: err?.message || String(err) };
-    }
-  }
-
-  public async previous(): Promise<SpotifyCommandResult> {
-    try {
-      if (this.bridge?.isElectron) {
-        await this.bridge.spotifyControl('previous');
-        return { success: true, status: 'success', message: 'Pista anterior.' };
-      }
-      return { success: true, status: 'success', message: 'Pista anterior simulada.' };
-    } catch (err: any) {
-      return { success: false, status: 'error', error: err?.message || String(err) };
-    }
-  }
-
-  public async volumeUp(): Promise<SpotifyCommandResult> {
-    try {
-      if (this.bridge?.isElectron) {
-        await this.bridge.spotifyControl('volume_up');
-        return { success: true, status: 'success', message: 'Volumen aumentado.' };
-      }
-      return { success: true, status: 'success', message: 'Volumen aumentado.' };
-    } catch (err: any) {
-      return { success: false, status: 'error', error: err?.message || String(err) };
-    }
-  }
-
-  public async volumeDown(): Promise<SpotifyCommandResult> {
-    try {
-      if (this.bridge?.isElectron) {
-        await this.bridge.spotifyControl('volume_down');
-        return { success: true, status: 'success', message: 'Volumen reducido.' };
-      }
-      return { success: true, status: 'success', message: 'Volumen reducido.' };
-    } catch (err: any) {
-      return { success: false, status: 'error', error: err?.message || String(err) };
-    }
-  }
-
-  public async setVolume(level: number): Promise<SpotifyCommandResult> {
-    const clamped = Math.max(0, Math.min(100, Math.round(level)));
-    // Adjust volume via successive steps if absolute control is not native
-    const steps = clamped > 50 ? 2 : 1;
-    if (clamped > 50) {
-      for (let i = 0; i < steps; i++) await this.volumeUp();
-    } else {
-      for (let i = 0; i < steps; i++) await this.volumeDown();
-    }
-    return { success: true, status: 'success', message: `Volumen ajustado al nivel aproximado: ${clamped}%` };
-  }
-
-  public async getStatus(): Promise<SpotifyPlaybackState> {
-    try {
-      if (this.bridge?.isElectron) {
-        const res = await this.bridge.spotifyControl('get_status');
-        if (res && res.success) {
-          const isRunning = Boolean(res.isRunning);
-          const isPlaying = Boolean(res.isPlaying);
-          this.isPlaying = isPlaying;
-          if (res.track) this.currentTrack = res.track;
-          if (res.artist) this.currentArtist = res.artist;
-
-          return {
-            success: true,
-            isRunning,
-            isPlaying,
-            rawTitle: res.rawTitle || (this.currentTrack ? `${this.currentArtist || ''} - ${this.currentTrack}` : undefined),
-            artist: this.currentArtist,
-            track: this.currentTrack
-          };
+      const token = await this.getClientCredentialsToken();
+      let resolvedTrack: SpotifyTrackInfo | null = null;
+      if (token) {
+        try {
+          const searchRes = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(cleanQuery)}&type=track&limit=5`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (searchRes.ok) {
+            const data = await searchRes.json();
+            resolvedTrack = (data.tracks?.items?.[0] as SpotifyTrackInfo) || null;
+          }
+        } catch (e) {
+          const err = e as Error;
+          logger.warn('SPOTIFY', 'Búsqueda por Web API falló:', err.message);
         }
       }
 
+      if (hasDesktop && !useWeb && resolvedTrack && resolvedTrack.uri) {
+        await electronBridge.spotifyControl('open_uri', { uri: resolvedTrack.uri });
+        return {
+          status: 'success',
+          mode: 'api_resolved_desktop',
+          track: resolvedTrack.name,
+          artist: resolvedTrack.artists?.map((a) => a.name).join(', '),
+          uri: resolvedTrack.uri,
+          message: `Reproduciendo "${resolvedTrack.name}" de ${resolvedTrack.artists?.[0]?.name} en Spotify Desktop.`
+        };
+      }
+
+      const webUrl = (resolvedTrack && resolvedTrack.id)
+        ? `https://open.spotify.com/track/${resolvedTrack.id}`
+        : `https://open.spotify.com/search/${encodeURIComponent(cleanQuery)}`;
+
+      try {
+        await playwrightService.navigate(webUrl);
+        await new Promise((r) => setTimeout(r, 2000));
+
+        const playClickScript = `
+          (() => {
+            const mainPlay = document.querySelector('button[data-testid="play-button"]');
+            if (mainPlay) {
+              mainPlay.click();
+              return { clicked: true, method: 'main-play-button' };
+            }
+            const firstRow = document.querySelector('[data-testid="tracklist-row"]');
+            if (firstRow) {
+              const rowPlay = firstRow.querySelector('button[data-testid="play-button"]') ||
+                              firstRow.querySelector('button[aria-label*="Play" i]') ||
+                              firstRow.querySelector('button[aria-label*="Reproducir" i]');
+              if (rowPlay) {
+                rowPlay.click();
+                return { clicked: true, method: 'row-play-button' };
+              }
+              firstRow.click();
+              firstRow.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+              return { clicked: true, method: 'row-dblclick' };
+            }
+            const topCard = document.querySelector('[data-testid="top-result-card"] button, [data-testid="top-result-card"]');
+            if (topCard) {
+              const btn = topCard.tagName === 'BUTTON' ? topCard : topCard.querySelector('button');
+              if (btn) {
+                btn.click();
+                return { clicked: true, method: 'top-card-button' };
+              }
+            }
+            return { clicked: false };
+          })()
+        `;
+        const evalRes = await playwrightService.evaluate(playClickScript);
+        logger.info('SPOTIFY', 'Resultado de click Playwright:', evalRes);
+
+        if (evalRes && evalRes.success === false) {
+          logger.warn('SPOTIFY', 'Playwright no disponible en este entorno, abriendo en Brave Browser directamente.');
+          await browserAutomationService.openInBrave(webUrl);
+          return {
+            status: 'success',
+            mode: 'brave_browser',
+            track: resolvedTrack?.name || cleanQuery,
+            artist: resolvedTrack?.artists?.map((a) => a.name).join(', ') || null,
+            url: webUrl,
+            message: `Abriendo "${resolvedTrack?.name || cleanQuery}" en Brave Browser.`
+          };
+        }
+
+        return {
+          status: 'success',
+          mode: 'playwright_web',
+          track: resolvedTrack?.name || cleanQuery,
+          artist: resolvedTrack?.artists?.map((a) => a.name).join(', ') || null,
+          url: webUrl,
+          message: `Reproduciendo "${resolvedTrack?.name || cleanQuery}" en Spotify Web vía Playwright.`
+        };
+      } catch (pwErr) {
+        const error = pwErr as Error;
+        logger.warn('SPOTIFY', 'Playwright falló, abriendo en Brave Browser directamente:', error.message);
+        await browserAutomationService.openInBrave(webUrl);
+        return {
+          status: 'success',
+          mode: 'brave_browser',
+          track: resolvedTrack?.name || cleanQuery,
+          artist: resolvedTrack?.artists?.map((a) => a.name).join(', ') || null,
+          url: webUrl,
+          message: `Abriendo "${resolvedTrack?.name || cleanQuery}" en Brave Browser.`
+        };
+      }
+    }
+
+    await electronBridge.spotifyControl('play_pause');
+    return {
+      status: 'success',
+      action: 'play_pause',
+      message: 'Comando de reproducción/pausa enviado a Spotify.'
+    };
+  }
+
+  async pause(): Promise<SpotifyActionResult> {
+    logger.info('SPOTIFY', 'Pausando reproducción de Spotify...');
+    await electronBridge.spotifyControl('play_pause');
+    return {
+      status: 'success',
+      action: 'pause',
+      message: 'Música pausada en Spotify.'
+    };
+  }
+
+  async next(): Promise<SpotifyActionResult> {
+    logger.info('SPOTIFY', 'Saltando a la siguiente canción...');
+    await electronBridge.spotifyControl('next');
+    return {
+      status: 'success',
+      action: 'next',
+      message: 'Saltando a la siguiente pista en Spotify.'
+    };
+  }
+
+  async previous(): Promise<SpotifyActionResult> {
+    logger.info('SPOTIFY', 'Retrocediendo a la canción anterior...');
+    await electronBridge.spotifyControl('previous');
+    return {
+      status: 'success',
+      action: 'previous',
+      message: 'Volviendo a la pista anterior en Spotify.'
+    };
+  }
+
+  async getStatus(): Promise<SpotifyActionResult> {
+    const res = await electronBridge.spotifyControl('get_status');
+    if (res?.success || res?.status === 'success') {
+      const title = (res.title as string) || (res.rawTitle as string) || '';
+      let artist = (res.artist as string) || null;
+      let track = (res.track as string) || null;
+      if (title && title.includes(' - ') && !title.includes('Spotify')) {
+        const parts = title.split(' - ');
+        artist = parts[0]?.trim();
+        track = parts.slice(1).join(' - ')?.trim();
+      }
+      this.isPlaying = Boolean(res.isPlaying);
+      this.currentArtist = artist;
+      this.currentTrack = track;
       return {
-        success: true,
-        isRunning: false,
-        isPlaying: this.isPlaying,
-        artist: this.currentArtist,
-        track: this.currentTrack
-      };
-    } catch (err: any) {
-      return {
-        success: false,
-        isRunning: false,
-        isPlaying: false,
-        error: err?.message || String(err)
+        status: 'success',
+        isRunning: true,
+        isPlaying: Boolean(res.isPlaying),
+        artist,
+        track,
+        title: title || `${artist ? `${artist} - ` : ''}${track || 'Spotify'}`
       };
     }
+    return {
+      status: 'idle',
+      isRunning: false,
+      isPlaying: false,
+      message: (res?.error as string) || 'Spotify en segundo plano o inactivo.'
+    };
+  }
+
+  async search({ query, type = 'track' }: { query: string; type?: string }): Promise<SpotifyActionResult> {
+    if (!query) return { status: 'error', message: 'Consulta de búsqueda requerida.' };
+
+    const token = await this.getClientCredentialsToken();
+    if (token) {
+      try {
+        const res = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=${type}&limit=5`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = (await res.json()) as Record<string, {
+            items?: Array<{
+              id?: string;
+              name?: string;
+              uri?: string;
+              artists?: Array<{ name: string }>;
+              owner?: { display_name?: string };
+              album?: { name: string };
+              external_urls?: { spotify?: string };
+            }>;
+          }>;
+          const items = data[`${type}s`]?.items || [];
+          return {
+            status: 'success',
+            query,
+            type,
+            count: items.length,
+            results: items.map((item) => ({
+              id: item.id,
+              name: item.name,
+              artist: item.artists ? item.artists.map((a: { name: string }) => a.name).join(', ') : item.owner?.display_name,
+              uri: item.uri,
+              url: item.external_urls?.spotify
+            }))
+          };
+        }
+      } catch (err) {
+        const error = err as Error;
+        logger.warn('SPOTIFY', 'Error en búsqueda API:', error.message);
+      }
+    }
+
+    await electronBridge.spotifyControl('search_desktop', { query });
+    return {
+      status: 'success',
+      query,
+      type,
+      message: `Búsqueda de "${query}" lanzada en Spotify.`
+    };
+  }
+
+  async setVolume({ direction = 'up' }: { direction?: 'up' | 'down' } = {}): Promise<SpotifyActionResult> {
+    const action = direction === 'down' ? 'volume_down' : 'volume_up';
+    await electronBridge.spotifyControl(action);
+    return {
+      status: 'success',
+      action,
+      message: `Volumen ${direction === 'down' ? 'reducido' : 'aumentado'}.`
+    };
   }
 }
 

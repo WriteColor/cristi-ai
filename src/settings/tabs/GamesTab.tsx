@@ -8,10 +8,10 @@ import {
   Radio
 } from 'lucide-react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { minecraftCompanion } from '../../services/gameIntegration/MinecraftCompanionService.js';
-import { discordCompanion } from '../../services/discord/DiscordCompanionService.js';
-import { soundFxService } from '../../services/soundFxService.js';
-import { toastService } from '../../services/toastService.js';
+import { minecraftCompanion } from '../../domain/integrations/minecraft/MinecraftCompanionService.js';
+import { discordCompanion } from '../../domain/integrations/discord/DiscordCompanionService.js';
+import { soundFxService } from '../../domain/audio/SoundFxService.js';
+import { toastService } from '../../infrastructure/notifications/toastService.js';
 
 export const GamesTab: React.FC = () => {
   const discordToken = useSettingsStore((s) => s.discordToken);

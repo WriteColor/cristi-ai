@@ -84,5 +84,28 @@ export default [
       'no-constant-condition': 'off',
       'no-useless-assignment': 'off'
     }
+  },
+  {
+    files: [
+      'src/domain/gemini/*.ts',
+      'src/app/**/*.{ts,tsx}',
+      'src/infrastructure/config/LegacySettingsMigration.ts',
+      'src/infrastructure/config/ConfigManager.ts',
+      'src/domain/tools/ToolExecutor.ts',
+      'src/services/desktop/ElectronBridge.ts',
+      'shared/**/*.ts',
+      'electron/src/security/**/*.ts',
+      'electron/src/protocol/**/*.ts',
+      'src/domain/audio/StreamingResampler.ts',
+      'src/domain/audio/AudioPlayoutQueue.ts',
+      'src/domain/transcription/**/*.ts',
+      'src/worklets/**/*.ts'
+    ],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/ban-ts-comment': 'error',
+      'no-empty': ['error', { allowEmptyCatch: true }],
+    },
   }
 ];

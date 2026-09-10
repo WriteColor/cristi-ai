@@ -1,372 +1,221 @@
 /**
- * Cristi AI - Virtual Audio Output Service (`game_voice`)
- * 
- * Responsibilities:
- * - Directs translated voice output strictly into a virtual audio device (e.g. VB-CABLE Input,
- *   VoiceMeeter VAIO) to feed the in-game voice chat / microphone.
- * - Enforces zero audio leakage to default speakers: if no virtual output device is selected,
- *   it refuses to play through default speakers to prevent accidental TTS spillage and echo.
- * - Gapless jitter buffering with queue duration caps (drops stale frames under network backlog).
- * - Full memory lifecycle management with automated node disconnection on end.
+ * Cristi AI - VirtualAudioOutputService (TypeScript)
+ * Plays generated PCM into an explicitly selected render endpoint, such as
+ * VB-CABLE Input or a VoiceMeeter virtual output.
  */
 
-import { eventBus } from '@/services/eventBus.js';
-import type {
-  VirtualAudioOutputConfig,
-  VirtualAudioOutputStatus
-} from '@/types';
+import { eventBus } from '../../infrastructure/events/eventBus';
+
+function decodeBase64Pcm(value: string): Int16Array {
+  const encoded = String(value || '');
+  if (!encoded) return new Int16Array();
+  if (typeof globalThis.atob === 'function') {
+    const binary = globalThis.atob(encoded);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return new Int16Array(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+  }
+  if (typeof Buffer !== 'undefined') {
+    const bytes = Buffer.from(encoded, 'base64');
+    return new Int16Array(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+  }
+  throw new Error('No hay decodificador base64 disponible para la salida virtual.');
+}
+
+export interface VirtualAudioServiceOptions {
+  bus?: typeof eventBus;
+  audioContextFactory?: ((options?: any) => AudioContext) | null;
+  mediaDevices?: MediaDevices | null;
+  maxQueueMs?: number;
+}
+
+export interface VirtualOutputMetrics {
+  played: number;
+  dropped: number;
+  failures: number;
+  lastError: string | null;
+}
+
+export interface VirtualOutputStatus extends VirtualOutputMetrics {
+  configured: boolean;
+  supported: boolean;
+  deviceId: string | null;
+  deviceLabel: string | null;
+  activeSources: number;
+  queuedMs: number;
+}
 
 interface ActiveSourceEntry {
   source: AudioBufferSourceNode;
-  frameId: string;
-  sessionId: string;
-  correlationId: string;
+  sourceId: string;
+  sessionId: string | null;
 }
 
 export class VirtualAudioOutputService {
-  private audioContext: AudioContext | null = null;
-  private deviceId = '';
-  private deviceLabel = '';
-  private maxQueueMs = 1200; // Cap queue backlog to 1.2s to prevent audio lag
-  private nextScheduleTime = 0;
+  public bus: typeof eventBus;
+  public audioContextFactory: ((options?: any) => AudioContext) | null;
+  public mediaDevices: MediaDevices | null;
+  public maxQueueMs: number;
+  public audioContext: AudioContext | null = null;
+  public deviceId = '';
+  public deviceLabel = '';
+  public nextScheduleTime = 0;
   private activeSources = new Set<ActiveSourceEntry>();
+  public metrics: VirtualOutputMetrics = { played: 0, dropped: 0, failures: 0, lastError: null };
 
-  private metrics = {
-    played: 0,
-    dropped: 0,
-    failures: 0,
-    lastError: null as string | null
-  };
-
-  constructor(config?: VirtualAudioOutputConfig) {
-    if (config) {
-      if (config.deviceId) this.deviceId = config.deviceId;
-      if (config.deviceLabel) this.deviceLabel = config.deviceLabel;
-      if (typeof config.maxQueueMs === 'number') this.maxQueueMs = Math.max(200, config.maxQueueMs);
-    }
+  constructor({
+    bus = eventBus,
+    audioContextFactory = null,
+    mediaDevices = typeof navigator !== 'undefined' ? navigator.mediaDevices : null,
+    maxQueueMs = 900
+  }: VirtualAudioServiceOptions = {}) {
+    this.bus = bus;
+    this.audioContextFactory = audioContextFactory;
+    this.mediaDevices = mediaDevices;
+    this.maxQueueMs = Math.max(100, Math.min(5000, Number(maxQueueMs) || 900));
   }
 
-  /**
-   * Check if AudioContext and setSinkId are supported in this Chromium/Electron runtime.
-   */
   public isSupported(): boolean {
-    const AudioContextClass = typeof window !== 'undefined'
-      ? (window.AudioContext || (window as any).webkitAudioContext)
-      : null;
-    return Boolean(AudioContextClass);
+    return Boolean(
+      (typeof this._createContext === 'function' && typeof globalThis.AudioContext !== 'undefined') ||
+      typeof this.audioContextFactory === 'function'
+    );
   }
 
-  /**
-   * Check if a virtual audio sink device is configured.
-   */
   public isConfigured(): boolean {
-    return Boolean(this.deviceId && this.deviceId.trim().length > 0);
+    return Boolean(this.deviceId);
   }
 
-  /**
-   * List available physical and virtual output devices.
-   */
   public async listOutputDevices(): Promise<Array<{ deviceId: string; label: string }>> {
-    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) {
-      return [];
-    }
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      return devices
-        .filter((d) => d.kind === 'audiooutput' && d.deviceId)
-        .map((d) => ({
-          deviceId: d.deviceId,
-          label: d.label || `Audio Output (${d.deviceId.slice(0, 8)}...)`
-        }));
-    } catch (err: any) {
-      this.metrics.lastError = err?.message || 'Error enumerando dispositivos de salida';
-      return [];
-    }
+    if (typeof this.mediaDevices?.enumerateDevices !== 'function') return [];
+    const devices = await this.mediaDevices.enumerateDevices();
+    return devices
+      .filter((device) => device?.kind === 'audiooutput' && device.deviceId)
+      .map((device) => ({ deviceId: device.deviceId, label: device.label || 'Dispositivo de salida sin nombre' }));
   }
 
-  /**
-   * Configure the target virtual audio sink (e.g. VB-CABLE Input).
-   */
-  public async configure(options: { deviceId?: string; deviceLabel?: string }): Promise<VirtualAudioOutputStatus> {
-    const nextDeviceId = (options.deviceId || '').trim();
-    this.deviceLabel = (options.deviceLabel || '').trim();
-
-    if (!nextDeviceId) {
+  public async configure({ deviceId = '', deviceLabel = '' }: { deviceId?: string; deviceLabel?: string } = {}): Promise<VirtualOutputStatus> {
+    const nextId = String(deviceId || '').trim();
+    this.deviceLabel = String(deviceLabel || '').trim();
+    if (!nextId) {
       this.deviceId = '';
       this.nextScheduleTime = 0;
       return this.getStatus();
     }
-
     if (!this.isSupported()) {
       this.deviceId = '';
-      this.metrics.lastError = 'Web Audio API no disponible en este entorno.';
+      this.metrics.lastError = 'AudioContext no está disponible en este entorno.';
       return this.getStatus();
     }
-
-    const context = await this.getOrCreateContext();
-    if (!context) {
+    const context = await this._getContext();
+    const setSinkIdFn = (context as any)?.setSinkId;
+    if (typeof setSinkIdFn !== 'function') {
       this.deviceId = '';
-      this.metrics.lastError = 'No se pudo inicializar AudioContext.';
+      this.metrics.lastError = 'Este Chromium no permite seleccionar una salida de audio virtual.';
       return this.getStatus();
     }
-
-    if (typeof (context as any).setSinkId !== 'function') {
-      this.deviceId = '';
-      this.metrics.lastError = 'Este entorno no soporta enrutamiento setSinkId a salidas virtuales.';
-      return this.getStatus();
-    }
-
-    if (this.deviceId === nextDeviceId) {
-      return this.getStatus();
-    }
-
+    if (this.deviceId === nextId) return this.getStatus();
     try {
-      await (context as any).setSinkId(nextDeviceId);
-      this.deviceId = nextDeviceId;
+      await setSinkIdFn.call(context, nextId);
+      this.deviceId = nextId;
       this.metrics.lastError = null;
-    } catch (err: any) {
+    } catch (error) {
       this.deviceId = '';
-      this.metrics.lastError = err?.message || 'Error asignando sinkId a la salida de audio.';
+      const msg = error instanceof Error ? error.message : String(error);
+      this.metrics.lastError = msg;
     }
-
     return this.getStatus();
   }
 
-  /**
-   * Play a chunk of synthesized PCM into the isolated virtual audio channel (`game_voice`).
-   * 
-   * Strict safety guard:
-   * If this service is NOT configured with a dedicated virtual sink, it WILL NOT play
-   * through default speakers to prevent unwanted TTS leakage and acoustic feedback!
-   */
-  public async playAudioChunk(
-    base64Pcm: string,
-    options: {
-      sampleRate?: number;
-      frameId?: string;
-      sessionId?: string;
-      correlationId?: string;
-    } = {}
-  ): Promise<{
-    success: boolean;
-    reason?: string;
-    frameId?: string;
-    durationMs?: number;
-    error?: string;
-  }> {
-    if (!this.isConfigured()) {
-      return {
-        success: false,
-        reason: 'not_configured',
-        error: 'Salida virtual no configurada. Configure un dispositivo antes de emitir a game_voice.'
-      };
+  public async playAudioChunk(data: string, { sampleRate = 24000, frameId = null, sessionId = null }: { sampleRate?: number; frameId?: string | null; sessionId?: string | null } = {}): Promise<any> {
+    if (!this.isConfigured()) return { success: false, reason: 'not_configured' };
+    const context = await this._getContext();
+    if (!context || typeof context.createBuffer !== 'function' || typeof context.createBufferSource !== 'function') {
+      return { success: false, reason: 'unsupported' };
     }
-
-    const context = await this.getOrCreateContext();
-    if (!context) {
-      return {
-        success: false,
-        reason: 'context_unavailable',
-        error: 'AudioContext no disponible.'
-      };
-    }
-
-    const pcm = this.decodeBase64Pcm(base64Pcm);
-    if (!pcm.length) {
-      return { success: false, reason: 'empty_payload' };
-    }
-
-    const sampleRate = Math.max(8000, Math.min(48000, options.sampleRate || 24000));
-    const now = context.currentTime;
-    const startAt = Math.max(now, this.nextScheduleTime);
-    const duration = pcm.length / sampleRate;
-
-    // Buffer overflow protection: drop chunk if queue is already too backed up
+    const pcm = decodeBase64Pcm(data);
+    if (!pcm.length) return { success: false, reason: 'empty_audio' };
+    const rate = Math.max(8000, Math.min(48000, Math.round(Number(sampleRate) || 24000)));
+    const now = Number(context.currentTime) || 0;
+    const startAt = Math.max(now, this.nextScheduleTime || now);
+    const duration = pcm.length / rate;
     if ((startAt - now) * 1000 > this.maxQueueMs) {
-      this.metrics.dropped++;
-      return {
-        success: false,
-        reason: 'queue_overflow',
-        error: `Cola de audio virtual saturada (${Math.round((startAt - now) * 1000)}ms)`
-      };
+      this.metrics.dropped += 1;
+      return { success: false, reason: 'queue_full' };
     }
-
     try {
-      if (context.state === 'suspended') {
-        await context.resume();
-      }
-
-      const audioBuffer = context.createBuffer(1, pcm.length, sampleRate);
-      const channelData = audioBuffer.getChannelData(0);
-      for (let i = 0; i < pcm.length; i++) {
-        channelData[i] = pcm[i] / 32768.0;
-      }
-
-      const sourceNode = context.createBufferSource();
-      sourceNode.buffer = audioBuffer;
-      sourceNode.connect(context.destination);
-
-      const frameId = options.frameId || `v_audio_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      const sessionId = options.sessionId || 'session_default';
-      const correlationId = options.correlationId || `corr_${Date.now()}`;
-
-      const entry: ActiveSourceEntry = {
-        source: sourceNode,
-        frameId,
-        sessionId,
-        correlationId
-      };
-
+      if (context.state === 'suspended' && typeof context.resume === 'function') await context.resume();
+      const buffer = context.createBuffer(1, pcm.length, rate);
+      const channel = buffer.getChannelData(0);
+      for (let index = 0; index < pcm.length; index += 1) channel[index] = pcm[index] / 0x8000;
+      const source = context.createBufferSource();
+      source.buffer = buffer;
+      source.connect(context.destination);
+      const sourceId = frameId || `virtual_translation_${Date.now()}`;
+      const entry: ActiveSourceEntry = { source, sourceId, sessionId };
       this.activeSources.add(entry);
-
-      sourceNode.onended = () => {
-        this.cleanupSourceEntry(entry);
-      };
-
-      if (this.activeSources.size === 1) {
-        this.emitLifecycleEvent('translation.virtual_output_started', entry);
-      }
-
-      sourceNode.start(startAt);
+      source.onended = () => this._finishSource(entry);
+      if (this.activeSources.size === 1) this._emitLifecycle('translation.virtual_output_started', sourceId, sessionId);
+      source.start(startAt);
       this.nextScheduleTime = startAt + duration;
-      this.metrics.played++;
-
-      return {
-        success: true,
-        frameId,
-        durationMs: Math.round(duration * 1000)
-      };
-    } catch (err: any) {
-      this.metrics.failures++;
-      this.metrics.lastError = err?.message || String(err);
-      return {
-        success: false,
-        reason: 'playback_exception',
-        error: this.metrics.lastError!
-      };
+      this.metrics.played += 1;
+      return { success: true, frameId: sourceId, startAt, durationMs: Math.round(duration * 1000) };
+    } catch (error) {
+      this.metrics.failures += 1;
+      const msg = error instanceof Error ? error.message : String(error);
+      this.metrics.lastError = msg;
+      return { success: false, reason: 'playback_error', error: this.metrics.lastError };
     }
   }
 
-  /**
-   * Get telemetry and operational status.
-   */
-  public getStatus(): VirtualAudioOutputStatus {
-    const context = this.audioContext;
-    const queuedMs = context
-      ? Math.max(0, Math.round(((this.nextScheduleTime || 0) - (context.currentTime || 0)) * 1000))
-      : 0;
+  private _finishSource(entry: ActiveSourceEntry): void {
+    if (!this.activeSources.delete(entry)) return;
+    try { entry.source.disconnect?.(); } catch (_) {}
+    if (!this.activeSources.size) {
+      this.nextScheduleTime = 0;
+      this._emitLifecycle('translation.virtual_output_ended', entry.sourceId, entry.sessionId);
+    }
+  }
 
+  private _emitLifecycle(type: string, frameId: string, sessionId: string | null): void {
+    this.bus?.emitDomain?.(type, { frameId, deviceId: this.deviceId, deviceLabel: this.deviceLabel }, {
+      source: 'translation_virtual_output', sessionId, privacy: 'internal'
+    });
+  }
+
+  private _createContext(): AudioContext | null {
+    if (typeof this.audioContextFactory === 'function') return this.audioContextFactory({ latencyHint: 'interactive' });
+    if (typeof globalThis.AudioContext === 'function') return new globalThis.AudioContext({ latencyHint: 'interactive' });
+    return null;
+  }
+
+  private async _getContext(): Promise<AudioContext | null> {
+    if (!this.audioContext || this.audioContext.state === 'closed') this.audioContext = this._createContext();
+    return this.audioContext;
+  }
+
+  public getStatus(): VirtualOutputStatus {
     return {
       configured: this.isConfigured(),
       supported: this.isSupported(),
       deviceId: this.deviceId || null,
       deviceLabel: this.deviceLabel || null,
       activeSources: this.activeSources.size,
-      queuedMs,
-      played: this.metrics.played,
-      dropped: this.metrics.dropped,
-      failures: this.metrics.failures,
-      lastError: this.metrics.lastError
+      queuedMs: this.audioContext ? Math.max(0, Math.round(((this.nextScheduleTime || 0) - (this.audioContext.currentTime || 0)) * 1000)) : 0,
+      ...this.metrics
     };
   }
 
-  /**
-   * Stop all active virtual audio outputs immediately.
-   */
-  public stopImmediate(): void {
-    for (const entry of Array.from(this.activeSources)) {
-      try {
-        entry.source.stop();
-        entry.source.disconnect();
-      } catch (_) {}
-      this.activeSources.delete(entry);
-    }
-    this.nextScheduleTime = 0;
-  }
-
-  private cleanupSourceEntry(entry: ActiveSourceEntry): void {
-    if (!this.activeSources.has(entry)) return;
-    this.activeSources.delete(entry);
-
-    try {
-      entry.source.disconnect();
-    } catch (_) {}
-
-    if (this.activeSources.size === 0) {
-      this.nextScheduleTime = 0;
-      this.emitLifecycleEvent('translation.virtual_output_ended', entry);
-    }
-  }
-
-  private emitLifecycleEvent(eventType: string, entry: ActiveSourceEntry): void {
-    eventBus.emitDomain(eventType, {
-      frameId: entry.frameId,
-      deviceId: this.deviceId,
-      deviceLabel: this.deviceLabel
-    }, {
-      source: 'virtual_audio_output',
-      sessionId: entry.sessionId,
-      correlationId: entry.correlationId,
-      privacy: 'internal'
-    });
-  }
-
-  private async getOrCreateContext(): Promise<AudioContext | null> {
-    if (this.audioContext && this.audioContext.state !== 'closed') {
-      return this.audioContext;
-    }
-
-    const AudioContextClass = typeof window !== 'undefined'
-      ? (window.AudioContext || (window as any).webkitAudioContext)
-      : null;
-
-    if (!AudioContextClass) return null;
-
-    try {
-      this.audioContext = new AudioContextClass({ latencyHint: 'interactive' });
-      return this.audioContext;
-    } catch (err: any) {
-      this.metrics.lastError = err?.message || 'Error creando AudioContext';
-      return null;
-    }
-  }
-
-  private decodeBase64Pcm(base64: string): Int16Array {
-    if (!base64) return new Int16Array(0);
-    try {
-      if (typeof atob === 'function') {
-        const binary = atob(base64);
-        const len = binary.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binary.charCodeAt(i);
-        }
-        return new Int16Array(bytes.buffer, bytes.byteOffset, Math.floor(bytes.byteLength / 2));
-      }
-      if (typeof Buffer !== 'undefined') {
-        const buf = Buffer.from(base64, 'base64');
-        return new Int16Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 2));
-      }
-    } catch (_) {
-      return new Int16Array(0);
-    }
-    return new Int16Array(0);
-  }
-
-  /**
-   * Release all resources.
-   */
   public async destroy(): Promise<void> {
-    this.stopImmediate();
+    for (const entry of [...this.activeSources]) {
+      try { entry.source.stop?.(); } catch (_) {}
+      this._finishSource(entry);
+    }
     const context = this.audioContext;
     this.audioContext = null;
     this.deviceId = '';
     this.nextScheduleTime = 0;
-    if (context && context.state !== 'closed') {
-      try {
-        await context.close();
-      } catch (_) {}
-    }
+    try { await context?.close?.(); } catch (_) {}
   }
 }
 

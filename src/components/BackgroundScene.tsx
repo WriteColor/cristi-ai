@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { sceneManager } from '../services/sceneManager.js';
+import { sceneManager } from '../domain/scenes/SceneManager.js';
 
 export interface SceneState {
   sceneId: string;

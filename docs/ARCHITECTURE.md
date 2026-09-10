@@ -1,7 +1,7 @@
-# 🏛️ Arquitectura del Sistema e Ingeniería de Rendimiento — Cristi AI Companion
-> **Autor:** Write_Color | **Versión:** 1.0.0 | **Stack:** Electron 32 + React 19 + Vite 8 + PixiJS 7 + Live2D Cubism + Gemini Live API
+# Arquitectura del Sistema e Ingenieria de Rendimiento — Cristi AI Companion
+> **Autor:** Write_Color | **Versión:** 2.0.0 (Auditoría Integral 2026) | **Stack:** Electron 43.6 + Node 24.20 + React 19.2 + Vite 8 (Rolldown) + PixiJS 7 + Live2D Cubism 4 + Gemini Live API + MCP 1.30
 
-Documento exhaustivo de ingeniería de software, arquitectura de sistemas y diseño de flujo de datos de **Cristi AI Companion**.
+Documento exhaustivo de ingeniería de software, arquitectura de sistemas y diseño de flujo de datos de **Cristi AI Companion**. Validado contra el código real y respaldado por 52 pruebas unitarias reales y el pipeline CI de 7 compuertas.
 
 ---
 

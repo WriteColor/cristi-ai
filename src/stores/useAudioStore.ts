@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { toastService } from '../services/toastService.js';
+import { toastService } from '../infrastructure/notifications/toastService.js';
 
 export interface AudioState {
   // --- Core Estado Requerido ---

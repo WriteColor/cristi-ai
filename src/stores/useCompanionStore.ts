@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { CompanionViewMode, Position2D } from '@/types';
-import { soundFxService } from '../services/soundFxService.js';
-import { sceneManager } from '../services/sceneManager.js';
+import { soundFxService } from '../domain/audio/SoundFxService.js';
+import { sceneManager } from '../domain/scenes/SceneManager.js';
 import { electronBridge } from '../services/desktop/ElectronBridge.js';
 
 export interface ContextMenuState {

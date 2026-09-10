@@ -1,4 +1,5 @@
-import { ipcMain, BrowserWindow, screen, app } from 'electron';
+import { handleTrusted, onTrusted } from '../security/CapabilityRouter';
+import { BrowserWindow, screen, app } from 'electron';
 import { windowManager } from '../windows/windowManager';
 import { processManager } from '../core/processManager';
 import { DisplayInfo, InteractiveHitbox, ProcessMemoryResult, ProcessMetricInfo } from '../types/electron.types';
@@ -69,7 +70,7 @@ export function registerWindowIpc(): void {
   startHitboxTracking();
 
   // ── Click-Through Toggle ──────────────────────────────────────────────────
-  ipcMain.on('set-ignore-mouse-events', (event, ignore: unknown) => {
+  onTrusted('set-ignore-mouse-events', (event, ignore: unknown) => {
     try {
       const win = BrowserWindow.fromWebContents(event.sender) as ExtendedBrowserWindow | null;
       if (!win || win.isDestroyed()) return;
@@ -91,14 +92,14 @@ export function registerWindowIpc(): void {
   });
 
   // ── Hitbox Synchronization ────────────────────────────────────────────────
-  ipcMain.on('sync-interactive-hitboxes', (_event, hitboxes: unknown) => {
+  onTrusted('sync-interactive-hitboxes', (_event, hitboxes: unknown) => {
     if (Array.isArray(hitboxes)) {
       registeredInteractiveHitboxes = hitboxes as InteractiveHitbox[];
     }
   });
 
   // ── Always-On-Top ─────────────────────────────────────────────────────────
-  ipcMain.on('set-always-on-top', (event, value: unknown) => {
+  onTrusted('set-always-on-top', (event, value: unknown) => {
     try {
       const win = BrowserWindow.fromWebContents(event.sender);
       if (!win || win.isDestroyed()) return;
@@ -112,7 +113,7 @@ export function registerWindowIpc(): void {
     }
   });
 
-  ipcMain.handle('get-always-on-top', (event): boolean => {
+  handleTrusted('get-always-on-top', (event): boolean => {
     try {
       const win = BrowserWindow.fromWebContents(event.sender);
       return win && !win.isDestroyed() ? win.isAlwaysOnTop() : false;
@@ -122,7 +123,7 @@ export function registerWindowIpc(): void {
   });
 
   // ── Window Controls ───────────────────────────────────────────────────────
-  ipcMain.on('minimize-window', () => {
+  onTrusted('minimize-window', () => {
     try {
       const mainWin = windowManager.getMainWindow();
       if (mainWin && !mainWin.isDestroyed()) {
@@ -133,7 +134,7 @@ export function registerWindowIpc(): void {
     }
   });
 
-  ipcMain.on('show-window', () => {
+  onTrusted('show-window', () => {
     try {
       const mainWin = windowManager.getMainWindow();
       if (mainWin && !mainWin.isDestroyed()) {
@@ -145,7 +146,7 @@ export function registerWindowIpc(): void {
     }
   });
 
-  ipcMain.on('hide-window', () => {
+  onTrusted('hide-window', () => {
     try {
       const mainWin = windowManager.getMainWindow();
       if (mainWin && !mainWin.isDestroyed()) {
@@ -156,12 +157,12 @@ export function registerWindowIpc(): void {
     }
   });
 
-  ipcMain.on('quit-app', async () => {
+  onTrusted('quit-app', async () => {
     await processManager.cleanupAll();
     app.quit();
   });
 
-  ipcMain.handle('relaunch-app', async () => {
+  handleTrusted('relaunch-app', async () => {
     try {
       await processManager.cleanupAll();
       app.relaunch();
@@ -173,7 +174,7 @@ export function registerWindowIpc(): void {
     }
   });
 
-  ipcMain.handle('reload-window', (event) => {
+  handleTrusted('reload-window', (event) => {
     try {
       const win = BrowserWindow.fromWebContents(event.sender) || windowManager.getMainWindow();
       if (win && !win.isDestroyed()) {
@@ -188,7 +189,7 @@ export function registerWindowIpc(): void {
   });
 
   // ── Display Info ──────────────────────────────────────────────────────────
-  ipcMain.handle('get-display-info', (): DisplayInfo => {
+  handleTrusted('get-display-info', (): DisplayInfo => {
     try {
       const primary = screen.getPrimaryDisplay();
       if (!primary || !primary.bounds) {
@@ -217,7 +218,7 @@ export function registerWindowIpc(): void {
   });
 
   // ── Process & GPU Telemetry ───────────────────────────────────────────────
-  ipcMain.handle('get-process-memory-info', async (): Promise<ProcessMemoryResult> => {
+  handleTrusted('get-process-memory-info', async (): Promise<ProcessMemoryResult> => {
     try {
       const metrics = (app.getAppMetrics && typeof app.getAppMetrics === 'function') ? app.getAppMetrics() : [];
       let totalWorkingSetKB = 0;
@@ -300,7 +301,7 @@ export function registerWindowIpc(): void {
     }
   });
 
-  ipcMain.handle('get-gpu-feature-status', () => {
+  handleTrusted('get-gpu-feature-status', () => {
     try {
       return (app.getGPUFeatureStatus && typeof app.getGPUFeatureStatus === 'function')
         ? app.getGPUFeatureStatus()
@@ -310,7 +311,7 @@ export function registerWindowIpc(): void {
     }
   });
 
-  ipcMain.handle('get-gpu-info', async () => {
+  handleTrusted('get-gpu-info', async () => {
     try {
       let gpuInfo: unknown = {};
       let gpuFeatureStatus: unknown = {};
@@ -337,32 +338,32 @@ export function registerWindowIpc(): void {
     }
   });
 
-  ipcMain.handle('get-app-version', () => {
+  handleTrusted('get-app-version', () => {
     return app.getVersion();
   });
 
   // ── Subwindow Management Handlers ─────────────────────────────────────────
-  ipcMain.handle('open-settings-window', () => {
+  handleTrusted('open-settings-window', () => {
     windowManager.createSettingsWindow();
     return { success: true };
   });
 
-  ipcMain.handle('close-settings-window', () => {
+  handleTrusted('close-settings-window', () => {
     windowManager.closeSettingsWindow();
     return { success: true };
   });
 
-  ipcMain.handle('open-camera-window', () => {
+  handleTrusted('open-camera-window', () => {
     windowManager.createCameraWindow();
     return { success: true };
   });
 
-  ipcMain.handle('close-camera-window', () => {
+  handleTrusted('close-camera-window', () => {
     windowManager.closeCameraWindow();
     return { success: true };
   });
 
-  ipcMain.handle('is-camera-window-open', () => {
+  handleTrusted('is-camera-window-open', () => {
     return windowManager.isCameraWindowOpen();
   });
 }

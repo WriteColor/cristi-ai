@@ -17,7 +17,7 @@ import {
   Activity
 } from 'lucide-react';
 import { useClickThrough } from '../hooks/useClickThrough.js';
-import { soundFxService } from '../services/soundFxService.js';
+import { soundFxService } from '../domain/audio/SoundFxService.js';
 import { clickThroughService } from '../services/desktop/ClickThroughService.js';
 import { useSessionStore } from '../stores/useSessionStore.js';
 import { useAudioStore } from '../stores/useAudioStore.js';

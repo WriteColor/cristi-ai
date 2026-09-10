@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "lib": [
+      "DOM",
+      "DOM.Iterable",
+      "ES2022"
+    ],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
@@ -11,14 +15,25 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "allowJs": true,
+    "allowJs": false,
     "checkJs": false,
     "isolatedModules": true,
     "resolveJsonModule": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     }
   },
-  "include": ["src/**/*", "electron/**/*", "vite.config.ts"],
-  "exclude": ["node_modules", "dist", "release"]
+  "include": [
+    "src/**/*",
+    "shared/**/*",
+    "vite.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "release",
+    "src/**/*.test.ts"
+  ]
 }
