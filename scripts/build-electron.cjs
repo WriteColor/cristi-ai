@@ -2,7 +2,7 @@
 const path = require('node:path');
 const esbuild = require('esbuild');
 const root = path.resolve(__dirname, '..');
-const external = ['electron', '@discordjs/voice', 'discord.js', 'mineflayer', 'mineflayer-pathfinder', 'playwright', 'prism-media', '@modelcontextprotocol/sdk', 'zod', 'node:sqlite', 'sharp'];
+const external = ['electron', '@discordjs/voice', 'discord.js', 'mineflayer', 'mineflayer-pathfinder', 'playwright', 'prism-media', '@modelcontextprotocol/sdk', 'zod', 'node:sqlite'];
 function options() {
   return [
     { entryPoints: [path.join(root, 'electron/src/utility/memory.worker.ts')], outfile: path.join(root, 'electron/dist/memory.worker.cjs'), external },

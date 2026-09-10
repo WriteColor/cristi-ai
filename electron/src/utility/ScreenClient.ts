@@ -1,4 +1,4 @@
-﻿import { Worker } from 'node:worker_threads';
+import { Worker } from 'node:worker_threads';
 import path from 'node:path';
 
 type Region = { x_pct?: number; y_pct?: number; w_pct?: number; h_pct?: number } | null;
@@ -61,6 +61,10 @@ export function processScreen(
   return new Promise(resolve => {
     const timer = setTimeout(() => {
       pending.delete(id);
+      if (worker === w) {
+        worker = null;
+        w.terminate().catch(() => {});
+      }
       resolve({ base64: null, error: 'Tiempo de espera de screen worker agotado.' });
     }, 5000);
     pending.set(id, { resolve, timer });

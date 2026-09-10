@@ -233,7 +233,7 @@ export function registerSystemIpc(rootDir?: string): void {
 
     // Coalesce duplicate ongoing capture requests for the same region
     if (activeScreenCapturePromises.has(regionKey)) {
-      return activeScreenCapturePromises.get(regionKey);
+      return (activeScreenCapturePromises.get(regionKey) ?? null) as Promise<string | null>;
     }
 
     isScreenCaptureInProgress = true;
@@ -411,7 +411,7 @@ export function registerSystemIpc(rootDir?: string): void {
         filePath: destPath,
         fileUrl: `app://cristi/custom-scenes/${encodeURIComponent(destName)}`,
         name: baseName,
-        type: isVideo ? 'video' : isAnimated ? 'animated' : 'image',
+        type: isVideo ? ('video' as const) : isAnimated ? ('animated' as const) : ('image' as const),
       };
     } catch (err) {
       console.error('[SystemIpc] Error importing custom scene file:', err);

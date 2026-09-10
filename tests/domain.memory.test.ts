@@ -93,7 +93,7 @@ test('MemoryService remembers, recalls, and formats system prompt context', asyn
   assert.ok(relevant.length > 0);
 
   // Context formatting
-  const promptContext = service.getSystemPromptContext({ maxMemories: 5 });
+  const promptContext = service.getSystemPromptContext({ limit: 5 });
   assert.ok(promptContext.includes('Jeremy'));
   assert.ok(promptContext.includes('TypeScript'));
 

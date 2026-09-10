@@ -563,7 +563,7 @@ export function registerIntegrationsIpc(): void {
   });
 
   handleTrusted('minecraft-get-status', (): MinecraftStatus => {
-    if (!mcBot) return { status: 'disconnected', connectionId: null };
+    if (!mcBot) return { connected: false, status: 'disconnected', connectionId: null };
     try {
       const pos = mcBot.entity?.position || { x: 0, y: 0, z: 0 };
       const players = Object.keys(mcBot.players || {}).filter((p) => p !== mcBot.username);
@@ -598,6 +598,7 @@ export function registerIntegrationsIpc(): void {
       }));
 
       return {
+        connected: true,
         status: 'connected',
         connectionId: mcConnectionId,
         health: mcBot.health ?? 20,
@@ -611,7 +612,7 @@ export function registerIntegrationsIpc(): void {
         inventory,
       };
     } catch (e) {
-      return { status: 'error', connectionId: mcConnectionId, error: (e as Error).message };
+      return { connected: false, status: 'error', connectionId: mcConnectionId, error: (e as Error).message };
     }
   });
 
@@ -853,11 +854,11 @@ export function registerIntegrationsIpc(): void {
   });
 
   handleTrusted('discord-get-messages', async (_event, { channelId, limit = 20 }: { channelId: string; limit?: number }) => {
-    if (!discordClient) return { success: false, error: 'Bot de Discord no conectado.' };
+    if (!discordClient) return { success: false, error: 'Bot de Discord no conectado.', messages: [] };
     try {
       const channel = await discordClient.channels.fetch(channelId);
       if (!channel || !channel.isTextBased()) {
-        return { success: false, error: 'Canal no encontrado o no admite texto.' };
+        return { success: false, error: 'Canal no encontrado o no admite texto.', messages: [] };
       }
       const messages = await channel.messages.fetch({ limit: Math.min(50, limit) });
       const list = Array.from(messages.values()).map((m: any) => ({
@@ -869,7 +870,7 @@ export function registerIntegrationsIpc(): void {
       })).reverse();
       return { success: true, messages: list };
     } catch (e) {
-      return { success: false, error: (e as Error).message };
+      return { success: false, error: (e as Error).message, messages: [] };
     }
   });
 

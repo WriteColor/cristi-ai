@@ -3,6 +3,13 @@
  */
 
 export interface DisplayInfo {
+  id: number;
+  bounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
   width: number;
   height: number;
   scaleFactor: number;
@@ -12,6 +19,7 @@ export interface DisplayInfo {
     width: number;
     height: number;
   };
+  label?: string;
 }
 
 export interface ProcessMetricInfo {
@@ -40,6 +48,7 @@ export interface ProcessMemoryResult {
   totalSharedMB: number;
   processCount: number;
   processes: ProcessMetricInfo[];
+  [key: string]: unknown;
 }
 
 export interface InteractiveHitbox {
@@ -121,6 +130,7 @@ export interface MinecraftConnectOptions {
 }
 
 export interface MinecraftStatus {
+  connected: boolean;
   status: 'connected' | 'disconnected' | 'error';
   connectionId: string | null;
   health?: number;
@@ -143,6 +153,7 @@ export interface MinecraftStatus {
     slot: number;
   }>;
   error?: string;
+  [key: string]: unknown;
 }
 
 export interface DiscordConnectOptions {

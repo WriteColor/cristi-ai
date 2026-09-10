@@ -13,8 +13,10 @@ function failPending(): void {
   }
   requests.clear();
 }
+export function memoryRequest(operation: 'load'): Promise<MemoryLoadResult>;
+export function memoryRequest(operation: 'save', records?: unknown[]): Promise<MemorySaveResult>;
 export function memoryRequest(operation: 'load' | 'save', records?: unknown[]): Promise<Result> {
-  if (requests.size >= 8) return Promise.resolve({ success: false, error: 'Repositorio ocupado; vuelve a guardar.' });
+  if (requests.size >= 8) return Promise.resolve({ success: false, error: 'Repositorio ocupado; vuelve a guardar.' } as Result);
   if (!worker) {
     const current = new Worker(path.join(__dirname, 'memory.worker.cjs'), { workerData: { userData: app.getPath('userData') } });
     worker = current;

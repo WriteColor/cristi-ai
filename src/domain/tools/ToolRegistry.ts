@@ -82,6 +82,9 @@ export class ToolRegistry {
     if (!name || typeof name !== 'string') {
       return { status: 'error', message: 'Nombre de herramienta inválido.' };
     }
+    if (context?.signal?.aborted) {
+      return { status: 'cancelled', message: 'Ejecución de herramienta cancelada.', cancelled: true };
+    }
 
     const handler = this.handlers.get(name);
     if (handler) {

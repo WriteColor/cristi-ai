@@ -95,7 +95,10 @@ function quoteWindowsShellArg(value: unknown): string {
   return `"${text.replace(/"/g, '\\"')}"`;
 }
 
-async function connectMcpSse(serverId: string, config: McpStdioConfig): Promise<Record<string, unknown>> {
+async function connectMcpSse(
+  serverId: string,
+  config: McpStdioConfig
+): Promise<{ success: boolean; serverId?: string; protocolVersion?: string | null; tools?: unknown[]; error?: string }> {
   const urlText = String(config.url || '').trim();
   if (!urlText) return { success: false, error: 'MCP SSE requiere una URL.' };
 
@@ -167,7 +170,7 @@ export function registerMcpIpc(): void {
     mcpProcesses.clear();
   });
 
-  handleTrusted('mcp-connect', async (_event, config: McpStdioConfig = { id: '' }) => {
+  handleTrusted('mcp-connect', async (_event, config) => {
     await approveMcpLaunch(config);
     const serverId = String(config.id || '').trim();
     const transportType = String(config.type || 'stdio').trim().toLowerCase();

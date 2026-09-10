@@ -79,15 +79,33 @@ export class ToolExecutor {
     return toolRegistry.executeCalls(functionCalls as never, { ...this.context, isCallCancelled });
   }
 
-  public async executeTool(name: string, args: Record<string, unknown> = {}) {
-    this.context.onToolExecutionStart?.(name, args);
-    const result = await toolRegistry.executeTool(name, args, this.context);
-    this.context.onToolExecutionEnd?.(name, result);
+  public async executeTool(name: string, args: Record<string, unknown> = {}, signal?: AbortSignal) {
+    if (signal?.aborted) {
+      return { status: 'cancelled', message: 'Ejecución de herramienta cancelada.', cancelled: true };
+    }
+    const effectiveContext: ToolExecutionContext = signal ? { ...this.context, signal } : this.context;
+    effectiveContext.onToolExecutionStart?.(name, args);
+
+    const executionPromise = toolRegistry.executeTool(name, args, effectiveContext);
+    if (!signal) {
+      const result = await executionPromise;
+      effectiveContext.onToolExecutionEnd?.(name, result);
+      return result;
+    }
+
+    const abortPromise = new Promise<{ status: string; message: string; cancelled: boolean }>((resolve) => {
+      signal.addEventListener('abort', () => {
+        resolve({ status: 'cancelled', message: 'Ejecución de herramienta cancelada.', cancelled: true });
+      }, { once: true });
+    });
+
+    const result = await Promise.race([executionPromise, abortPromise]);
+    effectiveContext.onToolExecutionEnd?.(name, result);
     return result;
   }
 
-  public async executeSingleTool(name: string, args: Record<string, unknown> = {}) {
-    return this.executeTool(name, args);
+  public async executeSingleTool(name: string, args: Record<string, unknown> = {}, signal?: AbortSignal) {
+    return this.executeTool(name, args, signal);
   }
 }
 

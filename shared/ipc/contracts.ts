@@ -115,6 +115,7 @@ export interface ProcessMemoryInfo {
   residentSet?: number;
   private: number;
   shared?: number;
+  [key: string]: unknown;
 }
 
 /** Región de pantalla para capture-screen-native (porcentajes 0-100) */
@@ -226,10 +227,17 @@ export interface IpcResponseMap {
   'install-update': boolean;
   'playwright-execute': { success: boolean; [key: string]: unknown };
   'spotify-control': { success: boolean; [key: string]: unknown };
-  'mcp-connect': { success: boolean; tools?: unknown[]; version?: string; error?: string };
+  'mcp-connect': {
+    success: boolean;
+    serverId?: string;
+    protocolVersion?: string | null;
+    version?: string | null;
+    tools?: unknown[];
+    error?: string;
+  };
   'mcp-call-tool': { success: boolean; content?: unknown; error?: string };
   'mcp-disconnect': { success: boolean };
-  'minecraft-connect': { success: boolean; error?: string };
+  'minecraft-connect': { success: boolean; username?: string; connectionId?: string; error?: string };
   'minecraft-disconnect': { success: boolean };
   'minecraft-chat': { success: boolean };
   'minecraft-get-status': { connected: boolean; [key: string]: unknown };
@@ -239,11 +247,16 @@ export interface IpcResponseMap {
   'minecraft-follow': { success: boolean; error?: string };
   'minecraft-place-block': { success: boolean; error?: string };
   'minecraft-attack': { success: boolean; error?: string };
-  'discord-connect': { success: boolean; error?: string };
+  'discord-connect': {
+    success: boolean;
+    connectionId?: string;
+    botInfo?: { id: string; tag: string; username: string };
+    error?: string;
+  };
   'discord-disconnect': { success: boolean };
   'discord-send-message': { success: boolean; messageId?: string; error?: string };
   'discord-set-status': { success: boolean };
-  'discord-get-messages': { messages: unknown[]; error?: string };
+  'discord-get-messages': { success?: boolean; messages: unknown[]; error?: string };
   'discord-voice-join': { success: boolean; error?: string };
   'discord-voice-leave': { success: boolean };
   'discord-voice-send-audio': { success: boolean };
@@ -338,7 +351,14 @@ export interface ElectronApiBridge {
   onCameraWindowState: (callback: (data: unknown) => void) => () => void;
 
   // MCP
-  mcpConnect: (config: Record<string, unknown>) => Promise<{ success: boolean; tools?: unknown[]; version?: string; error?: string }>;
+  mcpConnect: (config: Record<string, unknown>) => Promise<{
+    success: boolean;
+    serverId?: string;
+    protocolVersion?: string | null;
+    version?: string | null;
+    tools?: unknown[];
+    error?: string;
+  }>;
   mcpCallTool: (payload: Record<string, unknown>) => Promise<{ success: boolean; content?: unknown; error?: string }>;
   mcpDisconnect: (serverId: string) => Promise<{ success: boolean }>;
 
@@ -347,7 +367,7 @@ export interface ElectronApiBridge {
   spotifyControl: (action: string, params?: Record<string, unknown>) => Promise<{ success: boolean; [key: string]: unknown }>;
 
   // Minecraft
-  minecraftConnect: (opts?: Record<string, unknown>) => Promise<{ success: boolean; error?: string }>;
+  minecraftConnect: (opts?: Record<string, unknown>) => Promise<{ success: boolean; username?: string; connectionId?: string; error?: string }>;
   minecraftDisconnect: () => Promise<{ success: boolean }>;
   minecraftChat: (msg: string) => Promise<{ success: boolean }>;
   minecraftGetStatus: () => Promise<{ connected: boolean; [key: string]: unknown }>;
@@ -361,10 +381,15 @@ export interface ElectronApiBridge {
   onMinecraftEvent: (callback: (data: unknown) => void) => () => void;
 
   // Discord
-  discordConnect: (opts: { statusMessage?: string; activityType?: string }) => Promise<{ success: boolean; error?: string }>;
+  discordConnect: (opts: { statusMessage?: string; activityType?: string }) => Promise<{
+    success: boolean;
+    connectionId?: string;
+    botInfo?: { id: string; tag: string; username: string };
+    error?: string;
+  }>;
   discordDisconnect: () => Promise<{ success: boolean }>;
   discordSendMessage: (payload: { channelId: string; content: string }) => Promise<{ success: boolean; messageId?: string; error?: string }>;
-  discordGetMessages: (payload: { channelId: string; limit?: number }) => Promise<{ messages: unknown[]; error?: string }>;
+  discordGetMessages: (payload: { channelId: string; limit?: number }) => Promise<{ success?: boolean; messages: unknown[]; error?: string }>;
   discordSetStatus: (opts: { statusText: string; activityType?: string }) => Promise<{ success: boolean }>;
   discordVoiceJoin: (opts: { guildId: string; channelId: string }) => Promise<{ success: boolean; error?: string }>;
   discordVoiceLeave: () => Promise<{ success: boolean }>;

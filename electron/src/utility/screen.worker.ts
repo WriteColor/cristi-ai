@@ -5,6 +5,7 @@
  */
 
 import { parentPort } from 'node:worker_threads';
+import jpeg from 'jpeg-js';
 
 if (!parentPort) throw new Error('screen.worker debe ejecutarse como worker thread');
 
@@ -25,10 +26,10 @@ type ScreenReply = {
 };
 
 /**
- * Recorta un buffer BGRA (4 bytes por pixel) a la region indicada.
- * Copia fila a fila para evitar allocaciones innecesarias.
+ * Recorta un buffer BGRA y convierte simultaneamente de BGRA a RGBA.
+ * Copia pixel a pixel intercambiando los canales B (indice 0) y R (indice 2).
  */
-function cropBgra(
+function cropAndConvertBgraToRgba(
   buf: Buffer<ArrayBuffer>,
   srcW: number,
   cropX: number,
@@ -38,38 +39,53 @@ function cropBgra(
 ): Buffer<ArrayBuffer> {
   const result = Buffer.allocUnsafe(cropW * cropH * 4) as Buffer<ArrayBuffer>;
   for (let row = 0; row < cropH; row++) {
-    const srcOffset = ((cropY + row) * srcW + cropX) * 4;
-    const dstOffset = row * cropW * 4;
-    buf.copy(result, dstOffset, srcOffset, srcOffset + cropW * 4);
+    const srcRowOffset = ((cropY + row) * srcW + cropX) * 4;
+    const dstRowOffset = row * cropW * 4;
+    for (let col = 0; col < cropW; col++) {
+      const srcPx = srcRowOffset + col * 4;
+      const dstPx = dstRowOffset + col * 4;
+      result[dstPx] = buf[srcPx + 2];     // R
+      result[dstPx + 1] = buf[srcPx + 1]; // G
+      result[dstPx + 2] = buf[srcPx];     // B
+      result[dstPx + 3] = buf[srcPx + 3]; // A
+    }
   }
   return result;
 }
 
 /**
- * Codifica un buffer BGRA como JPEG usando sharp si esta disponible.
- * Lanza un error si sharp no esta instalado para que main use su fallback nativo.
+ * Convierte un buffer BGRA a RGBA in-place intercambiando B y R.
  */
-async function encodeJpeg(
-  bgraBuf: Buffer<ArrayBuffer>,
+function convertBgraToRgbaInPlace(buf: Buffer<ArrayBuffer>): void {
+  for (let i = 0; i < buf.length; i += 4) {
+    const b = buf[i];
+    buf[i] = buf[i + 2];     // R
+    buf[i + 2] = b;          // B
+  }
+}
+
+/**
+ * Codifica un buffer RGBA como JPEG usando jpeg-js de forma determinista y sin dependencias C++ externas.
+ */
+function encodeJpeg(
+  rgbaBuf: Buffer<ArrayBuffer>,
   width: number,
   height: number,
   quality: number
-): Promise<string> {
-  // Se importa con require dinamico para que falle en runtime (no en build-time)
-  // si sharp no esta instalado; el caller usara NativeImage.toJPEG() como fallback.
-  const sharp = require('sharp') as any;
-  const jpegBuf = await sharp(bgraBuf, { raw: { width, height, channels: 4 } })
-    .toFormat('jpeg', { quality })
-    .toBuffer() as Buffer;
-  return jpegBuf.toString('base64');
+): string {
+  const jpegImageData = jpeg.encode({
+    data: rgbaBuf,
+    width,
+    height
+  }, Math.max(1, Math.min(100, Math.round(quality))));
+
+  return jpegImageData.data.toString('base64');
 }
 
-parentPort.on('message', async (request: ScreenRequest) => {
+parentPort.on('message', (request: ScreenRequest) => {
   const { id, width, height, buffer, region, jpegQuality } = request;
 
   try {
-    // Convertir el ArrayBuffer transferido a Buffer de Node.js
-    // El cast explícito a ArrayBuffer evita la ambigüedad con SharedArrayBuffer
     let buf: Buffer<ArrayBuffer> = Buffer.from(buffer as ArrayBuffer) as Buffer<ArrayBuffer>;
     let w = width;
     let h = height;
@@ -83,16 +99,18 @@ parentPort.on('message', async (request: ScreenRequest) => {
       const cropY = Math.max(0, Math.round((region.y_pct / 100) * h));
       const cropW = Math.max(1, Math.min(w - cropX, Math.round((region.w_pct / 100) * w)));
       const cropH = Math.max(1, Math.min(h - cropY, Math.round((region.h_pct / 100) * h)));
-      buf = cropBgra(buf, w, cropX, cropY, cropW, cropH);
+      buf = cropAndConvertBgraToRgba(buf, w, cropX, cropY, cropW, cropH);
       w = cropW;
       h = cropH;
+    } else {
+      // Conversion de canales directa in-place
+      convertBgraToRgbaInPlace(buf);
     }
 
-    const base64 = await encodeJpeg(buf, w, h, jpegQuality);
+    const base64 = encodeJpeg(buf, w, h, jpegQuality);
     const reply: ScreenReply = { id, base64 };
     parentPort!.postMessage(reply);
   } catch (err) {
-    // Senalar el error para que main active el fallback con NativeImage.toJPEG()
     const reply: ScreenReply = { id, base64: null, error: (err as Error).message };
     parentPort!.postMessage(reply);
   }

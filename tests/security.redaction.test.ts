@@ -73,3 +73,19 @@ test('redactText redacts keys, Google AIza tokens, and URL parameters', () => {
   assert.ok(!redacted3.includes('super_password'));
   assert.ok(redacted3.includes('safe=100'));
 });
+
+test('publicSettings handles circular references without RangeError', () => {
+  const circularObj: any = { name: 'RootNode', safe: true };
+  circularObj.self = circularObj;
+  circularObj.child = { parent: circularObj, apiKey: 'SECRET_CANARY' };
+
+  let sanitized: any;
+  assert.doesNotThrow(() => {
+    sanitized = publicSettings(circularObj);
+  });
+  assert.equal(sanitized.name, 'RootNode');
+  assert.equal(sanitized.self, '[Circular]');
+  assert.equal(sanitized.child.parent, '[Circular]');
+  assert.equal(sanitized.child.apiKey, undefined);
+});
+

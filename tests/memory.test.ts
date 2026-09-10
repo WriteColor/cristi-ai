@@ -12,8 +12,8 @@ test('renderer repository propagates native failures without secondary file writ
     isElectron: true,
     memoryLoad: async () => ({ success: false, error: 'unavailable' }),
     memorySave: async () => ({ success: false, error: 'unavailable' }),
-    writeFile: async () => { fileWrites++; },
-  } });
+    writeFile: async () => { fileWrites++; return true; },
+  } as any });
   await assert.rejects(repository.load(), /unavailable/);
   await assert.rejects(repository.save([]), /unavailable/);
   assert.equal(fileWrites, 0);

@@ -7,6 +7,7 @@ import type { ScreenRegion } from './sensory.types';
 
 export interface ToolExecutionContext {
   isCallCancelled?: (id: string) => boolean;
+  signal?: AbortSignal;
   sessionId?: string;
   source?: string;
   onGestureTrigger?: (gesture: string, comment?: string) => void;

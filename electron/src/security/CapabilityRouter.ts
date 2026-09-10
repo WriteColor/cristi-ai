@@ -1,5 +1,5 @@
 import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
-import { channelAllowed, validateRequest, type IpcChannel, type IpcRequest } from '../../../shared/ipc/contracts';
+import { channelAllowed, validateRequest, type IpcChannel, type IpcRequest, type IpcResponse } from '../../../shared/ipc/contracts';
 import { trustedKind } from './SenderPolicy';
 
 const disposers: (() => void)[] = [];
@@ -9,8 +9,10 @@ function validate(event: IpcMainEvent | IpcMainInvokeEvent, channel: IpcChannel,
   return validateRequest(channel, args);
 }
 
-export function handleTrusted<C extends IpcChannel>(channel: C,
-  handler: (event: IpcMainInvokeEvent, ...args: IpcRequest<C>) => unknown): void {
+export function handleTrusted<C extends IpcChannel>(
+  channel: C,
+  handler: (event: IpcMainInvokeEvent, ...args: IpcRequest<C>) => Promise<IpcResponse<C>> | IpcResponse<C>
+): void {
   ipcMain.handle(channel, (event, ...args: unknown[]) => handler(event, ...validate(event, channel, args) as IpcRequest<C>));
   disposers.push(() => ipcMain.removeHandler(channel));
 }

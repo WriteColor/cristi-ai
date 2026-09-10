@@ -194,6 +194,8 @@ export function registerWindowIpc(): void {
       const primary = screen.getPrimaryDisplay();
       if (!primary || !primary.bounds) {
         return {
+          id: 1,
+          bounds: { x: 0, y: 0, width: 1920, height: 1080 },
           width: 1920,
           height: 1080,
           scaleFactor: 1,
@@ -201,14 +203,19 @@ export function registerWindowIpc(): void {
         };
       }
       return {
+        id: primary.id,
+        bounds: primary.bounds,
         width: primary.bounds.width,
         height: primary.bounds.height,
         scaleFactor: primary.scaleFactor || 1,
         workArea: primary.workArea || primary.bounds,
+        label: primary.label,
       };
     } catch (err) {
       console.error('[WindowIpc] Error getting display info:', err);
       return {
+        id: 1,
+        bounds: { x: 0, y: 0, width: 1920, height: 1080 },
         width: 1920,
         height: 1080,
         scaleFactor: 1,
