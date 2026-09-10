@@ -1,4 +1,4 @@
-import type { IToolHandler } from '../IToolHandler';
+import type { IToolHandler, ToolExecutionContext } from '../IToolHandler';
 import { minecraftCompanion } from '../../integrations/minecraft/MinecraftCompanionService.js';
 import { discordCompanion } from '../../integrations/discord/DiscordCompanionService.js';
 import { discordVoiceService } from '../../integrations/discord/DiscordVoiceService.js';
@@ -18,7 +18,8 @@ export const minecraftConnectHandler: IToolHandler = {
       }
     }
   },
-  async execute(args: any) {
+  async execute(args: any, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Conexión a Minecraft cancelada por señal de aborto.', cancelled: true };
     return await minecraftCompanion.connect(args);
   }
 };
@@ -29,7 +30,8 @@ export const minecraftDisconnectHandler: IToolHandler = {
     name: 'minecraft_disconnect',
     description: 'Desconecta tu bot del servidor de Minecraft.'
   },
-  async execute() {
+  async execute(_args?: unknown, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Desconexión de Minecraft cancelada por señal de aborto.', cancelled: true };
     return await minecraftCompanion.disconnect();
   }
 };
@@ -40,7 +42,8 @@ export const minecraftGetStatusHandler: IToolHandler = {
     name: 'minecraft_get_status',
     description: 'Consulta tu estado en el juego: vida, hambre, coordenadas (X, Y, Z), dimensión y jugadores cercanos.'
   },
-  async execute() {
+  async execute(_args?: unknown, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Consulta de estado de Minecraft cancelada por señal de aborto.', cancelled: true };
     return await minecraftCompanion.getStatus();
   }
 };
@@ -58,7 +61,8 @@ export const minecraftChatHandler: IToolHandler = {
       required: ['message']
     }
   },
-  async execute(args: { message?: string }) {
+  async execute(args: { message?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Envío de chat de Minecraft cancelado por señal de aborto.', cancelled: true };
     if (!args?.message) return { status: 'error', message: 'Mensaje requerido.' };
     return await minecraftCompanion.sendChat(args.message);
   }
@@ -79,7 +83,8 @@ export const minecraftMoveToHandler: IToolHandler = {
       required: ['x', 'y', 'z']
     }
   },
-  async execute(args: { x?: number; y?: number; z?: number }) {
+  async execute(args: { x?: number; y?: number; z?: number }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Movimiento en Minecraft cancelado por señal de aborto.', cancelled: true };
     if (args?.x === undefined || args?.y === undefined || args?.z === undefined) return { status: 'error', message: 'Coordenadas requeridas.' };
     return await minecraftCompanion.moveTo(args.x, args.y, args.z);
   }
@@ -98,7 +103,8 @@ export const minecraftFollowPlayerHandler: IToolHandler = {
       required: ['player_name']
     }
   },
-  async execute(args: { player_name?: string }) {
+  async execute(args: { player_name?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Seguimiento en Minecraft cancelado por señal de aborto.', cancelled: true };
     return await minecraftCompanion.followPlayer(args?.player_name);
   }
 };
@@ -109,7 +115,8 @@ export const minecraftStopMovingHandler: IToolHandler = {
     name: 'minecraft_stop_moving',
     description: 'Detiene inmediatamente el movimiento o navegación del bot en Minecraft.'
   },
-  async execute() {
+  async execute(_args?: unknown, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Detención de movimiento en Minecraft cancelada por señal de aborto.', cancelled: true };
     return await minecraftCompanion.stop();
   }
 };
@@ -129,7 +136,8 @@ export const minecraftMineBlockHandler: IToolHandler = {
       required: ['x', 'y', 'z']
     }
   },
-  async execute(args: { x?: number; y?: number; z?: number }) {
+  async execute(args: { x?: number; y?: number; z?: number }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Minería en Minecraft cancelada por señal de aborto.', cancelled: true };
     if (args?.x === undefined || args?.y === undefined || args?.z === undefined) return { status: 'error', message: 'Coordenadas requeridas.' };
     return await minecraftCompanion.mineBlock(args.x, args.y, args.z);
   }
@@ -151,7 +159,8 @@ export const minecraftPlaceBlockHandler: IToolHandler = {
       required: ['x', 'y', 'z', 'block_name']
     }
   },
-  async execute(args: { x?: number; y?: number; z?: number; block_name?: string }) {
+  async execute(args: { x?: number; y?: number; z?: number; block_name?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Colocación de bloque en Minecraft cancelada por señal de aborto.', cancelled: true };
     if (args?.x === undefined || args?.y === undefined || args?.z === undefined || !args?.block_name) return { status: 'error', message: 'Parámetros requeridos.' };
     return await minecraftCompanion.placeBlock(args.x, args.y, args.z, args.block_name);
   }
@@ -169,7 +178,8 @@ export const minecraftAttackEntityHandler: IToolHandler = {
       }
     }
   },
-  async execute(args: { entity_name?: string }) {
+  async execute(args: { entity_name?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Ataque en Minecraft cancelado por señal de aborto.', cancelled: true };
     if (!args?.entity_name) return { status: 'error', message: 'Nombre de entidad requerido.' };
     return await minecraftCompanion.attackEntity(args.entity_name);
   }
@@ -189,7 +199,8 @@ export const discordSendMessageHandler: IToolHandler = {
       required: ['channel_id', 'content']
     }
   },
-  async execute(args: { channel_id?: string; content?: string }) {
+  async execute(args: { channel_id?: string; content?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Envío de mensaje de Discord cancelado por señal de aborto.', cancelled: true };
     if (!args?.channel_id || !args?.content) return { status: 'error', message: 'Canal y contenido requeridos.' };
     return await discordCompanion.sendMessage(args.channel_id, args.content);
   }
@@ -209,7 +220,8 @@ export const discordSetStatusHandler: IToolHandler = {
       required: ['status_text']
     }
   },
-  async execute(args: { status_text?: string; activity_type?: string }) {
+  async execute(args: { status_text?: string; activity_type?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Actualización de estado de Discord cancelada por señal de aborto.', cancelled: true };
     if (!args?.status_text) return { status: 'error', message: 'Texto de estado requerido.' };
     return await discordCompanion.setStatus(args.status_text, args.activity_type);
   }
@@ -242,9 +254,15 @@ export const discordVoiceJoinHandler: IToolHandler = {
     translate?: boolean;
     target_language?: string;
     output_route?: string;
-  }) {
+  }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Conexión a voz de Discord cancelada por señal de aborto.', cancelled: true };
     if (!args?.guild_id || !args?.channel_id) return { success: false, error: 'guild_id y channel_id requeridos.' };
     const result = await discordVoiceService.join({ guildId: args.guild_id, channelId: args.channel_id });
+    if (context?.signal?.aborted) {
+      // Abort arrived while connecting; rollback
+      await discordVoiceService.leave();
+      return { status: 'cancelled', message: 'Conexión a voz cancelada durante el enlace.', cancelled: true };
+    }
     if (args?.translate !== true) {
       translationService.detachEventSource('discord.voice_audio');
     }
@@ -285,7 +303,8 @@ export const discordVoiceLeaveHandler: IToolHandler = {
     name: 'discord_voice_leave',
     description: 'Desconecta a Cristi del canal de voz de Discord y libera el decodificador.'
   },
-  async execute() {
+  async execute(_args?: unknown, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Desconexión de voz cancelada por señal de aborto.', cancelled: true };
     translationService.detachEventSource('discord.voice_audio');
     return await discordVoiceService.leave();
   }
@@ -297,7 +316,8 @@ export const discordVoiceStatusHandler: IToolHandler = {
     name: 'discord_voice_status',
     description: 'Devuelve el estado de la conexión de voz de Discord.'
   },
-  async execute() {
+  async execute(_args?: unknown, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Consulta de estado de voz cancelada por señal de aborto.', cancelled: true };
     return { status: 'success', ...(discordVoiceService.getStatus() as any) };
   }
 };

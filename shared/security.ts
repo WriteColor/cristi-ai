@@ -21,11 +21,16 @@ export function publicSettings<T>(
       return arr as T;
     }
     if (value && typeof value === 'object') {
-      const obj: Record<string, unknown> = {};
+      const obj: Record<string, unknown> = Object.getPrototypeOf(value) === null ? Object.create(null) : {};
       clones.set(value, obj);
       for (const [key, val] of Object.entries(value)) {
         if (!SECRET_FIELD.test(key)) {
-          obj[key] = publicSettings(val, ancestors, clones);
+          Object.defineProperty(obj, key, {
+            value: publicSettings(val, ancestors, clones),
+            writable: true,
+            enumerable: true,
+            configurable: true
+          });
         }
       }
       return obj as T;

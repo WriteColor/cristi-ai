@@ -86,9 +86,8 @@ export class ToolExecutor {
     const effectiveContext: ToolExecutionContext = signal ? { ...this.context, signal } : this.context;
     effectiveContext.onToolExecutionStart?.(name, args);
 
-    const executionPromise = toolRegistry.executeTool(name, args, effectiveContext);
     if (!signal) {
-      const result = await executionPromise;
+      const result = await toolRegistry.executeTool(name, args, effectiveContext);
       effectiveContext.onToolExecutionEnd?.(name, result);
       return result;
     }
@@ -99,10 +98,31 @@ export class ToolExecutor {
         resolve({ status: 'cancelled', message: 'Ejecución de herramienta cancelada.', cancelled: true });
       };
       signal.addEventListener('abort', onAbort);
+      if (signal.aborted) {
+        onAbort();
+      }
     });
 
     try {
-      const result = await Promise.race([executionPromise, abortPromise]);
+      if (signal.aborted) {
+        const cancelledResult = { status: 'cancelled', message: 'Ejecución de herramienta cancelada.', cancelled: true };
+        effectiveContext.onToolExecutionEnd?.(name, cancelledResult);
+        return cancelledResult;
+      }
+
+      const executionPromise = toolRegistry.executeTool(name, args, effectiveContext);
+
+      if (signal.aborted) {
+        const cancelledResult = { status: 'cancelled', message: 'Ejecución de herramienta cancelada.', cancelled: true };
+        effectiveContext.onToolExecutionEnd?.(name, cancelledResult);
+        return cancelledResult;
+      }
+
+      const raceResult = await Promise.race([executionPromise, abortPromise]);
+      const result = signal.aborted
+        ? { status: 'cancelled', message: 'Ejecución de herramienta cancelada.', cancelled: true }
+        : raceResult;
+
       effectiveContext.onToolExecutionEnd?.(name, result);
       return result;
     } finally {

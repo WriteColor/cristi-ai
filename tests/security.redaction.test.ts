@@ -113,4 +113,19 @@ test('publicSettings preserves shared references without incorrectly converting 
   assert.equal(sanitized.list[1], sanitized.profileB);
 });
 
+test('publicSettings does not alter object prototype or trigger prototype setters when handling __proto__ from JSON', () => {
+  const jsonInput = JSON.parse('{"__proto__":{"theme":"inherited"},"volume":1}');
+  const result = publicSettings(jsonInput) as any;
+
+  // Prototype must remain Object.prototype
+  assert.equal(Object.getPrototypeOf(result), Object.prototype);
+  // Must possess an own __proto__ property
+  assert.equal(Object.prototype.hasOwnProperty.call(result, '__proto__'), true);
+  // Must not have inherited properties from the inner __proto__ object
+  assert.equal(result.theme, undefined);
+  // Regular properties must be preserved
+  assert.equal(result.volume, 1);
+});
+
+
 

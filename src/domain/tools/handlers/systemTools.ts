@@ -76,11 +76,12 @@ export const systemDiagnosticsHandler: IToolHandler = {
 export const executeSystemCommandHandler: IToolHandler = {
  name: 'execute_system_command', declaration: { name: 'execute_system_command', description: 'Consulta diagnósticos mediante capacidades nominales del sistema.',
  parameters: { type: 'OBJECT', properties: { kind: { type: 'STRING', enum: ['system-info', 'list-processes'] } }, required: ['kind'] } },
- async execute(args: { kind?: string }) {
- if (args.kind !== 'system-info' && args.kind !== 'list-processes') return { status: 'error', message: 'Capacidad no autorizada.' };
- try { return { status: 'success', ...await electronBridge.systemExecute(args.kind) }; }
- catch (error) { return { status: 'error', message: String(error) }; }
- }
+  async execute(args: { kind?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Ejecución de comando cancelada por señal de aborto.', cancelled: true };
+    if (args.kind !== 'system-info' && args.kind !== 'list-processes') return { status: 'error', message: 'Capacidad no autorizada.' };
+    try { return { status: 'success', ...await electronBridge.systemExecute(args.kind) }; }
+    catch (error) { return { status: 'error', message: String(error) }; }
+  }
 };
 
 export const readFileHandler: IToolHandler = {
@@ -99,7 +100,10 @@ export const readFileHandler: IToolHandler = {
       required: ['path']
     }
   },
-  async execute(args: { path?: string }) {
+  async execute(args: { path?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) {
+      return { status: 'cancelled', message: 'Lectura cancelada por señal de aborto.', cancelled: true };
+    }
     const path = args?.path;
     if (!path || typeof path !== 'string') {
       return { status: 'error', message: 'La ruta de archivo (path) es requerida.' };
@@ -108,6 +112,9 @@ export const readFileHandler: IToolHandler = {
     if (electronBridge.isElectron) {
       try {
         const content = await electronBridge.readFile(path);
+        if (context?.signal?.aborted) {
+          return { status: 'cancelled', message: 'Lectura cancelada tras recepción.', cancelled: true };
+        }
         return { status: 'success', path, content: content.substring(0, 8000) };
       } catch (e: any) {
         return { status: 'error', path, message: e?.message };
@@ -141,7 +148,10 @@ export const writeFileHandler: IToolHandler = {
       required: ['path', 'content']
     }
   },
-  async execute(args: { path?: string; content?: any; append?: boolean }) {
+  async execute(args: { path?: string; content?: any; append?: boolean }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) {
+      return { status: 'cancelled', message: 'Escritura cancelada por señal de aborto.', cancelled: true };
+    }
     const { path, content, append } = args || {};
     if (!path || typeof path !== 'string') {
       return { status: 'error', message: 'La ruta de archivo (path) es requerida.' };
@@ -150,6 +160,9 @@ export const writeFileHandler: IToolHandler = {
 
     if (electronBridge.isElectron) {
       try {
+        if (context?.signal?.aborted) {
+          return { status: 'cancelled', message: 'Escritura cancelada antes de acceder al disco.', cancelled: true };
+        }
         if (append) {
           await electronBridge.appendFile(path, contentStr);
         } else {
@@ -237,7 +250,8 @@ export const setClipboardHandler: IToolHandler = {
       required: ['text']
     }
   },
-  async execute(args: { text?: any }) {
+  async execute(args: { text?: any }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Operación de portapapeles cancelada por señal de aborto.', cancelled: true };
     const text = args?.text !== undefined ? String(args.text) : '';
     try {
       await electronBridge.setClipboardText(text);
@@ -275,7 +289,8 @@ export const openFileOrFolderHandler: IToolHandler = {
       required: ['path']
     }
   },
-  async execute(args: { path?: string }) {
+  async execute(args: { path?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Apertura de archivo cancelada por señal de aborto.', cancelled: true };
     const path = args?.path;
     if (!path || typeof path !== 'string') {
       return { status: 'error', message: 'No path provided.' };
@@ -307,7 +322,8 @@ export const openSystemAppOrLinkHandler: IToolHandler = {
       required: ['url']
     }
   },
-  async execute(args: { url?: string }) {
+  async execute(args: { url?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Apertura de aplicación/enlace cancelada por señal de aborto.', cancelled: true };
     const url = args?.url;
     if (!url || typeof url !== 'string') {
       return { status: 'error', message: 'No URL or path provided.' };

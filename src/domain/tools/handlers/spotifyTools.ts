@@ -1,4 +1,4 @@
-import type { IToolHandler } from '../IToolHandler';
+import type { IToolHandler, ToolExecutionContext } from '../IToolHandler';
 import { spotifyService } from '../../integrations/spotify/SpotifyService.js';
 
 export const spotifyPlayHandler: IToolHandler = {
@@ -24,7 +24,8 @@ export const spotifyPlayHandler: IToolHandler = {
       }
     }
   },
-  async execute(args: { query?: string; uri?: string; use_web?: boolean }) {
+  async execute(args: { query?: string; uri?: string; use_web?: boolean }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Reproducción de Spotify cancelada por señal de aborto.', cancelled: true };
     return await (spotifyService as any).play({
       query: args?.query,
       uri: args?.uri,
@@ -43,7 +44,8 @@ export const spotifyPauseHandler: IToolHandler = {
       properties: {}
     }
   },
-  async execute() {
+  async execute(_args?: unknown, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Pausa de Spotify cancelada por señal de aborto.', cancelled: true };
     return await spotifyService.pause();
   }
 };
@@ -58,7 +60,8 @@ export const spotifyNextHandler: IToolHandler = {
       properties: {}
     }
   },
-  async execute() {
+  async execute(_args?: unknown, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Cambio de pista en Spotify cancelado por señal de aborto.', cancelled: true };
     return await spotifyService.next();
   }
 };
@@ -73,7 +76,8 @@ export const spotifyPreviousHandler: IToolHandler = {
       properties: {}
     }
   },
-  async execute() {
+  async execute(_args?: unknown, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Pista previa en Spotify cancelada por señal de aborto.', cancelled: true };
     return await spotifyService.previous();
   }
 };
@@ -88,7 +92,8 @@ export const spotifyGetStatusHandler: IToolHandler = {
       properties: {}
     }
   },
-  async execute() {
+  async execute(_args?: unknown, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Consulta de Spotify cancelada por señal de aborto.', cancelled: true };
     return await spotifyService.getStatus();
   }
 };
@@ -114,7 +119,8 @@ export const spotifySearchHandler: IToolHandler = {
       required: ['query']
     }
   },
-  async execute(args: { query?: string; type?: string }) {
+  async execute(args: { query?: string; type?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Búsqueda en Spotify cancelada por señal de aborto.', cancelled: true };
     return await (spotifyService as any).search({
       query: args?.query,
       type: args?.type || 'track'
@@ -139,7 +145,8 @@ export const spotifySetVolumeHandler: IToolHandler = {
       required: ['direction']
     }
   },
-  async execute(args: { direction?: string }) {
+  async execute(args: { direction?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Ajuste de volumen en Spotify cancelado por señal de aborto.', cancelled: true };
     return await spotifyService.setVolume({
       direction: args?.direction === 'down' ? 'down' : 'up'
     });

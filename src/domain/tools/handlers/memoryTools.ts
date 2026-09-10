@@ -1,4 +1,4 @@
-import type { IToolHandler } from '../IToolHandler';
+import type { IToolHandler, ToolExecutionContext } from '../IToolHandler';
 import { memoryService } from '../../integrations/memory/MemoryService.js';
 
 export const manageMemoryHandler: IToolHandler = {
@@ -47,7 +47,8 @@ export const manageMemoryHandler: IToolHandler = {
       required: ['action']
     }
   },
-  async execute(args: any) {
+  async execute(args: any, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Operación de memoria cancelada por señal de aborto.', cancelled: true };
     return await memoryService.manageMemory(args);
   }
 };
@@ -81,7 +82,8 @@ export const rememberFactHandler: IToolHandler = {
       required: ['key', 'content']
     }
   },
-  async execute(args: { key?: string; content?: string; category?: string; importance?: number }) {
+  async execute(args: { key?: string; content?: string; category?: string; importance?: number }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Operación de memoria cancelada por señal de aborto.', cancelled: true };
     if (!args?.content) {
       return { status: 'error', message: 'Contenido de memoria requerido.' };
     }
@@ -116,7 +118,8 @@ export const searchMemoryHandler: IToolHandler = {
       required: ['query']
     }
   },
-  async execute(args: { query?: string }) {
+  async execute(args: { query?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Búsqueda de memoria cancelada por señal de aborto.', cancelled: true };
     const query = args?.query || '';
     const found = memoryService.search(query);
     return {
@@ -144,7 +147,8 @@ export const deleteMemoryHandler: IToolHandler = {
       required: ['id_or_key']
     }
   },
-  async execute(args: { id_or_key?: string }) {
+  async execute(args: { id_or_key?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Operación de memoria cancelada por señal de aborto.', cancelled: true };
     const target = args?.id_or_key || '';
     const removed = await memoryService.deleteMemory(target);
     return {

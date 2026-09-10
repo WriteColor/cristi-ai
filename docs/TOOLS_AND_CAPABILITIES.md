@@ -197,3 +197,25 @@ Cristi AI Companion dispone de un catálogo agéntico fuertemente tipado sincron
 * **Descripción:** Extrae el contenido de texto visible de la página o de un contenedor específico para que Gemini lo lea.
 * **Parámetros:**
   * `selector` *(string, opcional)*: Selector CSS del contenedor o cuerpo entero si se omite.
+
+---
+
+## 9. Semántica de Cancelación Cooperativa y Ciclo de Vida de AbortSignal
+
+Para garantizar que las interrupciones del usuario o cancelaciones de sesión no dejen llamadas colgadas ni generen condiciones de carrera, el subsistema agéntico (`ToolExecutor` y `ToolRegistry`) opera bajo las siguientes garantías formales de cancelación:
+
+1. **Prevención e Invocación Atómica Previa**:
+   - `ToolExecutor` registra el listener de `'abort'` en el `AbortSignal` *antes* de iniciar el trabajo de la herramienta y valida `signal.aborted` inmediatamente tras el registro.
+   - Si la señal ya está cancelada o si el handler emite un aborto sincrónico durante su arranque (antes de cualquier await), la ejecución se marca de inmediato como `cancelled: true` y nunca se reporta como éxito.
+
+2. **Comprobación Cooperativa en Handlers de Producción**:
+   - Los manejadores de producción (`systemTools`, `memoryTools`, `gameTools`, `spotifyTools`, `webTools`) reciben `context: ToolExecutionContext` y comprueban `context.signal?.aborted` antes de ejecutar mutaciones o llamadas de impacto (escritura en disco, mutación de memoria permanente, llamadas de red o envío de mensajes).
+   - En flujos con checkpoints asíncronos o etapas compuestas (como la conexión de voz en Discord), si la señal se aborta durante el proceso, el manejador deshace el estado parcial (e.g. `discordVoiceService.leave()`) y aborta cooperativamente.
+
+3. **Límites en Operaciones en Vuelo no Interrumpibles**:
+   - Cuando una operación externa ya ha sido despachada hacia el sistema operativo o un servicio remoto sin API de reversión (por ejemplo, un paquete de red ya transmitido, una reproducción ya iniciada en la aplicación externa de Spotify o una invocación IPC a bajo nivel sin canal de cancelación en el kernel), el ejecutor **deja de esperar** el resultado mediante `Promise.race`, retornando inmediatamente el estado cancelado a Gemini Live.
+   - No se garantiza la revocación atómica de efectos secundarios externos ya consumados por el sistema operativo o servicios de terceros una vez transmitidos; el sistema se desvincula de la espera pero no asume rollback imposible.
+
+4. **Limpieza Garantizada de Event Listeners**:
+   - Los listeners asociados a `AbortSignal` se retiran de manera garantizada dentro de bloques `finally` en `ToolExecutor`, tanto tras ejecuciones exitosas, con error o interrumpidas en vuelo, previniendo retención de referencias en el colector de basura de Node.js.
+

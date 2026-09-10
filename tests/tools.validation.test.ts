@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getEventListeners } from 'node:events';
-import { toolRegistry } from '../src/domain/tools/index';
+import { toolRegistry, writeFileHandler, manageMemoryHandler, spotifyPlayHandler, minecraftConnectHandler } from '../src/domain/tools/index';
 import { ToolExecutor } from '../src/domain/tools/ToolExecutor';
 import { validateRequest } from '../shared/ipc/contracts';
 import { liveServerMessageSchema } from '../src/domain/gemini/protocol';
@@ -143,6 +143,70 @@ test('In-flight cancellation stops waiting and prevents subsequent observable si
   const listenersAfterAbort = getEventListeners(controller.signal, 'abort');
   assert.equal(listenersAfterAbort.length, 0, 'Abort listeners must be cleaned up after in-flight cancellation');
 });
+
+test('Synchronous abort during handler startup is immediately detected and reported as cancelled', async () => {
+  const controller = new AbortController();
+  let startupControlledPromiseResolve: () => void = () => {};
+  const controlledPromise = new Promise<void>((resolve) => {
+    startupControlledPromiseResolve = resolve;
+  });
+
+  toolRegistry.register({
+    name: 'test_sync_startup_abort_tool',
+    declaration: {
+      name: 'test_sync_startup_abort_tool',
+      description: 'Synchronous abort during startup',
+      parameters: { type: 'OBJECT', properties: {} }
+    },
+    async execute(_args, _context) {
+      // Synchronously abort before first await
+      controller.abort();
+      await controlledPromise;
+      return { status: 'success', message: 'unexpected_success' };
+    }
+  });
+
+  const executor = new ToolExecutor();
+  const startTime = Date.now();
+  const executionPromise = executor.executeTool('test_sync_startup_abort_tool', {}, controller.signal);
+
+  // Must promptly resolve as cancelled without waiting for controlledPromise
+  const result = await executionPromise;
+  const elapsed = Date.now() - startTime;
+
+  assert.equal(result?.cancelled, true, 'Result must be marked cancelled');
+  assert.equal(result?.status, 'cancelled', 'Status must be cancelled, not success');
+  assert.ok(elapsed < 100, `Executor must not stay pending waiting for controlledPromise (elapsed: ${elapsed}ms)`);
+
+  // Release controlled promise
+  startupControlledPromiseResolve();
+
+  // Listeners must be cleanly removed
+  const listenersAfterAbort = getEventListeners(controller.signal, 'abort');
+  assert.equal(listenersAfterAbort.length, 0, 'Abort listeners must be cleaned up after sync startup abort');
+});
+
+test('Production tool handlers cooperatively abort before starting side effects when signal is cancelled', async () => {
+  const controller = new AbortController();
+  controller.abort(); // already cancelled signal
+
+  const writeResult = await writeFileHandler.execute({ path: 'test.txt', content: 'hello' }, { signal: controller.signal });
+  assert.equal(writeResult?.cancelled, true);
+  assert.equal(writeResult?.status, 'cancelled');
+
+  const memoryResult = await manageMemoryHandler.execute({ action: 'store', key: 'test', content: 'fact' }, { signal: controller.signal });
+  assert.equal(memoryResult?.cancelled, true);
+  assert.equal(memoryResult?.status, 'cancelled');
+
+  const spotifyResult = await spotifyPlayHandler.execute({ query: 'lofi' }, { signal: controller.signal });
+  assert.equal(spotifyResult?.cancelled, true);
+  assert.equal(spotifyResult?.status, 'cancelled');
+
+  const mcResult = await minecraftConnectHandler.execute({}, { signal: controller.signal });
+  assert.equal(mcResult?.cancelled, true);
+  assert.equal(mcResult?.status, 'cancelled');
+});
+
 
 test('Zod contracts reject malformed arguments, out-of-range values and injection attempts', () => {
   // Coordinates validation

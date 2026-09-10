@@ -1,4 +1,4 @@
-import type { IToolHandler } from '../IToolHandler';
+import type { IToolHandler, ToolExecutionContext } from '../IToolHandler';
 import { browserAutomationService } from '../../integrations/browser/BrowserAutomationService.js';
 import { playwrightService } from '../../integrations/playwright/PlaywrightService.js';
 
@@ -18,7 +18,8 @@ export const searchInternetHandler: IToolHandler = {
       required: ['query']
     }
   },
-  async execute(args: { query?: string }) {
+  async execute(args: { query?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Búsqueda web cancelada por señal de aborto.', cancelled: true };
     const query = args?.query || '';
     return await browserAutomationService.searchInternet(query);
   }
@@ -40,7 +41,8 @@ export const browseWebPageHandler: IToolHandler = {
       required: ['url']
     }
   },
-  async execute(args: { url?: string }) {
+  async execute(args: { url?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Navegación web cancelada por señal de aborto.', cancelled: true };
     const url = args?.url || '';
     return await browserAutomationService.extractPageContent(url);
   }
@@ -62,7 +64,8 @@ export const openInBraveBrowserHandler: IToolHandler = {
       required: ['url']
     }
   },
-  async execute(args: { url?: string }) {
+  async execute(args: { url?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Apertura de Brave cancelada por señal de aborto.', cancelled: true };
     const url = args?.url || '';
     const success = await browserAutomationService.openInBrave(url);
     return {
@@ -89,7 +92,8 @@ export const playwrightNavigateHandler: IToolHandler = {
       required: ['url']
     }
   },
-  async execute(args: { url?: string }) {
+  async execute(args: { url?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Navegación Playwright cancelada por señal de aborto.', cancelled: true };
     return await playwrightService.navigate(args?.url || '');
   }
 };
@@ -110,7 +114,8 @@ export const playwrightClickHandler: IToolHandler = {
       required: ['selector']
     }
   },
-  async execute(args: { selector?: string }) {
+  async execute(args: { selector?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Clic en Playwright cancelado por señal de aborto.', cancelled: true };
     return await playwrightService.click(args?.selector || '');
   }
 };
@@ -135,7 +140,8 @@ export const playwrightFillHandler: IToolHandler = {
       required: ['selector', 'value']
     }
   },
-  async execute(args: { selector?: string; value?: string }) {
+  async execute(args: { selector?: string; value?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Llenado en Playwright cancelado por señal de aborto.', cancelled: true };
     return await playwrightService.fill(args?.selector || '', args?.value || '');
   }
 };
@@ -160,7 +166,8 @@ export const playwrightPressHandler: IToolHandler = {
       required: ['key']
     }
   },
-  async execute(args: { key?: string; selector?: string }) {
+  async execute(args: { key?: string; selector?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Pulsación de tecla en Playwright cancelada por señal de aborto.', cancelled: true };
     return await playwrightService.press(args?.selector || 'body', args?.key || 'Enter');
   }
 };
@@ -180,7 +187,8 @@ export const playwrightScreenshotHandler: IToolHandler = {
       }
     }
   },
-  async execute(args: { full_page?: boolean }) {
+  async execute(args: { full_page?: boolean }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Captura en Playwright cancelada por señal de aborto.', cancelled: true };
     return await playwrightService.screenshot({
       fullPage: Boolean(args?.full_page)
     });
@@ -202,7 +210,8 @@ export const playwrightGetContentHandler: IToolHandler = {
       }
     }
   },
-  async execute(args: { selector?: string }) {
+  async execute(args: { selector?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Obtención de contenido en Playwright cancelada por señal de aborto.', cancelled: true };
     return await playwrightService.getContent(args?.selector as any);
   }
 };
@@ -213,7 +222,8 @@ export const playwrightCloseHandler: IToolHandler = {
     name: 'playwright_close',
     description: 'Cierra la sesión activa del navegador Playwright.'
   },
-  async execute() {
+  async execute(_args?: unknown, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Cierre de Playwright cancelado por señal de aborto.', cancelled: true };
     return await playwrightService.close();
   }
 };
