@@ -1,17 +1,41 @@
 const SECRET_FIELD = /(?:api[_-]?key|client[_-]?secret|bot[_-]?token|(?:^|[_-])token$|access[_-]?token|refresh[_-]?token|authorization|password|secret)/i;
 
 /** Used for public config, exports and structured logs. Never returns credentials. */
-export function publicSettings<T>(value: T, seen = new WeakSet<object>()): T {
+export function publicSettings<T>(
+  value: T,
+  ancestors = new Set<object>(),
+  clones = new Map<object, unknown>()
+): T {
   if (value && typeof value === 'object') {
-    if (seen.has(value)) return '[Circular]' as unknown as T;
-    seen.add(value);
+    if (ancestors.has(value)) return '[Circular]' as unknown as T;
+    if (clones.has(value)) return clones.get(value) as T;
+    ancestors.add(value);
   }
-  if (Array.isArray(value)) return value.map(item => publicSettings(item, seen)) as T;
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).filter(([key]) => !SECRET_FIELD.test(key))
-      .map(([key, item]) => [key, publicSettings(item, seen)])) as T;
+  try {
+    if (Array.isArray(value)) {
+      const arr: unknown[] = [];
+      clones.set(value, arr);
+      for (const item of value) {
+        arr.push(publicSettings(item, ancestors, clones));
+      }
+      return arr as T;
+    }
+    if (value && typeof value === 'object') {
+      const obj: Record<string, unknown> = {};
+      clones.set(value, obj);
+      for (const [key, val] of Object.entries(value)) {
+        if (!SECRET_FIELD.test(key)) {
+          obj[key] = publicSettings(val, ancestors, clones);
+        }
+      }
+      return obj as T;
+    }
+    return value;
+  } finally {
+    if (value && typeof value === 'object') {
+      ancestors.delete(value);
+    }
   }
-  return value;
 }
 
 export function redactText(text: string): string {

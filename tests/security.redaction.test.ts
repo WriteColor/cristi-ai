@@ -89,3 +89,28 @@ test('publicSettings handles circular references without RangeError', () => {
   assert.equal(sanitized.child.apiKey, undefined);
 });
 
+test('publicSettings preserves shared references without incorrectly converting them to [Circular]', () => {
+  const sharedConfig = { volume: 0.8, theme: 'dark', apiKey: 'SECRET_SHARED_TOKEN' };
+  const multiSectionConfig = {
+    profileA: sharedConfig,
+    profileB: sharedConfig,
+    list: [sharedConfig, sharedConfig]
+  };
+
+  const sanitized = publicSettings(multiSectionConfig);
+
+  // Neither should be replaced with '[Circular]'
+  assert.notEqual(sanitized.profileA, '[Circular]');
+  assert.notEqual(sanitized.profileB, '[Circular]');
+  assert.equal(sanitized.profileA.volume, 0.8);
+  assert.equal(sanitized.profileB.volume, 0.8);
+  assert.equal(sanitized.profileA.apiKey, undefined);
+  assert.equal(sanitized.profileB.apiKey, undefined);
+
+  // Object identity preserved across shared references
+  assert.equal(sanitized.profileA, sanitized.profileB);
+  assert.equal(sanitized.list[0], sanitized.profileA);
+  assert.equal(sanitized.list[1], sanitized.profileB);
+});
+
+

@@ -139,7 +139,7 @@ export class ToolRegistry {
 
     for (const call of calls) {
       const { id, name, args } = call;
-      if (context.isCallCancelled?.(id)) continue;
+      if (context.isCallCancelled?.(id) || context.signal?.aborted) continue;
       context.onToolExecutionStart?.(name, args);
       logger.info('TOOL', `Ejecutando herramienta local "${name}"...`, args);
 
@@ -159,7 +159,7 @@ export class ToolRegistry {
 
       context.onToolExecutionEnd?.(name, result);
 
-      if (context.isCallCancelled?.(id)) continue;
+      if (context.isCallCancelled?.(id) || context.signal?.aborted) continue;
       responses.push({
         id,
         name,

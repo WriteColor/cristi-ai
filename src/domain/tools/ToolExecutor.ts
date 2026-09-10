@@ -93,15 +93,23 @@ export class ToolExecutor {
       return result;
     }
 
+    let onAbort: (() => void) | undefined;
     const abortPromise = new Promise<{ status: string; message: string; cancelled: boolean }>((resolve) => {
-      signal.addEventListener('abort', () => {
+      onAbort = () => {
         resolve({ status: 'cancelled', message: 'Ejecución de herramienta cancelada.', cancelled: true });
-      }, { once: true });
+      };
+      signal.addEventListener('abort', onAbort);
     });
 
-    const result = await Promise.race([executionPromise, abortPromise]);
-    effectiveContext.onToolExecutionEnd?.(name, result);
-    return result;
+    try {
+      const result = await Promise.race([executionPromise, abortPromise]);
+      effectiveContext.onToolExecutionEnd?.(name, result);
+      return result;
+    } finally {
+      if (onAbort) {
+        signal.removeEventListener('abort', onAbort);
+      }
+    }
   }
 
   public async executeSingleTool(name: string, args: Record<string, unknown> = {}, signal?: AbortSignal) {

@@ -18,7 +18,8 @@ const allTestFiles = [
   'domain.live2d',
   'domain.memory',
   'domain.audio',
-  'domain.interaction'
+  'domain.interaction',
+  'screen.worker'
 ];
 
 const args = process.argv.slice(2);
@@ -46,6 +47,14 @@ try {
     outfile: path.join(buildDir, 'memory.worker.cjs')
   });
 
+  await build({
+    entryPoints: ['electron/src/utility/screen.worker.ts'],
+    bundle: true,
+    platform: 'node',
+    format: 'cjs',
+    outfile: path.join(buildDir, 'screen.worker.cjs')
+  });
+
   const browserHardwareMock = `
 export class AudioAnalysisService { connectSource(){} start(){} stop(){} destroy(){} }
 const noop = () => {};
@@ -69,7 +78,8 @@ export const GEMINI_MODELS = {};
       file.startsWith('security.') ||
       file === 'bridge' ||
       file === 'memory' ||
-      file === 'tool-executor';
+      file === 'tool-executor' ||
+      file === 'screen.worker';
 
     await build({
       entryPoints: [`tests/${file}.test.ts`],

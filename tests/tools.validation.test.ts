@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { getEventListeners } from 'node:events';
 import { toolRegistry } from '../src/domain/tools/index';
 import { ToolExecutor } from '../src/domain/tools/ToolExecutor';
 import { validateRequest } from '../shared/ipc/contracts';
@@ -49,6 +50,98 @@ test('ToolExecutor strictly aborts and does NOT execute observable handler when 
   assert.equal(handlerExecuted, false, 'Handler must not execute when AbortSignal is already aborted');
   assert.equal(result?.cancelled, true);
   assert.equal(result?.status, 'cancelled');
+});
+
+test('ToolExecutor cleans up abort listeners on success, error and in-flight cancellation', async () => {
+  toolRegistry.register({
+    name: 'test_listener_cleanup_success',
+    declaration: {
+      name: 'test_listener_cleanup_success',
+      description: 'Fast success tool',
+      parameters: { type: 'OBJECT', properties: {} }
+    },
+    async execute() {
+      return { ok: true };
+    }
+  });
+  toolRegistry.register({
+    name: 'test_listener_cleanup_error',
+    declaration: {
+      name: 'test_listener_cleanup_error',
+      description: 'Error tool',
+      parameters: { type: 'OBJECT', properties: {} }
+    },
+    async execute() {
+      throw new Error('Tool error');
+    }
+  });
+
+  const controller = new AbortController();
+  const executor = new ToolExecutor();
+
+  // Run 3 successful invocations sharing the same non-aborted signal
+  await executor.executeTool('test_listener_cleanup_success', {}, controller.signal);
+  await executor.executeTool('test_listener_cleanup_success', {}, controller.signal);
+  await executor.executeTool('test_listener_cleanup_success', {}, controller.signal);
+
+  // Assert no listeners are leaked
+  const listenersAfterSuccess = getEventListeners(controller.signal, 'abort');
+  assert.equal(listenersAfterSuccess.length, 0, 'No abort listeners should remain after successful runs');
+
+  // Run error invocation
+  await executor.executeTool('test_listener_cleanup_error', {}, controller.signal);
+  const listenersAfterError = getEventListeners(controller.signal, 'abort');
+  assert.equal(listenersAfterError.length, 0, 'No abort listeners should remain after error runs');
+});
+
+test('In-flight cancellation stops waiting and prevents subsequent observable side effects', async () => {
+  let sideEffectExecuted = false;
+  let checkpointReached = false;
+
+  toolRegistry.register({
+    name: 'test_inflight_cancel_tool',
+    declaration: {
+      name: 'test_inflight_cancel_tool',
+      description: 'In-flight cancelable tool with checkpoint',
+      parameters: { type: 'OBJECT', properties: {} }
+    },
+    async execute(_args, context) {
+      checkpointReached = true;
+      // Simulate asynchronous pending work (e.g. network/IPC delay)
+      await new Promise(resolve => setTimeout(resolve, 30));
+
+      // Cooperative cancellation: check signal before committing observable side effects
+      if (context?.signal?.aborted) {
+        return { status: 'cancelled', message: 'Ejecución cancelada en checkpoint.', cancelled: true };
+      }
+      sideEffectExecuted = true;
+      return { status: 'success', effectDone: true };
+    }
+  });
+
+  const controller = new AbortController();
+  const executor = new ToolExecutor();
+
+  // Start execution and abort while it is paused at the async checkpoint
+  const executionPromise = executor.executeTool('test_inflight_cancel_tool', {}, controller.signal);
+  assert.equal(checkpointReached, true);
+
+  // Trigger abort in flight
+  controller.abort();
+  const result = await executionPromise;
+
+  assert.equal(result?.cancelled, true);
+  assert.equal(result?.status, 'cancelled');
+
+  // Wait for the simulated async work to finish resolving
+  await new Promise(resolve => setTimeout(resolve, 50));
+
+  // The subsequent observable side effect must NOT have executed
+  assert.equal(sideEffectExecuted, false, 'Observable side effect must not execute after in-flight abort');
+
+  // Listeners must be cleanly removed
+  const listenersAfterAbort = getEventListeners(controller.signal, 'abort');
+  assert.equal(listenersAfterAbort.length, 0, 'Abort listeners must be cleaned up after in-flight cancellation');
 });
 
 test('Zod contracts reject malformed arguments, out-of-range values and injection attempts', () => {
