@@ -1,7 +1,47 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getEventListeners } from 'node:events';
-import { toolRegistry, writeFileHandler, manageMemoryHandler, spotifyPlayHandler, minecraftConnectHandler } from '../src/domain/tools/index';
+import {
+  toolRegistry,
+  writeFileHandler,
+  manageMemoryHandler,
+  spotifyPlayHandler,
+  minecraftConnectHandler,
+  startDesktopAudioCaptureHandler,
+  stopDesktopAudioCaptureHandler,
+  desktopAudioCaptureStatusHandler,
+  sendGameVoiceTranslationHandler,
+  translateAndSpeakInGameHandler,
+  mcpAddServerHandler,
+  mcpReconnectServerHandler,
+  mcpRemoveServerHandler,
+  mcpListServersHandler,
+  mcpCallToolHandler,
+  setReminderHandler,
+  setAlarmHandler,
+  showTacticalWidgetHandler,
+  dismissTacticalWidgetHandler,
+  triggerCompanionGestureHandler,
+  triggerModelMotionHandler,
+  moveAvatarHandler,
+  switchAvatarModelHandler,
+  captureScreenSnapshotHandler,
+  setScreenWatchHandler,
+  setScreenRegionHandler,
+  analyzeVisualSceneHandler,
+  computerActionHandler,
+  getCurrentTimeAndDateHandler,
+  getWeatherHandler,
+  systemDiagnosticsHandler,
+  executeSystemCommandHandler,
+  listDirectoryHandler,
+  getClipboardHandler,
+  setClipboardHandler,
+  getRunningProcessesHandler,
+  killProcessHandler,
+  openFileOrFolderHandler,
+  openSystemAppOrLinkHandler
+} from '../src/domain/tools/index';
 import { ToolExecutor } from '../src/domain/tools/ToolExecutor';
 import { validateRequest } from '../shared/ipc/contracts';
 import { liveServerMessageSchema } from '../src/domain/gemini/protocol';
@@ -205,6 +245,212 @@ test('Production tool handlers cooperatively abort before starting side effects 
   const mcResult = await minecraftConnectHandler.execute({}, { signal: controller.signal });
   assert.equal(mcResult?.cancelled, true);
   assert.equal(mcResult?.status, 'cancelled');
+});
+
+test('Audio tool handlers cooperatively abort before starting side effects when signal is cancelled', async () => {
+  const controller = new AbortController();
+  controller.abort();
+
+  const startCapResult = await startDesktopAudioCaptureHandler.execute({}, { signal: controller.signal });
+  assert.equal(startCapResult?.cancelled, true);
+  assert.equal(startCapResult?.status, 'cancelled');
+
+  const stopCapResult = await stopDesktopAudioCaptureHandler.execute({}, { signal: controller.signal });
+  assert.equal(stopCapResult?.cancelled, true);
+  assert.equal(stopCapResult?.status, 'cancelled');
+
+  const statusResult = await desktopAudioCaptureStatusHandler.execute({}, { signal: controller.signal });
+  assert.equal(statusResult?.cancelled, true);
+  assert.equal(statusResult?.status, 'cancelled');
+
+  const sendTransResult = await sendGameVoiceTranslationHandler.execute({ message: 'hola' }, { signal: controller.signal });
+  assert.equal(sendTransResult?.cancelled, true);
+  assert.equal(sendTransResult?.status, 'cancelled');
+
+  const speakResult = await translateAndSpeakInGameHandler.execute({ message: 'test', target_language: 'en' }, { signal: controller.signal });
+  assert.equal(speakResult?.cancelled, true);
+  assert.equal(speakResult?.status, 'cancelled');
+});
+
+test('MCP tool handlers cooperatively abort before connecting or executing when signal is cancelled', async () => {
+  const controller = new AbortController();
+  controller.abort();
+
+  const addResult = await mcpAddServerHandler.execute({ id: 's1', transport: 'stdio', command: 'node' }, { signal: controller.signal });
+  assert.equal(addResult?.cancelled, true);
+  assert.equal(addResult?.status, 'cancelled');
+
+  const reconnectResult = await mcpReconnectServerHandler.execute({ server_id: 's1' }, { signal: controller.signal });
+  assert.equal(reconnectResult?.cancelled, true);
+  assert.equal(reconnectResult?.status, 'cancelled');
+
+  const removeResult = await mcpRemoveServerHandler.execute({ server_id: 's1' }, { signal: controller.signal });
+  assert.equal(removeResult?.cancelled, true);
+  assert.equal(removeResult?.status, 'cancelled');
+
+  const listResult = await mcpListServersHandler.execute({}, { signal: controller.signal });
+  assert.equal(listResult?.cancelled, true);
+  assert.equal(listResult?.status, 'cancelled');
+
+  const callResult = await mcpCallToolHandler.execute({ server_id: 's1', tool_name: 't1' }, { signal: controller.signal });
+  assert.equal(callResult?.cancelled, true);
+  assert.equal(callResult?.status, 'cancelled');
+});
+
+test('Widget tool handlers cooperatively abort before scheduling or emitting events when signal is cancelled', async () => {
+  const controller = new AbortController();
+  controller.abort();
+
+  const reminderResult = await setReminderHandler.execute({ title: 'test reminder' }, { signal: controller.signal });
+  assert.equal(reminderResult?.cancelled, true);
+  assert.equal(reminderResult?.status, 'cancelled');
+
+  const alarmResult = await setAlarmHandler.execute({ time: '08:00' }, { signal: controller.signal });
+  assert.equal(alarmResult?.cancelled, true);
+  assert.equal(alarmResult?.status, 'cancelled');
+
+  const widgetResult = await showTacticalWidgetHandler.execute({ type: 'tactical' }, { signal: controller.signal });
+  assert.equal(widgetResult?.cancelled, true);
+  assert.equal(widgetResult?.status, 'cancelled');
+
+  const dismissResult = await dismissTacticalWidgetHandler.execute({ id: 'w1' }, { signal: controller.signal });
+  assert.equal(dismissResult?.cancelled, true);
+  assert.equal(dismissResult?.status, 'cancelled');
+});
+
+test('Avatar, Vision, and Computer handlers cooperatively abort before triggering operations when signal is cancelled', async () => {
+  const controller = new AbortController();
+  controller.abort();
+
+  const gestureResult = await triggerCompanionGestureHandler.execute({ gesture: 'wave' }, { signal: controller.signal });
+  assert.equal(gestureResult?.cancelled, true);
+  assert.equal(gestureResult?.status, 'cancelled');
+
+  const motionResult = await triggerModelMotionHandler.execute({ group: 'idle' }, { signal: controller.signal });
+  assert.equal(motionResult?.cancelled, true);
+  assert.equal(motionResult?.status, 'cancelled');
+
+  const moveResult = await moveAvatarHandler.execute({ x_pct: 50, y_pct: 50 }, { signal: controller.signal });
+  assert.equal(moveResult?.cancelled, true);
+  assert.equal(moveResult?.status, 'cancelled');
+
+  const modelResult = await switchAvatarModelHandler.execute({ model_id: 'm1' }, { signal: controller.signal });
+  assert.equal(modelResult?.cancelled, true);
+  assert.equal(modelResult?.status, 'cancelled');
+
+  const snapResult = await captureScreenSnapshotHandler.execute({}, { signal: controller.signal });
+  assert.equal(snapResult?.cancelled, true);
+  assert.equal(snapResult?.status, 'cancelled');
+
+  const watchResult = await setScreenWatchHandler.execute({ enabled: true }, { signal: controller.signal });
+  assert.equal(watchResult?.cancelled, true);
+  assert.equal(watchResult?.status, 'cancelled');
+
+  const regionResult = await setScreenRegionHandler.execute({ x_pct: 10, y_pct: 10, w_pct: 80, h_pct: 80 }, { signal: controller.signal });
+  assert.equal(regionResult?.cancelled, true);
+  assert.equal(regionResult?.status, 'cancelled');
+
+  const analyzeResult = await analyzeVisualSceneHandler.execute({}, { signal: controller.signal });
+  assert.equal(analyzeResult?.cancelled, true);
+  assert.equal(analyzeResult?.status, 'cancelled');
+
+  const computerResult = await computerActionHandler.execute({ action: 'screenshot' }, { signal: controller.signal });
+  assert.equal(computerResult?.cancelled, true);
+  assert.equal(computerResult?.status, 'cancelled');
+});
+
+test('System tool handlers cooperatively abort before accessing system when signal is cancelled', async () => {
+  const controller = new AbortController();
+  controller.abort();
+
+  const timeResult = await getCurrentTimeAndDateHandler.execute({}, { signal: controller.signal });
+  assert.equal(timeResult?.cancelled, true);
+  assert.equal(timeResult?.status, 'cancelled');
+
+  const weatherResult = await getWeatherHandler.execute({ city: 'Madrid' }, { signal: controller.signal });
+  assert.equal(weatherResult?.cancelled, true);
+  assert.equal(weatherResult?.status, 'cancelled');
+
+  const diagResult = await systemDiagnosticsHandler.execute({}, { signal: controller.signal });
+  assert.equal(diagResult?.cancelled, true);
+  assert.equal(diagResult?.status, 'cancelled');
+
+  const cmdResult = await executeSystemCommandHandler.execute({ kind: 'system-info' }, { signal: controller.signal });
+  assert.equal(cmdResult?.cancelled, true);
+  assert.equal(cmdResult?.status, 'cancelled');
+
+  const listDirResult = await listDirectoryHandler.execute({ path: 'test' }, { signal: controller.signal });
+  assert.equal(listDirResult?.cancelled, true);
+  assert.equal(listDirResult?.status, 'cancelled');
+
+  const getClipResult = await getClipboardHandler.execute({}, { signal: controller.signal });
+  assert.equal(getClipResult?.cancelled, true);
+  assert.equal(getClipResult?.status, 'cancelled');
+
+  const setClipResult = await setClipboardHandler.execute({ text: 'test' }, { signal: controller.signal });
+  assert.equal(setClipResult?.cancelled, true);
+  assert.equal(setClipResult?.status, 'cancelled');
+
+  const procsResult = await getRunningProcessesHandler.execute({}, { signal: controller.signal });
+  assert.equal(procsResult?.cancelled, true);
+  assert.equal(procsResult?.status, 'cancelled');
+
+  const killResult = await killProcessHandler.execute({}, { signal: controller.signal });
+  assert.equal(killResult?.cancelled, true);
+  assert.equal(killResult?.status, 'cancelled');
+
+  const openFileResult = await openFileOrFolderHandler.execute({ path: 'test.txt' }, { signal: controller.signal });
+  assert.equal(openFileResult?.cancelled, true);
+  assert.equal(openFileResult?.status, 'cancelled');
+
+  const openAppResult = await openSystemAppOrLinkHandler.execute({ url: 'https://example.com' }, { signal: controller.signal });
+  assert.equal(openAppResult?.cancelled, true);
+  assert.equal(openAppResult?.status, 'cancelled');
+});
+
+test('ToolExecutor uniformly cancels execution for all domain tools', async () => {
+  const executor = new ToolExecutor();
+  const controller = new AbortController();
+  controller.abort();
+
+  const toolsToTest = [
+    'start_desktop_audio_capture',
+    'stop_desktop_audio_capture',
+    'desktop_audio_capture_status',
+    'send_game_voice_translation',
+    'translate_and_speak_in_game',
+    'mcp_add_server',
+    'mcp_reconnect_server',
+    'mcp_remove_server',
+    'mcp_list_servers',
+    'mcp_call_tool',
+    'set_reminder',
+    'set_alarm',
+    'show_tactical_widget',
+    'dismiss_tactical_widget',
+    'trigger_companion_gesture',
+    'trigger_model_motion',
+    'move_avatar',
+    'switch_avatar_model',
+    'capture_screen_snapshot',
+    'set_screen_watch',
+    'set_screen_region',
+    'analyze_visual_scene',
+    'computer_action',
+    'get_current_time_and_date',
+    'get_weather',
+    'system_diagnostics',
+    'list_directory',
+    'get_clipboard',
+    'set_clipboard',
+    'get_running_processes'
+  ];
+
+  for (const toolName of toolsToTest) {
+    const result = await executor.executeTool(toolName, {}, controller.signal);
+    assert.equal(result?.cancelled, true, `Tool ${toolName} must return cancelled: true`);
+    assert.equal(result?.status, 'cancelled', `Tool ${toolName} must return status: 'cancelled'`);
+  }
 });
 
 

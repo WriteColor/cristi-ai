@@ -1,4 +1,4 @@
-import type { IToolHandler } from '../IToolHandler';
+import type { IToolHandler, ToolExecutionContext } from '../IToolHandler';
 import {
   desktopLoopbackService,
   desktopLoopbackService as desktopLoopbackCaptureService,
@@ -44,7 +44,8 @@ export const startDesktopAudioCaptureHandler: IToolHandler = {
     translate?: boolean;
     target_language?: string;
     aggregate_ms?: number;
-  }) {
+  }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Captura de audio cancelada por señal de aborto.', cancelled: true };
     const sourceId = typeof args?.source_id === 'string' && args.source_id.trim()
       ? args.source_id.trim()
       : 'system_loopback';
@@ -65,6 +66,11 @@ export const startDesktopAudioCaptureHandler: IToolHandler = {
       sourceId,
       includeVideo: args?.keep_video_track === true
     });
+
+    if (context?.signal?.aborted) {
+      desktopLoopbackCaptureService.stop();
+      return { status: 'cancelled', message: 'Captura de audio cancelada durante la inicialización.', cancelled: true };
+    }
 
     if (result?.success && args?.translate === true) {
       const attached = translationService.attachSource(desktopLoopbackCaptureService, {
@@ -89,7 +95,8 @@ export const stopDesktopAudioCaptureHandler: IToolHandler = {
     name: 'stop_desktop_audio_capture',
     description: 'Detiene la captura de audio externo y libera inmediatamente sus pistas y AudioWorklet.'
   },
-  async execute() {
+  async execute(_args?: unknown, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Detención de captura de audio cancelada por señal de aborto.', cancelled: true };
     translationService.detachSource(desktopLoopbackCaptureService);
     desktopLoopbackCaptureService.stop();
     return { status: 'success', ...desktopLoopbackCaptureService.getStatus() };
@@ -102,7 +109,8 @@ export const desktopAudioCaptureStatusHandler: IToolHandler = {
     name: 'desktop_audio_capture_status',
     description: 'Devuelve el estado de la captura de audio de escritorio o bucle local.'
   },
-  async execute() {
+  async execute(_args?: unknown, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Consulta de estado de audio cancelada por señal de aborto.', cancelled: true };
     return { status: 'success', ...desktopLoopbackCaptureService.getStatus() };
   }
 };
@@ -127,7 +135,8 @@ export const sendGameVoiceTranslationHandler: IToolHandler = {
       required: ['text']
     }
   },
-  async execute(args: { text?: string; target_language?: string }) {
+  async execute(args: { text?: string; target_language?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Envío de traducción de voz al juego cancelado por señal de aborto.', cancelled: true };
     const text = typeof args?.text === 'string' ? args.text.trim() : '';
     if (!text) {
       return { status: 'invalid_input', message: 'Indica el texto que Cristi debe traducir para el juego.' };
@@ -156,6 +165,7 @@ export const sendGameVoiceTranslationHandler: IToolHandler = {
       sourceId: 'user_game_voice'
     });
 
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Traducción cancelada antes de emitir audio.', cancelled: true };
     if (!result?.success) return { status: 'translation_failed', ...result };
 
     return {
@@ -193,7 +203,8 @@ export const translateAndSpeakInGameHandler: IToolHandler = {
       required: ['message', 'target_language']
     }
   },
-  async execute(args: { message?: string; target_language?: string; output_route?: string }) {
+  async execute(args: { message?: string; target_language?: string; output_route?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Traducción de voz al juego cancelada por señal de aborto.', cancelled: true };
     const { message, target_language, output_route } = args || {};
     const textMsg = message || '';
     const result: any = await (translationService as any).translateText({
@@ -202,6 +213,8 @@ export const translateAndSpeakInGameHandler: IToolHandler = {
       sourceId: 'user_translation_command',
       outputRoute: output_route === 'local' ? 'local' : 'game_voice'
     });
+
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Traducción cancelada antes de finalizar.', cancelled: true };
 
     return {
       status: result?.success ? 'success' : (result?.disabled ? 'disabled' : 'error'),

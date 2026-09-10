@@ -21,11 +21,12 @@ export const triggerCompanionGestureHandler: IToolHandler = {
       required: ['gesture']
     }
   },
-  async execute(args: { gesture?: string; comment?: string }, context: ToolExecutionContext) {
+  async execute(args: { gesture?: string; comment?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Gesto de avatar cancelado por señal de aborto.', cancelled: true };
     const gesture = typeof args?.gesture === 'string' ? args.gesture : 'happy';
     const comment = typeof args?.comment === 'string' ? args.comment : '';
 
-    const trigger = context.onGestureTrigger || context.triggerGesture;
+    const trigger = context?.onGestureTrigger || context?.triggerGesture;
     trigger?.(gesture, comment);
 
     return {
@@ -56,11 +57,12 @@ export const triggerModelMotionHandler: IToolHandler = {
       required: ['motion_group']
     }
   },
-  async execute(args: { motion_group?: string; index?: number | string }, context: ToolExecutionContext) {
+  async execute(args: { motion_group?: string; index?: number | string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Animación de avatar cancelada por señal de aborto.', cancelled: true };
     const motionGroup = typeof args?.motion_group === 'string' ? args.motion_group : 'Idle';
     const index = !isNaN(Number(args?.index)) ? Number(args.index) : 0;
 
-    const trigger = context.onMotionTrigger || context.triggerMotion;
+    const trigger = context?.onMotionTrigger || context?.triggerMotion;
     trigger?.(motionGroup, index);
 
     return {
@@ -94,11 +96,12 @@ export const moveAvatarHandler: IToolHandler = {
       required: ['position']
     }
   },
-  async execute(args: { position?: string; animation?: string }, context: ToolExecutionContext) {
+  async execute(args: { position?: string; animation?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Movimiento de avatar cancelado por señal de aborto.', cancelled: true };
     const position = typeof args?.position === 'string' ? args.position : 'center';
     const animation = typeof args?.animation === 'string' ? args.animation : 'slide';
 
-    const move = context.onAvatarMove || context.moveAvatar;
+    const move = context?.onAvatarMove || context?.moveAvatar;
     move?.(position, animation);
 
     return {
@@ -126,12 +129,13 @@ export const switchAvatarModelHandler: IToolHandler = {
       required: ['model_id']
     }
   },
-  async execute(args: { model_id?: string }, context: ToolExecutionContext) {
+  async execute(args: { model_id?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Cambio de modelo de avatar cancelado por señal de aborto.', cancelled: true };
     const modelId = args?.model_id || 'yanderegirl';
 
-    if (context.onModelSwitch) {
+    if (context?.onModelSwitch) {
       context.onModelSwitch('live2d', modelId);
-    } else if (context.switchModel) {
+    } else if (context?.switchModel) {
       context.switchModel(modelId);
     }
 

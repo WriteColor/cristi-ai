@@ -8,7 +8,8 @@ export const getCurrentTimeAndDateHandler: IToolHandler = {
     name: 'get_current_time_and_date',
     description: 'Obtiene la hora actual exacta, fecha completa, día de la semana y zona horaria del sistema local.'
   },
-  async execute() {
+  async execute(_args?: unknown, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Consulta de fecha/hora cancelada por señal de aborto.', cancelled: true };
     const now = new Date();
     const options: Intl.DateTimeFormatOptions = {
       weekday: 'long',
@@ -45,7 +46,8 @@ export const getWeatherHandler: IToolHandler = {
       }
     }
   },
-  async execute(args: { city?: string }) {
+  async execute(args: { city?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Consulta de clima cancelada por señal de aborto.', cancelled: true };
     const city = typeof args?.city === 'string' && args.city.trim() ? args.city.trim() : 'Ubicación actual';
     const weatherData = {
       status: 'success',
@@ -55,6 +57,7 @@ export const getWeatherHandler: IToolHandler = {
       humidity: '45%',
       wind: '12 km/h'
     };
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Consulta de clima cancelada antes de emitir evento.', cancelled: true };
     eventBus.emit(EVENTS.WIDGET_TRIGGERED, {
       id: String(Date.now()),
       type: 'weather',
@@ -68,19 +71,37 @@ export const getWeatherHandler: IToolHandler = {
 };
 
 export const systemDiagnosticsHandler: IToolHandler = {
- name: 'system_diagnostics', declaration: { name: 'system_diagnostics', description: 'Consulta información del sistema operativo.' },
- async execute() { try { return { status: 'success', ...await electronBridge.systemExecute('system-info') }; }
- catch (error) { return { status: 'error', message: String(error) }; } }
+  name: 'system_diagnostics',
+  declaration: { name: 'system_diagnostics', description: 'Consulta información del sistema operativo.' },
+  async execute(_args?: unknown, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Diagnóstico de sistema cancelado por señal de aborto.', cancelled: true };
+    try {
+      const res = await electronBridge.systemExecute('system-info');
+      if (context?.signal?.aborted) return { status: 'cancelled', message: 'Diagnóstico de sistema cancelado tras ejecución.', cancelled: true };
+      return { status: 'success', ...res };
+    } catch (error) {
+      return { status: 'error', message: String(error) };
+    }
+  }
 };
 
 export const executeSystemCommandHandler: IToolHandler = {
- name: 'execute_system_command', declaration: { name: 'execute_system_command', description: 'Consulta diagnósticos mediante capacidades nominales del sistema.',
- parameters: { type: 'OBJECT', properties: { kind: { type: 'STRING', enum: ['system-info', 'list-processes'] } }, required: ['kind'] } },
+  name: 'execute_system_command',
+  declaration: {
+    name: 'execute_system_command',
+    description: 'Consulta diagnósticos mediante capacidades nominales del sistema.',
+    parameters: { type: 'OBJECT', properties: { kind: { type: 'STRING', enum: ['system-info', 'list-processes'] } }, required: ['kind'] }
+  },
   async execute(args: { kind?: string }, context?: ToolExecutionContext) {
     if (context?.signal?.aborted) return { status: 'cancelled', message: 'Ejecución de comando cancelada por señal de aborto.', cancelled: true };
     if (args.kind !== 'system-info' && args.kind !== 'list-processes') return { status: 'error', message: 'Capacidad no autorizada.' };
-    try { return { status: 'success', ...await electronBridge.systemExecute(args.kind) }; }
-    catch (error) { return { status: 'error', message: String(error) }; }
+    try {
+      const res = await electronBridge.systemExecute(args.kind);
+      if (context?.signal?.aborted) return { status: 'cancelled', message: 'Ejecución de comando cancelada tras ejecución.', cancelled: true };
+      return { status: 'success', ...res };
+    } catch (error) {
+      return { status: 'error', message: String(error) };
+    }
   }
 };
 
@@ -193,7 +214,8 @@ export const listDirectoryHandler: IToolHandler = {
       required: ['path']
     }
   },
-  async execute(args: { path?: string }) {
+  async execute(args: { path?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Listado de directorio cancelado por señal de aborto.', cancelled: true };
     const path = (typeof args?.path === 'string' && args.path.trim())
       ? args.path.trim()
       : '';
@@ -201,6 +223,7 @@ export const listDirectoryHandler: IToolHandler = {
     if (electronBridge.isElectron) {
       try {
         const entries = await electronBridge.readDirectory(path);
+        if (context?.signal?.aborted) return { status: 'cancelled', message: 'Listado de directorio cancelado tras lectura.', cancelled: true };
         return {
           status: 'success',
           path,
@@ -224,9 +247,11 @@ export const getClipboardHandler: IToolHandler = {
     name: 'get_clipboard',
     description: 'Lee el contenido actual del portapapeles del sistema del usuario.'
   },
-  async execute() {
+  async execute(_args?: unknown, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Lectura de portapapeles cancelada por señal de aborto.', cancelled: true };
     try {
       const text = await electronBridge.getClipboardText();
+      if (context?.signal?.aborted) return { status: 'cancelled', message: 'Lectura de portapapeles cancelada tras obtención.', cancelled: true };
       return { status: 'success', content: text };
     } catch (e: any) {
       return { status: 'error', message: e?.message };
@@ -255,6 +280,7 @@ export const setClipboardHandler: IToolHandler = {
     const text = args?.text !== undefined ? String(args.text) : '';
     try {
       await electronBridge.setClipboardText(text);
+      if (context?.signal?.aborted) return { status: 'cancelled', message: 'Operación de portapapeles cancelada tras copia.', cancelled: true };
       return { status: 'success', message: 'Texto copiado al portapapeles.', length: text.length };
     } catch (e: any) {
       return { status: 'error', message: e?.message };
@@ -263,14 +289,27 @@ export const setClipboardHandler: IToolHandler = {
 };
 
 export const getRunningProcessesHandler: IToolHandler = {
- name: 'get_running_processes', declaration: { name: 'get_running_processes', description: 'Lista los procesos activos.' },
- async execute() { try { return { status: 'success', ...await electronBridge.systemExecute('list-processes') }; }
- catch (error) { return { status: 'error', message: String(error) }; } }
+  name: 'get_running_processes',
+  declaration: { name: 'get_running_processes', description: 'Lista los procesos activos.' },
+  async execute(_args?: unknown, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Consulta de procesos activos cancelada por señal de aborto.', cancelled: true };
+    try {
+      const res = await electronBridge.systemExecute('list-processes');
+      if (context?.signal?.aborted) return { status: 'cancelled', message: 'Consulta de procesos activos cancelada tras ejecución.', cancelled: true };
+      return { status: 'success', ...res };
+    } catch (error) {
+      return { status: 'error', message: String(error) };
+    }
+  }
 };
 
 export const killProcessHandler: IToolHandler = {
- name: 'kill_process', declaration: { name: 'kill_process', description: 'Capacidad no disponible.' },
- async execute() { return { status: 'error', message: 'Terminar procesos no es una capacidad autorizada.' }; }
+  name: 'kill_process',
+  declaration: { name: 'kill_process', description: 'Capacidad no disponible.' },
+  async execute(_args?: unknown, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Operación cancelada por señal de aborto.', cancelled: true };
+    return { status: 'error', message: 'Terminar procesos no es una capacidad autorizada.' };
+  }
 };
 
 export const openFileOrFolderHandler: IToolHandler = {
@@ -296,7 +335,9 @@ export const openFileOrFolderHandler: IToolHandler = {
       return { status: 'error', message: 'No path provided.' };
     }
     if (electronBridge.isElectron) {
+      if (context?.signal?.aborted) return { status: 'cancelled', message: 'Apertura de archivo cancelada antes de invocar el sistema.', cancelled: true };
       const res = await electronBridge.openPath(path);
+      if (context?.signal?.aborted) return { status: 'cancelled', message: 'Apertura de archivo cancelada tras invocar el sistema.', cancelled: true };
       if (res.success) {
         return { status: 'success', path, message: `Ruta "${path}" abierta en el explorador o aplicación predeterminada.` };
       }
@@ -330,7 +371,9 @@ export const openSystemAppOrLinkHandler: IToolHandler = {
     }
 
     try {
+      if (context?.signal?.aborted) return { status: 'cancelled', message: 'Apertura cancelada antes de abrir externamente.', cancelled: true };
       await electronBridge.openExternal(url);
+      if (context?.signal?.aborted) return { status: 'cancelled', message: 'Apertura cancelada tras abrir externamente.', cancelled: true };
       return { status: 'success', opened: true, url };
     } catch (error) { return { status: 'error', opened: false, message: String(error) }; }
   }

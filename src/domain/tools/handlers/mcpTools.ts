@@ -1,4 +1,4 @@
-import type { IToolHandler } from '../IToolHandler';
+import type { IToolHandler, ToolExecutionContext } from '../IToolHandler';
 import { mcpClientManager } from '../../integrations/mcp/MCPClientManager.js';
 
 export const mcpAddServerHandler: IToolHandler = {
@@ -26,7 +26,8 @@ export const mcpAddServerHandler: IToolHandler = {
     args?: any[];
     url?: string;
     enabled?: boolean;
-  }) {
+  }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Registro de servidor MCP cancelado por señal de aborto.', cancelled: true };
     const server = await mcpClientManager.addServer({
       name: String(args?.name || '').trim(),
       type: args?.transport === 'sse' ? 'sse' : 'stdio',
@@ -35,6 +36,11 @@ export const mcpAddServerHandler: IToolHandler = {
       url: String(args?.url || '').trim(),
       enabled: args?.enabled !== false
     });
+
+    if (context?.signal?.aborted) {
+      if (server) await mcpClientManager.removeServer(server.id);
+      return { status: 'cancelled', message: 'Registro de servidor MCP cancelado durante la inicialización.', cancelled: true };
+    }
 
     if (!server) {
       return { status: 'error', message: 'El servidor MCP requiere un nombre válido.' };
@@ -67,7 +73,8 @@ export const mcpRemoveServerHandler: IToolHandler = {
       required: ['server_id']
     }
   },
-  async execute(args: { server_id?: string }) {
+  async execute(args: { server_id?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Eliminación de servidor MCP cancelada por señal de aborto.', cancelled: true };
     const serverId = String(args?.server_id || '').trim();
     const removed = await mcpClientManager.removeServer(serverId);
     return removed
@@ -82,7 +89,8 @@ export const mcpListServersHandler: IToolHandler = {
     name: 'mcp_list_servers',
     description: 'Lista los servidores MCP registrados, su estado y las herramientas descubiertas.'
   },
-  async execute() {
+  async execute(_args?: unknown, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Listado de servidores MCP cancelado por señal de aborto.', cancelled: true };
     return {
       status: 'success',
       servers: mcpClientManager.getServers().map((server: any) => ({
@@ -111,7 +119,8 @@ export const mcpReconnectServerHandler: IToolHandler = {
       required: ['server_id']
     }
   },
-  async execute(args: { server_id?: string }) {
+  async execute(args: { server_id?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Reconexión de servidor MCP cancelada por señal de aborto.', cancelled: true };
     const serverId = String(args?.server_id || '').trim();
     const server = mcpClientManager.getServers().find((item: any) => item.id === serverId);
     if (!server) {
@@ -119,7 +128,11 @@ export const mcpReconnectServerHandler: IToolHandler = {
     }
 
     await mcpClientManager.disconnectServer(serverId);
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Reconexión MCP cancelada tras desconexión.', cancelled: true };
+
     const connected = await mcpClientManager.connectServer(serverId);
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Reconexión MCP cancelada tras enlace.', cancelled: true };
+
     const current = mcpClientManager.getServers().find((item: any) => item.id === serverId) || server;
 
     return {
@@ -150,11 +163,13 @@ export const mcpCallToolHandler: IToolHandler = {
       required: ['server_id', 'tool_name']
     }
   },
-  async execute(args: { server_id?: string; tool_name?: string; arguments?: Record<string, any> }) {
+  async execute(args: { server_id?: string; tool_name?: string; arguments?: Record<string, any> }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Invocación de herramienta MCP cancelada por señal de aborto.', cancelled: true };
     return await mcpClientManager.callServerTool(
       String(args?.server_id || '').trim(),
       String(args?.tool_name || '').trim(),
-      args?.arguments && typeof args.arguments === 'object' ? args.arguments : {}
+      args?.arguments && typeof args.arguments === 'object' ? args.arguments : {},
+      context?.signal
     );
   }
 };

@@ -17,7 +17,8 @@ export const captureScreenSnapshotHandler: IToolHandler = {
       }
     }
   },
-  async execute(args: { region?: string }, context: ToolExecutionContext) {
+  async execute(args: { region?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Captura de pantalla cancelada por señal de aborto.', cancelled: true };
     const region = typeof args?.region === 'string' ? args.region : 'full';
     let frameData: string | null = null;
 
@@ -25,11 +26,15 @@ export const captureScreenSnapshotHandler: IToolHandler = {
       frameData = await electronBridge.captureScreenNative(region as any);
     }
 
-    if (!frameData && context.getScreenCapture) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Captura de pantalla cancelada tras extracción.', cancelled: true };
+
+    if (!frameData && context?.getScreenCapture) {
       frameData = await context.getScreenCapture(region === 'full' ? 'full' : 'active_region');
-    } else if (!frameData && context.takeScreenshot) {
+    } else if (!frameData && context?.takeScreenshot) {
       frameData = await context.takeScreenshot(region === 'full' ? 'full' : 'active_region');
     }
+
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Captura de pantalla cancelada tras procesamiento.', cancelled: true };
 
     if (!frameData) {
       return {
@@ -63,11 +68,12 @@ export const setScreenWatchHandler: IToolHandler = {
       required: ['enabled']
     }
   },
-  async execute(args: { enabled?: boolean }, context: ToolExecutionContext) {
+  async execute(args: { enabled?: boolean }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Vigilancia de pantalla cancelada por señal de aborto.', cancelled: true };
     const enabled = args?.enabled !== false;
-    if (context.onScreenWatchChange) {
+    if (context?.onScreenWatchChange) {
       context.onScreenWatchChange(enabled);
-    } else if (context.setScreenWatch) {
+    } else if (context?.setScreenWatch) {
       context.setScreenWatch(enabled);
     }
 
@@ -107,7 +113,8 @@ export const setScreenRegionHandler: IToolHandler = {
       required: ['x_pct', 'y_pct', 'w_pct', 'h_pct']
     }
   },
-  async execute(args: { x_pct?: number | string; y_pct?: number | string; w_pct?: number | string; h_pct?: number | string }, context: ToolExecutionContext) {
+  async execute(args: { x_pct?: number | string; y_pct?: number | string; w_pct?: number | string; h_pct?: number | string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Configuración de región cancelada por señal de aborto.', cancelled: true };
     const region = {
       x_pct: !isNaN(Number(args?.x_pct)) ? Number(args.x_pct) : 0,
       y_pct: !isNaN(Number(args?.y_pct)) ? Number(args.y_pct) : 0,
@@ -115,7 +122,7 @@ export const setScreenRegionHandler: IToolHandler = {
       h_pct: !isNaN(Number(args?.h_pct)) ? Number(args.h_pct) : 100
     };
 
-    context.onScreenRegionChange?.(region);
+    context?.onScreenRegionChange?.(region);
 
     return {
       status: 'success',
@@ -140,9 +147,10 @@ export const analyzeVisualSceneHandler: IToolHandler = {
       }
     }
   },
-  async execute(args: { focus_target?: string }, context: ToolExecutionContext) {
-    const snapshot = context.getCameraSnapshot?.();
-    const detections = context.getVisionDetections?.();
+  async execute(args: { focus_target?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Análisis de escena visual cancelado por señal de aborto.', cancelled: true };
+    const snapshot = context?.getCameraSnapshot?.();
+    const detections = context?.getVisionDetections?.();
 
     if (!snapshot) {
       return {

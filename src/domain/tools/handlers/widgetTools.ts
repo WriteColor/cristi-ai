@@ -1,4 +1,4 @@
-import type { IToolHandler } from '../IToolHandler';
+import type { IToolHandler, ToolExecutionContext } from '../IToolHandler';
 import { eventBus, EVENTS } from '../../../infrastructure/events/eventBus.js';
 import { proactiveScheduler } from '../../interaction/ProactiveScheduler.js';
 
@@ -26,7 +26,8 @@ export const setReminderHandler: IToolHandler = {
       required: ['title']
     }
   },
-  async execute(args: { title?: string; time?: string; tag?: string }) {
+  async execute(args: { title?: string; time?: string; tag?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Programación de recordatorio cancelada por señal de aborto.', cancelled: true };
     const title = typeof args?.title === 'string' ? args.title : 'Recordatorio de Cristi';
     const time = typeof args?.time === 'string'
       ? args.time
@@ -43,6 +44,8 @@ export const setReminderHandler: IToolHandler = {
       done: false,
       created_at: Date.now()
     };
+
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Programación de recordatorio cancelada antes de emitir evento.', cancelled: true };
 
     proactiveScheduler.scheduleReminder({ id, time, title, tag });
     eventBus.emit(EVENTS.WIDGET_TRIGGERED, widgetData);
@@ -75,7 +78,8 @@ export const setAlarmHandler: IToolHandler = {
       required: ['time']
     }
   },
-  async execute(args: { time?: string; label?: string }) {
+  async execute(args: { time?: string; label?: string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Programación de alarma cancelada por señal de aborto.', cancelled: true };
     const time = typeof args?.time === 'string' ? args.time : '10:00';
     const label = typeof args?.label === 'string' ? args.label : 'Alarma';
     const id = `alarm_${Date.now()}`;
@@ -88,6 +92,8 @@ export const setAlarmHandler: IToolHandler = {
       tag: 'Alarma',
       done: false
     };
+
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Programación de alarma cancelada antes de emitir evento.', cancelled: true };
 
     proactiveScheduler.scheduleAlarm({ id, time, label });
     eventBus.emit(EVENTS.WIDGET_TRIGGERED, widgetData);
@@ -129,7 +135,8 @@ export const showTacticalWidgetHandler: IToolHandler = {
       required: ['title']
     }
   },
-  async execute(args: { type?: string; title?: string; content?: string; duration?: number | string }) {
+  async execute(args: { type?: string; title?: string; content?: string; duration?: number | string }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Muestra de widget táctico cancelada por señal de aborto.', cancelled: true };
     const type = typeof args?.type === 'string' ? args.type : 'info';
     const title = typeof args?.title === 'string' ? args.title : 'Nota de Cristi';
     const content = typeof args?.content === 'string' ? args.content : '';
@@ -143,6 +150,8 @@ export const showTacticalWidgetHandler: IToolHandler = {
       time: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
       duration
     };
+
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Muestra de widget cancelada antes de emisión.', cancelled: true };
 
     eventBus.emit(EVENTS.WIDGET_TRIGGERED, widgetData);
 
@@ -170,7 +179,8 @@ export const dismissTacticalWidgetHandler: IToolHandler = {
       required: ['id']
     }
   },
-  async execute(args: { id?: string | number }) {
+  async execute(args: { id?: string | number }, context?: ToolExecutionContext) {
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Descarte de widget táctico cancelado por señal de aborto.', cancelled: true };
     const id = args?.id ? String(args.id) : '';
     eventBus.emit(EVENTS.WIDGET_DISMISSED, { id });
     return {

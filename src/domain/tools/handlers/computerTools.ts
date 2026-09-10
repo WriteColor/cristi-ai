@@ -44,9 +44,10 @@ export const computerActionHandler: IToolHandler = {
       key?: string;
       scroll_amount?: number;
     },
-    context: ToolExecutionContext
+    context?: ToolExecutionContext
   ) {
-    const { action, coordinate, text, key, scroll_amount } = args || {};
+    if (context?.signal?.aborted) return { status: 'cancelled', message: 'Acción de computadora cancelada por señal de aborto.', cancelled: true };
+    const { action } = args || {};
     logger.info('COMPUTER-ACTION', `Ejecutando acción de uso de computadora: ${action}`, args);
 
     switch (action) {
@@ -55,11 +56,13 @@ export const computerActionHandler: IToolHandler = {
         if (electronBridge.isElectron) {
           frameData = await electronBridge.captureScreenNative();
         }
-        if (!frameData && context.getScreenCapture) {
+        if (context?.signal?.aborted) return { status: 'cancelled', message: 'Captura de pantalla cancelada tras extracción.', cancelled: true };
+        if (!frameData && context?.getScreenCapture) {
           frameData = await context.getScreenCapture('full');
-        } else if (!frameData && context.takeScreenshot) {
+        } else if (!frameData && context?.takeScreenshot) {
           frameData = await context.takeScreenshot('full');
         }
+        if (context?.signal?.aborted) return { status: 'cancelled', message: 'Captura de pantalla cancelada tras procesamiento.', cancelled: true };
         return {
           status: frameData ? 'captured' : 'error',
           action: 'take_screenshot',

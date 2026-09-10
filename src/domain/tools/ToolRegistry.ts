@@ -104,8 +104,15 @@ export class ToolRegistry {
 
     // Soporte para herramientas descubiertas dinámicamente vía servidores MCP conectados
     if (mcpClientManager && (mcpClientManager as any).discoveredTools?.has(name)) {
+      if (context?.signal?.aborted) {
+        return { status: 'cancelled', message: 'Ejecución de herramienta MCP cancelada por señal de aborto.', cancelled: true };
+      }
       try {
-        return await (mcpClientManager as any).executeMCPTool(name, args);
+        const result = await (mcpClientManager as any).executeMCPTool(name, args, context?.signal);
+        if (context?.signal?.aborted) {
+          return { status: 'cancelled', message: 'Ejecución de herramienta MCP cancelada tras invocación.', cancelled: true };
+        }
+        return result;
       } catch (err: any) {
         const errorMsg = err?.message || String(err);
         logger.error('TOOL', `Error ejecutando MCP tool "${name}":`, errorMsg);

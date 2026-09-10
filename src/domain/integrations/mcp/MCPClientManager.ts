@@ -408,11 +408,12 @@ export class MCPClientManager {
     return declarations;
   }
 
-  async executeTool(toolName: string, args: Record<string, unknown> = {}): Promise<unknown> {
-    return this.executeMCPTool(toolName, args);
+  async executeTool(toolName: string, args: Record<string, unknown> = {}, signal?: AbortSignal): Promise<unknown> {
+    return this.executeMCPTool(toolName, args, signal);
   }
 
-  async callServerTool(serverId: string, toolName: string, args: Record<string, unknown> = {}): Promise<unknown> {
+  async callServerTool(serverId: string, toolName: string, args: Record<string, unknown> = {}, signal?: AbortSignal): Promise<unknown> {
+    if (signal?.aborted) return { status: 'cancelled', message: 'Invocación de herramienta MCP cancelada.', cancelled: true };
     const server = this.servers.find((item) => item.id === serverId);
     if (!server) return { status: 'error', error: 'mcp_server_not_found', serverId };
     const originalName = String(toolName || '').trim();
@@ -420,7 +421,9 @@ export class MCPClientManager {
     const known = (server.tools || []).find((tool) => tool.originalName === originalName || tool.name === originalName);
     const resolvedName = known?.originalName || originalName;
     if (electronBridge?.isElectron && typeof electronBridge.mcpCallTool === 'function') {
-      return await electronBridge.mcpCallTool({ serverId, name: resolvedName, arguments: args || {} });
+      const result = await electronBridge.mcpCallTool({ serverId, name: resolvedName, arguments: args || {} });
+      if (signal?.aborted) return { status: 'cancelled', message: 'Invocación de herramienta MCP cancelada tras recepción.', cancelled: true };
+      return result;
     }
     return {
       status: 'success',
@@ -430,7 +433,8 @@ export class MCPClientManager {
     };
   }
 
-  async executeMCPTool(toolName: string, args: Record<string, unknown> = {}): Promise<unknown> {
+  async executeMCPTool(toolName: string, args: Record<string, unknown> = {}, signal?: AbortSignal): Promise<unknown> {
+    if (signal?.aborted) return { status: 'cancelled', message: 'Ejecución de herramienta MCP cancelada.', cancelled: true };
     const info = this.discoveredTools.get(toolName);
     if (!info) {
       throw new Error(`Herramienta MCP "${toolName}" no encontrada.`);
@@ -441,40 +445,57 @@ export class MCPClientManager {
 
     if (toolName.startsWith('mcp_playwright_') || toolName.startsWith('playwright_')) {
       const action = toolName.replace(/^mcp_playwright_|^playwright_/, '');
+      let res: unknown;
       switch (action) {
         case 'navigate':
-          return await playwrightService.navigate(args.url as string);
+          res = await playwrightService.navigate(args.url as string);
+          break;
         case 'click':
-          return await playwrightService.click(args.selector as string);
+          res = await playwrightService.click(args.selector as string);
+          break;
         case 'fill':
-          return await playwrightService.fill(args.selector as string, args.value as string);
+          res = await playwrightService.fill(args.selector as string, args.value as string);
+          break;
         case 'type':
-          return await playwrightService.type(args.selector as string, args.text as string, { delay: args.delay });
+          res = await playwrightService.type(args.selector as string, args.text as string, { delay: args.delay as number });
+          break;
         case 'press':
-          return await playwrightService.press(args.selector as string, args.key as string);
+          res = await playwrightService.press(args.selector as string, args.key as string);
+          break;
         case 'screenshot':
-          return await playwrightService.screenshot({ fullPage: Boolean(args.fullPage) });
+          res = await playwrightService.screenshot({ fullPage: Boolean(args.fullPage) });
+          break;
         case 'get_content':
-          return await playwrightService.getContent(args.selector as string);
+          res = await playwrightService.getContent(args.selector as string);
+          break;
         case 'evaluate':
-          return await playwrightService.evaluate(args.script as string);
+          res = await playwrightService.evaluate(args.script as string);
+          break;
         case 'wait_for_selector':
-          return await playwrightService.waitForSelector(args.selector as string, args);
+          res = await playwrightService.waitForSelector(args.selector as string, args);
+          break;
         case 'hover':
-          return await playwrightService.hover(args.selector as string);
+          res = await playwrightService.hover(args.selector as string);
+          break;
         case 'close':
-          return await playwrightService.close();
+          res = await playwrightService.close();
+          break;
         default:
-          return await playwrightService.launch(args);
+          res = await playwrightService.launch(args);
+          break;
       }
+      if (signal?.aborted) return { status: 'cancelled', message: 'Ejecución de herramienta MCP cancelada tras ejecución.', cancelled: true };
+      return res;
     }
 
     if (electronBridge?.isElectron && typeof electronBridge.mcpCallTool === 'function') {
-      return await electronBridge.mcpCallTool({
+      const result = await electronBridge.mcpCallTool({
         serverId: info.serverId,
         name: info.tool?.originalName || info.tool?.name || toolName,
         arguments: args
       });
+      if (signal?.aborted) return { status: 'cancelled', message: 'Ejecución de herramienta MCP cancelada tras llamada.', cancelled: true };
+      return result;
     }
 
     return {
