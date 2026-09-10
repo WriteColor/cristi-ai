@@ -7,6 +7,7 @@ export interface AudioInputProcessorOptions {
   onVolumeChange?: (volume: number) => void;
   onStreamEnd?: () => void;
   onError?: (error: Error) => void;
+  dspConfig?: { highPassEnabled?: boolean; highPassHz?: number };
 }
 export class AudioInputProcessor implements AudioCapturePort {
   audioContext: AudioContext | null = null;
@@ -21,7 +22,24 @@ export class AudioInputProcessor implements AudioCapturePort {
   private lastVolume = 0;
   private processed = 0;
   private streamEpoch = 0;
-  constructor(private readonly options: AudioInputProcessorOptions = {}) {}
+  private dspConfig: { highPassEnabled: boolean; highPassHz: number };
+
+  constructor(private readonly options: AudioInputProcessorOptions = {}) {
+    this.dspConfig = {
+      highPassEnabled: options.dspConfig?.highPassEnabled ?? true,
+      highPassHz: options.dspConfig?.highPassHz ?? 80
+    };
+  }
+
+  setDspConfig(config: { highPassEnabled?: boolean; highPassHz?: number }): void {
+    if (typeof config.highPassEnabled === 'boolean') this.dspConfig.highPassEnabled = config.highPassEnabled;
+    if (typeof config.highPassHz === 'number') this.dspConfig.highPassHz = config.highPassHz;
+    this.node?.port.postMessage({
+      highPassEnabled: this.dspConfig.highPassEnabled,
+      highPassHz: this.dspConfig.highPassHz
+    });
+  }
+
   start(): Promise<void> {
     if (this.isRecording) return Promise.resolve();
     if (this.pending) return this.pending;
@@ -30,6 +48,7 @@ export class AudioInputProcessor implements AudioCapturePort {
     this.pending = pending;
     return pending;
   }
+
   private async open(epoch: number): Promise<void> {
     let context: AudioContext | null = null;
     let stream: MediaStream | null = null;
@@ -42,7 +61,12 @@ export class AudioInputProcessor implements AudioCapturePort {
       if (epoch !== this.generation) { stream.getTracks().forEach(track => track.stop()); await context.close(); return; }
       this.mediaStream = stream; this.audioContext = context;
       this.node = new AudioWorkletNode(context, 'cristi-capture');
-      this.node.port.postMessage({ muted: this.isMuted, epoch: this.streamEpoch });
+      this.node.port.postMessage({
+        muted: this.isMuted,
+        epoch: this.streamEpoch,
+        highPassEnabled: this.dspConfig.highPassEnabled,
+        highPassHz: this.dspConfig.highPassHz
+      });
       this.node.port.onmessage = (event: MessageEvent<{ pcm: ArrayBuffer; volume: number; epoch: number }>) => {
         if (!this.isRecording || this.isMuted || epoch !== this.generation || event.data.epoch !== this.streamEpoch) return;
         this.processed++;
@@ -66,7 +90,7 @@ export class AudioInputProcessor implements AudioCapturePort {
   unmute(): void { this.node?.port.postMessage({ muted: false, epoch: ++this.streamEpoch }); this.isMuted = false; }
   toggleMute(): boolean { if (this.isMuted) this.unmute(); else this.mute(); return this.isMuted; }
   async resumeContext(): Promise<void> { if (this.audioContext?.state === 'suspended') await this.audioContext.resume(); }
-  stop(): void {
+  async stop(): Promise<void> {
     this.generation++;
     this.pending = null;
     if (this.isRecording && !this.isMuted) this.options.onStreamEnd?.();
@@ -74,9 +98,11 @@ export class AudioInputProcessor implements AudioCapturePort {
     if (this.node) { this.node.port.onmessage = null; this.node.port.close(); this.node.disconnect(); this.node = null; }
     this.source?.disconnect(); this.source = null; this.muteNode?.disconnect(); this.muteNode = null;
     this.mediaStream?.getTracks().forEach(track => track.stop()); this.mediaStream = null;
-    if (this.audioContext && this.audioContext.state !== 'closed') void this.audioContext.close();
+    if (this.audioContext && this.audioContext.state !== 'closed') {
+      try { await this.audioContext.close(); } catch {}
+    }
     this.audioContext = null; this.options.onVolumeChange?.(0);
   }
-  destroy(): void { this.stop(); }
-  getTelemetry() { return { isRecording: this.isRecording, isMuted: this.isMuted, sampleRate: this.audioContext?.sampleRate ?? 0, targetRate: 16000, processorType: 'AudioWorklet', processedChunksCount: this.processed }; }
+  destroy(): void { void this.stop(); }
+  getTelemetry() { return { isRecording: this.isRecording, isMuted: this.isMuted, sampleRate: this.audioContext?.sampleRate ?? 0, targetRate: 16000, processorType: 'AudioWorklet', processedChunksCount: this.processed, dspConfig: this.dspConfig }; }
 }

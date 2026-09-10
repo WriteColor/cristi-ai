@@ -24,7 +24,8 @@ export interface LiveClientOptions {
   thinkingConfig?: { thinkingBudget?: number; thinkingLevel?: string } | null;
   temperature?: number; maxReconnectAttempts?: number; responseWatchdogMs?: number;
   sessionId?: string | null; includeCompanionContext?: boolean; tools?: unknown[] | null;
-  onOpen?: () => void; onClose?: (event: CloseEvent) => void; onError?: (error: Error) => void;
+  vadSilenceDurationMs?: number; vadPrefixPaddingMs?: number;
+  onOpen?: () => void; onSetupComplete?: () => void; onClose?: (event: CloseEvent) => void; onError?: (error: Error) => void;
   onAudioChunk?: (data: string) => void;
   onInputTranscription?: (text: string, snapshot?: TranscriptSnapshot) => void;
   onOutputTranscription?: (text: string, snapshot?: TranscriptSnapshot) => void;

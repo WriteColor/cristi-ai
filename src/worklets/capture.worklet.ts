@@ -11,10 +11,15 @@ class CaptureProcessor extends AudioWorkletProcessor {
   private energy = 0;
   private muted = false;
   private epoch = 0;
+  private highPassEnabled = true;
+  private highPassHz = 80;
   constructor() {
     super();
-    this.port.onmessage = (event: MessageEvent<{ muted: boolean; epoch: number }>) => {
-      this.muted = event.data.muted; this.epoch = event.data.epoch;
+    this.port.onmessage = (event: MessageEvent<{ muted?: boolean; epoch?: number; highPassEnabled?: boolean; highPassHz?: number }>) => {
+      if (typeof event.data.muted === 'boolean') this.muted = event.data.muted;
+      if (typeof event.data.epoch === 'number') this.epoch = event.data.epoch;
+      if (typeof event.data.highPassEnabled === 'boolean') this.highPassEnabled = event.data.highPassEnabled;
+      if (typeof event.data.highPassHz === 'number') this.highPassHz = event.data.highPassHz;
       this.resampler = new StreamingResampler(sampleRate, 16000);
       this.buffer = new Int16Array(320); this.index = this.energy = this.previousInput = this.previousOutput = 0;
     };
@@ -22,14 +27,18 @@ class CaptureProcessor extends AudioWorkletProcessor {
   process(inputs: Float32Array[][]): boolean {
     const input = inputs[0]?.[0];
     if (!input || this.muted) return true;
-    const filtered = new Float32Array(input.length);
-    const alpha = Math.exp(-2 * Math.PI * 80 / sampleRate);
-    for (let i = 0; i < input.length; i++) {
-      const value = alpha * (this.previousOutput + input[i] - this.previousInput);
-      this.previousInput = input[i]; this.previousOutput = value;
-      filtered[i] = value;
+    let processedInput = input;
+    if (this.highPassEnabled && this.highPassHz > 0) {
+      const filtered = new Float32Array(input.length);
+      const alpha = Math.exp(-2 * Math.PI * this.highPassHz / sampleRate);
+      for (let i = 0; i < input.length; i++) {
+        const value = alpha * (this.previousOutput + input[i] - this.previousInput);
+        this.previousInput = input[i]; this.previousOutput = value;
+        filtered[i] = value;
+      }
+      processedInput = filtered;
     }
-    for (const sample of this.resampler.process(filtered)) {
+    for (const sample of this.resampler.process(processedInput)) {
       const clamped = Math.max(-1, Math.min(1, sample));
       this.buffer[this.index++] = Math.round(clamped * (clamped < 0 ? 32768 : 32767));
       this.energy += clamped * clamped;

@@ -7,6 +7,7 @@ const allTestFiles = [
   'core',
   'live.contract',
   'playback',
+  'audio.playout',
   'capture',
   'memory',
   'bridge',

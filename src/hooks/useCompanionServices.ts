@@ -56,25 +56,25 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
   const runtime = useCompanionRuntime();
   const isCallActiveRef = useRef(false);
   const callGenerationRef = useRef(0);
-  const socketRef = useRef<any>(null);
-  const audioInRef = useRef<any>(null);
-  const audioOutRef = useRef<any>(null);
-  const cameraRef = useRef<any>(null);
-  const visionServiceRef = useRef<any>(null);
-  const toolExecutorRef = useRef<any>(null);
-  const screenCaptureRef = useRef<any>(null);
-  const systemTrayRef = useRef<any>(null);
-  const visionDispatcherRef = useRef<any>(null);
-  const translationProviderRef = useRef<any>(null);
+  const socketRef = useRef<GeminiLiveSocket | null>(null);
+  const audioInRef = useRef<AudioInputService | null>(null);
+  const audioOutRef = useRef<AudioOutputService | null>(null);
+  const cameraRef = useRef<CameraService | null>(null);
+  const visionServiceRef = useRef<VisionDetectionService | null>(null);
+  const toolExecutorRef = useRef<ToolExecutor | null>(null);
+  const screenCaptureRef = useRef<ScreenCaptureService | null>(null);
+  const systemTrayRef = useRef<SystemTrayService | null>(null);
+  const visionDispatcherRef = useRef<VisionFrameDispatcher | null>(null);
+  const translationProviderRef = useRef<GeminiTranslationProvider | null>(null);
   const turnAudioReceivedRef = useRef(false);
   const modelTextTurnRef = useRef('');
   const externalResponseRef = useRef('');
-  const autoHideTimerRef = useRef<any>(null);
+  const autoHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Subtitle timers
-  const modelSubtitleTimeoutRef = useRef<any>(null);
-  const userSubtitleTimeoutRef = useRef<any>(null);
-  const translationSubtitleTimeoutRef = useRef<any>(null);
+  const modelSubtitleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const userSubtitleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const translationSubtitleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Grab state from stores
   const config = useSettingsStore((s) => s.config);
@@ -196,9 +196,8 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
         });
       }
 
-      const muted = useAudioStore.getState().isMuted;
-      if (muted) audioInRef.current.mute();
-      else audioInRef.current.unmute();
+      // Initialize audio capture in muted state during handshake to prevent unhandled packets
+      audioInRef.current.mute();
       await audioInRef.current.start();
 
       if (callGeneration !== callGenerationRef.current) return;
@@ -223,7 +222,15 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
           interactionOrchestrator.setGeminiSocket(socket);
           soundFxService.playConnectedBleep();
         },
+        onSetupComplete: () => {
+          if (callGeneration !== callGenerationRef.current) return;
+          // Open audio capture gate only when Gemini Live session setup is fully acknowledged
+          if (!useAudioStore.getState().isMuted) {
+            audioInRef.current?.unmute();
+          }
+        },
         onReconnecting: () => {
+          audioInRef.current?.mute();
           audioOutRef.current?.stopImmediate();
           externalResponseRef.current = '';
           modelTextTurnRef.current = '';
@@ -232,7 +239,8 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
         onClose: (event: any) => {
           if (callGeneration !== callGenerationRef.current) return;
           isCallActiveRef.current = false;
-          audioInRef.current?.stop();
+          audioInRef.current?.mute();
+          void audioInRef.current?.stop();
           audioOutRef.current?.stopImmediate();
           screenCaptureRef.current?.stopAll();
           visionDispatcherRef.current?.reset();
@@ -342,7 +350,10 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
         },
         onToolCall: async (functionCalls: any, sourceSocket: any) => {
           if (toolExecutorRef.current) {
-            const responses = await toolExecutorRef.current.executeCalls(functionCalls, (id: string) => socket.cancelledTools.has(id) || socket.websocket !== sourceSocket || callGeneration !== callGenerationRef.current);
+            const responses = await toolExecutorRef.current.executeCalls(
+              functionCalls,
+              (id?: string) => (id ? socket.cancelledTools.has(id) : false) || socket.websocket !== sourceSocket || callGeneration !== callGenerationRef.current
+            );
             if (socket.websocket === sourceSocket && callGeneration === callGenerationRef.current) {
               socket.sendToolResponse(responses);
             }
@@ -443,7 +454,7 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
       visionDispatcherRef.current?.clearSource('screen');
     }
     if (toolExecutorRef.current) {
-      toolExecutorRef.current.executeSingleTool('set_screen_region', region);
+      toolExecutorRef.current.executeSingleTool('set_screen_region', region as unknown as Record<string, unknown>);
     }
     void sendScreenInstruction(
       `[SISTEMA: Ariel ha seleccionado un área recortada de su pantalla (${Math.round(wPct)}% × ${Math.round(hPct)}%) para que la observes en el flujo de video.]`
@@ -478,7 +489,10 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
     // 1. Initialize AudioOutputService
     audioOutRef.current = runtime.createPlayback({
       onAudioStart: () => useCompanionStore.getState().setIsSpeaking(true),
-      onAudioEnd: () => useCompanionStore.getState().setIsSpeaking(false)
+      onAudioEnd: () => useCompanionStore.getState().setIsSpeaking(false),
+      onFirstPlayout: (timestamp: number) => {
+        socketRef.current?.recordPlayoutTimestamp?.(timestamp);
+      }
     });
 
     // 2. VisionFrameDispatcher & Autonomous services
@@ -639,7 +653,10 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
       callGenerationRef.current++;
       isCallActiveRef.current = false;
       for (const timer of [autoHideTimerRef, modelSubtitleTimeoutRef, userSubtitleTimeoutRef, translationSubtitleTimeoutRef]) {
-        clearTimeout(timer.current); timer.current = null;
+        if (timer.current) {
+          clearTimeout(timer.current);
+          timer.current = null;
+        }
       }
       runtime.dispose();
       audioInRef.current = audioOutRef.current = socketRef.current = null;
@@ -653,9 +670,6 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
       unsubEmotion?.();
       unsubConnToggle?.();
       unsubSnap?.();
-      socketRef.current?.disconnect();
-      audioInRef.current?.stop();
-      audioOutRef.current?.destroy();
       screenCaptureRef.current?.stopAll();
       delete (window as any).__cristiApp;
       delete (window as any).__triggerGesture;

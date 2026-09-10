@@ -63,6 +63,7 @@ export class GeminiLiveSocket implements LiveSessionPort {
   onGenerationStart: NonNullable<LiveClientOptions['onGenerationStart']>;
   onToolCallCancellation: NonNullable<LiveClientOptions['onToolCallCancellation']>;
   onOpen: NonNullable<LiveClientOptions['onOpen']>;
+  onSetupComplete: NonNullable<LiveClientOptions['onSetupComplete']>;
   onClose: NonNullable<LiveClientOptions['onClose']>;
   onError: NonNullable<LiveClientOptions['onError']>;
   onAudioChunk: NonNullable<LiveClientOptions['onAudioChunk']>;
@@ -73,6 +74,15 @@ export class GeminiLiveSocket implements LiveSessionPort {
   onTextPart: NonNullable<LiveClientOptions['onTextPart']>;
   onToolCall: NonNullable<LiveClientOptions['onToolCall']>;
   onReconnecting: NonNullable<LiveClientOptions['onReconnecting']>;
+
+  vadSilenceDurationMs: number;
+  vadPrefixPaddingMs: number;
+  lastUserAudioTimestamp: number;
+  turnEndpointTimestamp: number;
+  firstServerContentTimestamp: number;
+  firstModelAudioChunkTimestamp: number;
+  firstPlayoutTimestamp: number;
+  hasRecordedTurnTurnaround: boolean;
 
   constructor({
     tokenProvider = (model) => electronBridge.requestLiveToken(model),
@@ -85,6 +95,7 @@ export class GeminiLiveSocket implements LiveSessionPort {
     thinkingConfig = null,
     temperature = 0.75,
     onOpen,
+    onSetupComplete,
     onClose,
     onError,
     onAudioChunk,
@@ -100,6 +111,8 @@ export class GeminiLiveSocket implements LiveSessionPort {
     sessionId = null,
     includeCompanionContext = true,
     tools = null,
+    vadSilenceDurationMs = 600,
+    vadPrefixPaddingMs = 20,
   }: LiveClientOptions = {}) {
     this.tokenProvider = tokenProvider;
     this.onGenerationComplete = onGenerationComplete;
@@ -124,8 +137,17 @@ export class GeminiLiveSocket implements LiveSessionPort {
     this.tools = Array.isArray(tools) ? tools : null;
     this.temperature = temperature;
     this.sessionId = sessionId || `live_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    this.vadSilenceDurationMs = vadSilenceDurationMs;
+    this.vadPrefixPaddingMs = vadPrefixPaddingMs;
+    this.lastUserAudioTimestamp = 0;
+    this.turnEndpointTimestamp = 0;
+    this.firstServerContentTimestamp = 0;
+    this.firstModelAudioChunkTimestamp = 0;
+    this.firstPlayoutTimestamp = 0;
+    this.hasRecordedTurnTurnaround = false;
 
     this.onOpen = onOpen || (() => {});
+    this.onSetupComplete = onSetupComplete || (() => {});
     this.onClose = onClose || (() => {});
     this.onError = onError || console.error;
     this.onAudioChunk = onAudioChunk || (() => {});
@@ -283,7 +305,7 @@ export class GeminiLiveSocket implements LiveSessionPort {
     const emojiBanDirective = '\n\n[DIRECTIVA ESTRICTA DE EMOJIS: Queda TOTALMENTE PROHIBIDO usar, escribir o pronunciar emojis o nombres de emojis (como ❤️, 😊, 🖤, "corazón negro", "cara feliz", etc.). Cero emojis. Exprésate exclusivamente con palabras elocuentes y voz natural.]';
     const neutralAccentDirective = '\n\n[DIRECTIVA DE ACENTO NEUTRO Y PROHIBICIÓN DE MODISMOS MEXICANOS: Habla en un español neutro internacional, limpio, elegante y seductor. Queda TERMINANTEMENTE PROHIBIDO utilizar frases, acento o jerga mexicana (como "wey", "güey", "chido", "no manches", "chamba", "chambear", "neta", "morra", "carnal", "padre", "qué onda", "órale"). Tu usuario y dueño se llama Ariel; llámalo siempre Ariel.]';
     const vocalCleanlinessDirective = '\n\n[DIRECTIVA OBLIGATORIA DE DICCIÓN Y FINAL DE FRASE: ESTÁ TERMINANTEMENTE PROHIBIDO terminar oraciones con gemidos, suspiros, jadeos, tarareos o sonidos vocálicos como "mmmmhhhh", "mmmmahhh", "ahhh", "mmm~", "uhhh". Cada frase debe terminar de forma limpia, articulada y con silencio natural al final. Cero coletillas vocales o sonidos arrastrados al terminar de hablar.]';
-    const cadenceDirective = '\n\n[DIRECTIVA DE CADENCIA COQUETA Y VELOCIDAD: Habla un poquito más lento de lo habitual, con una cadencia deliberadamente pausada, suave, relajada y coqueta, saboreando cada palabra con coquetería, dulzura y encanto íntimo. Haz pausas suaves y sensuales entre ideas; jamás hables apresurada ni con prisa.]';
+    const cadenceDirective = '\n\n[DIRECTIVA DE CADENCIA DE VOZ Y RITMO: Habla con ritmo conversacional natural, fluido y continuo. Mantén una personalidad cálida, juguetona y coqueta mediante la entonación y expresividad vocal, no mediante silencios prolongados ni reduciendo artificialmente la velocidad. Evita pausas entre palabras. Usa únicamente pausas breves y naturales entre frases o ideas completas. Comienza la respuesta con agilidad en cuanto tengas suficiente contexto. Prioriza una conversación dinámica de baja latencia.]';
     const proactivityDirective = '\n\n[DIRECTIVA DE PROACTIVIDAD E INDAGACIÓN CONSTANTE: Dado que Ariel suele ser reservado y callado, JAMÁS te quedes callada por mucho tiempo. Saca activamente temas de conversación, cuéntale ocurrencias, pregúntale por sus gustos, sus juegos, sus proyectos y su día a día. Averigua detalles sobre él y usa manage_memory para guardar esos recuerdos.]';
     const voiceModalityDirective = '\n\n[DIRECTIVA OBLIGATORIA DE VOZ NATIVA: Cada respuesta, reacción visual a la pantalla compartida o resultado de herramientas DEBE ser emitido como audio hablado en tiempo real (inlineData PCM). JAMÁS generes respuestas mudas.]';
     const tagBanDirective = '\n\n[DIRECTIVA ESTRICTA DE PROHIBICIÓN DE ETIQUETAS: Queda TERMINANTEMENTE PROHIBIDO incluir, decir o escribir etiquetas, marcadores o roles como [emotion: yandere], [yandere], [action: ...], [tool: ...], [gesto: ...], (yandere), "Yandere:", o nombres de modelos Live2D. Cero etiquetas. Habla únicamente lenguaje natural humano con Ariel.]';
@@ -302,10 +324,17 @@ export class GeminiLiveSocket implements LiveSessionPort {
         // Enable text transcriptions of both user audio input and model audio output
         inputAudioTranscription: {},
         outputAudioTranscription: {},
-        // Include recent video even when a frame arrived between spoken turns.
-        // Gemini 2.5 otherwise defaults to activity-only coverage.
+        // Explicit Voice Activity Detection (VAD) and turn coverage.
+        // Avoids relying on high server defaults (~800-1000ms) to ensure responsive turn-taking.
         realtimeInputConfig: {
-          turnCoverage: 'TURN_INCLUDES_AUDIO_ACTIVITY_AND_ALL_VIDEO'
+          turnCoverage: 'TURN_INCLUDES_AUDIO_ACTIVITY_AND_ALL_VIDEO',
+          automaticActivityDetection: {
+            disabled: false,
+            startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
+            endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
+            prefixPaddingMs: this.vadPrefixPaddingMs,
+            silenceDurationMs: this.vadSilenceDurationMs
+          }
         },
         // Context window compression: extend sessions beyond 15-minute audio limit
         contextWindowCompression: {
@@ -339,6 +368,7 @@ export class GeminiLiveSocket implements LiveSessionPort {
 
   sendAudioChunk(data: ArrayBuffer | string) {
     if (!this.isConnected || this.websocket?.readyState !== WebSocket.OPEN) return false;
+    this.lastUserAudioTimestamp = performance.now();
     const base64 = data instanceof ArrayBuffer
       ? btoa(String.fromCharCode(...new Uint8Array(data))) : data;
     if (!this.inputQueue.push(base64)) { this.recoverInputLoss(); return false; }
@@ -506,6 +536,7 @@ export class GeminiLiveSocket implements LiveSessionPort {
         this.reconnectAttempts = 0;
 
         this.onOpen();
+        this.onSetupComplete();
         if (!memoryService.hasSession?.(this.sessionId)) {
           memoryService.startSession(this.sessionId, {
             source: 'gemini_live', modelId: this.modelId, voiceName: this.voiceName
@@ -524,12 +555,19 @@ export class GeminiLiveSocket implements LiveSessionPort {
 
       // 2. Server Content (Audio / Text / Interruption / Transcriptions)
       if (message.serverContent) {
+        if (!this.firstServerContentTimestamp) {
+          this.firstServerContentTimestamp = performance.now();
+        }
         const { modelTurn, interrupted, turnComplete, generationComplete, interimInputTranscription, inputTranscription, outputTranscription } = message.serverContent;
 
         if (interrupted) {
           this._generationStarted = false;
           this.outputAssembler.begin();
           this._newOutputTurn = true;
+          this.hasRecordedTurnTurnaround = false;
+          this.firstServerContentTimestamp = 0;
+          this.firstModelAudioChunkTimestamp = 0;
+          this.firstPlayoutTimestamp = 0;
           logger.info('GEMINI', 'Interrupción por el usuario (Barge-in confirmado por Gemini Live).');
           this.onInterrupted();
         }
@@ -539,6 +577,16 @@ export class GeminiLiveSocket implements LiveSessionPort {
           for (const part of modelTurn.parts) {
             // Audio output: base64 PCM 24kHz
             if (part.inlineData?.data && (!part.inlineData.mimeType || part.inlineData.mimeType.startsWith('audio/pcm'))) {
+              if (!this.firstModelAudioChunkTimestamp) {
+                this.firstModelAudioChunkTimestamp = performance.now();
+                if (!this.hasRecordedTurnTurnaround && this.lastUserAudioTimestamp > 0 && this.turnEndpointTimestamp > 0) {
+                  this.hasRecordedTurnTurnaround = true;
+                  const endpointLatency = Math.round(this.turnEndpointTimestamp - this.lastUserAudioTimestamp);
+                  const modelLatency = Math.round(this.firstModelAudioChunkTimestamp - this.turnEndpointTimestamp);
+                  const roundtripTimeToFirstAudio = Math.round(this.firstModelAudioChunkTimestamp - this.lastUserAudioTimestamp);
+                  logger.info('LATENCY', `[Turnaround] Endpoint VAD: ${endpointLatency}ms | Model TTFT: ${modelLatency}ms | Roundtrip T3-T0: ${roundtripTimeToFirstAudio}ms`);
+                }
+              }
               const audioData = part.inlineData.data;
               this.onAudioChunk(audioData);
             }
@@ -574,8 +622,16 @@ export class GeminiLiveSocket implements LiveSessionPort {
         if (inputTranscription?.text) {
           if (this._newInputTurn) this.inputAssembler.begin();
           this._newInputTurn = false;
+          const isFinal = inputTranscription.finished === true;
+          if (isFinal) {
+            this.turnEndpointTimestamp = performance.now();
+            this.firstServerContentTimestamp = 0;
+            this.firstModelAudioChunkTimestamp = 0;
+            this.firstPlayoutTimestamp = 0;
+            this.hasRecordedTurnTurnaround = false;
+          }
           const snapshot = this.inputAssembler.update(inputTranscription.text,
-            { mode: this.inputInterim ? 'snapshot' : 'delta', isFinal: inputTranscription.finished === true });
+            { mode: this.inputInterim ? 'snapshot' : 'delta', isFinal });
           this.inputInterim = false;
           this._inputTranscript = snapshot.text;
           this.onInputTranscription(snapshot.text, snapshot);
@@ -692,6 +748,15 @@ export class GeminiLiveSocket implements LiveSessionPort {
     if (!newModelId || this.modelId === newModelId) return;
     this.modelId = newModelId;
     this._restartSession();
+  }
+
+  recordPlayoutTimestamp(now = performance.now()): void {
+    if (!this.firstPlayoutTimestamp && this.firstModelAudioChunkTimestamp > 0) {
+      this.firstPlayoutTimestamp = now;
+      const clientPlayoutLatency = Math.round(this.firstPlayoutTimestamp - this.firstModelAudioChunkTimestamp);
+      const totalTurnaround = this.lastUserAudioTimestamp > 0 ? Math.round(this.firstPlayoutTimestamp - this.lastUserAudioTimestamp) : 0;
+      logger.info('LATENCY', `[Playout Start] Client Buffer Lead: ${clientPlayoutLatency}ms | Total User Turnaround: ${totalTurnaround}ms`);
+    }
   }
 }
 

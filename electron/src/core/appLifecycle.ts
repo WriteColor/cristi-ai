@@ -9,8 +9,9 @@ import { loadEnvironment } from './env';
 loadEnvironment();
 
 /**
- * Configure hardware acceleration and anti-throttling switches for Electron.
- * Enforces dedicated GPU rendering and prevents video overlay occlusion or throttling.
+ * Configure hardware acceleration and media flags for Electron.
+ * Uses Chromium's default GPU policy. Optional profiles exist exclusively for
+ * diagnostics and driver compatibility (e.g. software, d3d11, no-overlays).
  */
 export function setupCommandLineFlags(): void {
   // Chromium defaults are the baseline. Select only one diagnostic override.

@@ -5,6 +5,7 @@ import { AudioPlayoutQueue } from '../audio/AudioPlayoutQueue';
 export interface AudioOutputPlayerOptions {
   onAudioStart?: () => void; onAudioEnd?: () => void;
   onLipSyncUpdate?: (value: number) => void; onVolumeChange?: (value: number) => void;
+  onFirstPlayout?: (timestamp: number) => void;
 }
 export class AudioOutputPlayer implements AudioPlaybackPort {
   audioContext: AudioContext | null = null;
@@ -89,7 +90,11 @@ export class AudioOutputPlayer implements AudioPlaybackPort {
     this.playout.scheduledAheadMs = (this.nextScheduleTime - context.currentTime) * 1000;
     this.sources.add(source);
     if (!this.isPlaying) {
-      this.isPlaying = true; this.options.onAudioStart?.(); eventBus.emit(EVENTS.AUDIO_START); this.analysisService?.start();
+      this.isPlaying = true;
+      this.options.onFirstPlayout?.(performance.now());
+      this.options.onAudioStart?.();
+      eventBus.emit(EVENTS.AUDIO_START);
+      this.analysisService?.start();
     }
     source.onended = () => { source.disconnect(); this.sources.delete(source); this.checkEnd(); };
   }
@@ -110,6 +115,7 @@ export class AudioOutputPlayer implements AudioPlaybackPort {
   }
   getTelemetry() { return { isPlaying: this.isPlaying, activeSourcesCount: this.sources.size, sampleRate: this.sampleRate,
     queueLength: this.queue.length, isTurnComplete: this.isTurnComplete, jitterLeadTimeMs: this.playout.targetMs,
+    jitterMs: this.playout.jitterMs, bufferedDurationMs: this.playout.bufferedDurationMs,
     scheduledAheadMs: Math.max(0, (this.nextScheduleTime - (this.audioContext?.currentTime ?? 0)) * 1000),
     backlogAlarm: this.playout.scheduledAheadMs > 250, underruns: this.playout.underruns, state: this.playout.state }; }
   destroy(): void {

@@ -8,22 +8,64 @@ export class AudioPlayoutQueue {
   jitterMs = 0;
   underruns = 0;
   scheduledAheadMs = 0;
+  bufferedDurationMs = 0;
   private lastArrival: number | null = null;
   private lastDuration = 0;
-  get targetMs(): number { return Math.max(30, Math.min(120, 30 + this.jitterMs * 2)); }
+  private meanArrivalInterval = 0;
+
+  get targetMs(): number {
+    return Math.max(30, Math.min(120, 30 + this.jitterMs * 2));
+  }
+
   begin(): number {
-    this.generation++; this.generationComplete = this.turnComplete = false;
-    this.state = 'PREFILL'; this.lastArrival = null;
+    this.generation++;
+    this.generationComplete = this.turnComplete = false;
+    this.state = 'PREFILL';
+    this.lastArrival = null;
+    this.scheduledAheadMs = 0;
+    this.bufferedDurationMs = 0;
+    this.meanArrivalInterval = 0;
     return this.generation;
   }
+
   receive(nowMs: number, durationMs: number): void {
     if (this.lastArrival !== null) {
-      const deviation = Math.abs(nowMs - this.lastArrival - this.lastDuration);
-      this.jitterMs += (deviation - this.jitterMs) / 16;
+      const arrivalInterval = Math.max(0, nowMs - this.lastArrival);
+      if (this.meanArrivalInterval === 0) {
+        this.meanArrivalInterval = arrivalInterval;
+      } else {
+        this.meanArrivalInterval += (arrivalInterval - this.meanArrivalInterval) / 16;
+      }
+
+      // Fast production bursts (arrivalInterval < lastDuration) indicate the server
+      // is generating audio faster than real time. This is advantageous accumulation
+      // and must NOT be penalized as network jitter.
+      // Jitter is strictly the variance in network arrival cadence or real starvation risk.
+      const intervalVariance = Math.abs(arrivalInterval - this.meanArrivalInterval);
+      const starvationGap = Math.max(0, arrivalInterval - this.lastDuration);
+      const measuredJitter = Math.max(intervalVariance, starvationGap);
+
+      this.jitterMs += (measuredJitter - this.jitterMs) / 16;
     }
-    this.lastArrival = nowMs; this.lastDuration = durationMs;
+    this.lastArrival = nowMs;
+    this.lastDuration = durationMs;
+    this.bufferedDurationMs += durationMs;
   }
-  finishGeneration(): void { this.generationComplete = true; this.state = 'DRAINING'; }
-  finishTurn(): void { this.turnComplete = true; this.state = 'DRAINING'; }
-  interrupt(): void { this.generation++; this.state = 'INTERRUPTED'; this.scheduledAheadMs = 0; }
+
+  finishGeneration(): void {
+    this.generationComplete = true;
+    this.state = 'DRAINING';
+  }
+
+  finishTurn(): void {
+    this.turnComplete = true;
+    this.state = 'DRAINING';
+  }
+
+  interrupt(): void {
+    this.generation++;
+    this.state = 'INTERRUPTED';
+    this.scheduledAheadMs = 0;
+    this.bufferedDurationMs = 0;
+  }
 }
