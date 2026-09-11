@@ -67,6 +67,31 @@ test('AudioPlayoutQueue: arrival gaps exceeding chunk duration adaptively increa
   assert(queue.targetMs <= 120, `targetMs must remain bounded <= 120ms, got ${queue.targetMs}`);
 });
 
+test('AudioPlayoutQueue: begin decays prior jitter by 50% and consume manages buffer accounting', () => {
+  const queue = new AudioPlayoutQueue();
+  queue.jitterMs = 40;
+
+  queue.begin();
+  assert.equal(queue.jitterMs, 20, 'jitterMs must decay by 50% across turns');
+  assert.equal(queue.bufferedDurationMs, 0);
+  assert.equal(queue.totalReceivedDurationMs, 0);
+
+  // Receive two 100ms chunks
+  queue.receive(1000, 100);
+  queue.receive(1020, 100);
+  assert.equal(queue.totalReceivedDurationMs, 200, 'totalReceivedDurationMs tracks cumulative audio');
+  assert.equal(queue.bufferedDurationMs, 200, 'bufferedDurationMs tracks unconsumed audio');
+
+  // Consume 80ms
+  queue.consume(80);
+  assert.equal(queue.bufferedDurationMs, 120, 'bufferedDurationMs decrements on consume');
+  assert.equal(queue.totalReceivedDurationMs, 200, 'totalReceivedDurationMs does not decrement');
+
+  // Over-consume cannot go below 0
+  queue.consume(300);
+  assert.equal(queue.bufferedDurationMs, 0, 'bufferedDurationMs clamps to 0');
+});
+
 test('GeminiLiveSocket sends explicit VAD endpointing config in initial setup', async () => {
   const originalWs = globalThis.WebSocket;
   globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;

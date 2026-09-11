@@ -87,6 +87,7 @@ export class AudioOutputPlayer implements AudioPlaybackPort {
     source.connect(this.gainNode);
     this.nextScheduleTime = Math.max(this.nextScheduleTime, context.currentTime + 0.005);
     source.start(this.nextScheduleTime); this.nextScheduleTime += buffer.duration;
+    this.playout.consume(samples.length / 24);
     this.playout.scheduledAheadMs = (this.nextScheduleTime - context.currentTime) * 1000;
     this.sources.add(source);
     if (!this.isPlaying) {

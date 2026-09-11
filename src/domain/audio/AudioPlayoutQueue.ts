@@ -9,6 +9,7 @@ export class AudioPlayoutQueue {
   underruns = 0;
   scheduledAheadMs = 0;
   bufferedDurationMs = 0;
+  totalReceivedDurationMs = 0;
   private lastArrival: number | null = null;
   private lastDuration = 0;
   private meanArrivalInterval = 0;
@@ -24,7 +25,12 @@ export class AudioPlayoutQueue {
     this.lastArrival = null;
     this.scheduledAheadMs = 0;
     this.bufferedDurationMs = 0;
+    this.totalReceivedDurationMs = 0;
     this.meanArrivalInterval = 0;
+
+    // Retain some network history without carrying stale spikes forever.
+    this.jitterMs *= 0.5;
+
     return this.generation;
   }
 
@@ -49,7 +55,12 @@ export class AudioPlayoutQueue {
     }
     this.lastArrival = nowMs;
     this.lastDuration = durationMs;
+    this.totalReceivedDurationMs += durationMs;
     this.bufferedDurationMs += durationMs;
+  }
+
+  consume(durationMs: number): void {
+    this.bufferedDurationMs = Math.max(0, this.bufferedDurationMs - durationMs);
   }
 
   finishGeneration(): void {
@@ -67,5 +78,6 @@ export class AudioPlayoutQueue {
     this.state = 'INTERRUPTED';
     this.scheduledAheadMs = 0;
     this.bufferedDurationMs = 0;
+    this.totalReceivedDurationMs = 0;
   }
 }

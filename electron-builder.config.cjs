@@ -6,7 +6,11 @@
  */
 module.exports = {
   afterPack: require('./scripts/harden-package.cjs'),
-  forceCodeSigning: true,
+  forceCodeSigning: Boolean(
+    process.env.FORCE_CODE_SIGNING === 'true' ||
+    (process.env.CSC_LINK && process.env.CSC_KEY_PASSWORD) ||
+    process.env.WIN_CSC_LINK
+  ),
   appId: 'com.writecolor.cristiaicompanion',
   productName: 'Cristi AI Companion',
   directories: {
