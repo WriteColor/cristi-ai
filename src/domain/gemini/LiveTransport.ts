@@ -452,7 +452,17 @@ export class GeminiLiveSocket implements LiveSessionPort {
     // inlineData clientContent path, which can stall when a frame is large or
     // the provider is under load.
     if (imageBase64) this.sendVideoFrame(imageBase64);
-    this.websocket.send(JSON.stringify({ realtimeInput: { text: visualInstruction } }));
+    this.websocket.send(JSON.stringify({
+      clientContent: {
+        turns: [
+          {
+            role: 'user',
+            parts: [{ text: visualInstruction }]
+          }
+        ],
+        turnComplete: true
+      }
+    }));
     return true;
   }
 
