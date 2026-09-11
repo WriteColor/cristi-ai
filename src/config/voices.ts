@@ -1,6 +1,6 @@
 /**
  * Cristi AI - Catálogo Oficial de Voces para Gemini Multimodal Live API
- * 13 voces femeninas completas verificadas a 24kHz con síntesis afectiva nativa.
+ * 11 voces femeninas completas verificadas a 24kHz con síntesis afectiva nativa.
  * Incluye las 3 voces más sensuales (Despina, Sulafat, Vindemiatrix) y la voz insignia (Aoede) como principales.
  */
 
@@ -9,8 +9,6 @@ export type OfficialVoiceName =
   | 'Despina'
   | 'Sulafat'
   | 'Vindemiatrix'
-  | 'Achird'
-  | 'Algenib'
   | 'Callirrhoe'
   | 'Erinome'
   | 'Kore'
@@ -83,28 +81,6 @@ export const GEMINI_STANDARD_VOICES: readonly GeminiVoiceConfig[] = [
   },
 
   // ── Catálogo Completo de Voces Femeninas ─────────────────────────────────────
-  {
-    name: 'Achird',
-    gender: 'Femenina',
-    trait: 'Juvenil, Curiosa & Accesible',
-    isRecommended: false,
-    tags: ['Juvenil', 'Curiosa', 'Moderna', '24kHz'],
-    description: 'Voz femenina juvenil, de tono medio a alto, clara con un toque ligeramente aspirado y curioso. Suena amigable y accesible, ideal para interacción dinámica y explicaciones amables.',
-    badgeColor: 'teal',
-    previewAudio: '/audio/previews/achird.wav',
-    sampleRateHz: 24000
-  },
-  {
-    name: 'Algenib',
-    gender: 'Femenina',
-    trait: 'Cálida, Segura & Autoridad Amable',
-    isRecommended: false,
-    tags: ['Cálida', 'Segura', 'Experta', '24kHz'],
-    description: 'Voz femenina cálida y segura, con tono medio y buena claridad. Proyecta una especie de autoridad amable, confianza y experiencia reconfortante.',
-    badgeColor: 'blue',
-    previewAudio: '/audio/previews/algenib.wav',
-    sampleRateHz: 24000
-  },
   {
     name: 'Callirrhoe',
     gender: 'Femenina',

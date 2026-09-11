@@ -216,7 +216,7 @@ export const GEMINI_MODELS: Record<'GEMINI_25_FLASH_LATEST' | 'GEMINI_25_FLASH_P
     thinkingConfig: {
       thinkingBudget: 0,
     },
-    voiceCount: 13,
+    voiceCount: 11,
     supportsComputerControl: true,
     supportsProactiveAudio: true,
     supportsAffectiveDialog: true,
@@ -238,7 +238,7 @@ export const GEMINI_MODELS: Record<'GEMINI_25_FLASH_LATEST' | 'GEMINI_25_FLASH_P
     thinkingConfig: {
       thinkingBudget: 0,
     },
-    voiceCount: 13,
+    voiceCount: 11,
     supportsComputerControl: true,
     supportsProactiveAudio: true,
     supportsAffectiveDialog: true,
