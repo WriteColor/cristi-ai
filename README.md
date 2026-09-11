@@ -1,289 +1,323 @@
-# 🌸 Cristi AI Companion — Asistente IA Multimodal con Live2D & Gemini Multimodal Live API
-
 <div align="center">
 
-<img src="public/icon.png" alt="Cristi AI Logo" width="128" style="border-radius: 24px; margin-bottom: 12px; box-shadow: 0 8px 24px rgba(255, 0, 0, 0.25);" />
+# 🌸 Cristi AI Companion
+### Autonomous Desktop Companion & Real-Time Multimodal Agent
 
-![Cristi AI Companion Banner](docs/assets/cristi-banner.png)
+[![License: MIT](https://img.shields.io/badge/License-MIT-f43f5e.svg?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7.3-3178c6.svg?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Electron](https://img.shields.io/badge/Electron-43.6.0-47848f.svg?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![React](https://img.shields.io/badge/React-19.2.8-61dafb.svg?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8.2.2-646cff.svg?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Google Gemini](https://img.shields.io/badge/Gemini%20Live-v1beta%20Bidi-4285f4.svg?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
+[![pnpm](https://img.shields.io/badge/pnpm-Only-f69220.svg?style=for-the-badge&logo=pnpm&logoColor=white)](https://pnpm.io/)
 
-**Plataforma de compañera de escritorio y asistente agéntica virtual de alto rendimiento construida con Electron 32 + React 19 + Vite 8. Impulsada por Google Gemini Multimodal Live API (`gemini-3.1-flash-live-preview` y `gemini-2.5-flash-native-audio-preview`), motor universal de avatares Live2D Cubism con 13 personajes oficiales, físicas cinéticas invariantes, seguimiento del cursor por todo el escritorio (*Desktop-Wide Tracking*), biometría vocal, visión sensorial a 60 FPS, compañeros autónomos en Minecraft y Discord, reproducción en Spotify, captura de audio WASAPI de bajo nivel y observabilidad en tiempo real.**
+<p align="center">
+  <b>Plataforma de compañera virtual y copiloto agéntico de ultra-baja latencia para Windows.</b><br/>
+  Impulsada por <b>Google Gemini Multimodal Live API</b> (WebSocket Bidireccional 24kHz), avatares <b>Live2D Cubism 4</b> interactivos, visión computacional en tiempo real, automatización con <b>Playwright</b>, bots de <b>Minecraft & Discord</b>, control de <b>Spotify</b> y memoria episódica local en <b>SQLite FTS5</b>.
+</p>
 
-[![Author](https://img.shields.io/badge/Author-Write__Color-FF69B4?logo=visual-studio-code&logoColor=white)](https://github.com/WriteColor)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-v18%20--%20v24-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![pnpm](https://img.shields.io/badge/Package%20Manager-pnpm%20only-F69220?logo=pnpm&logoColor=white)](https://pnpm.io/)
-[![React](https://img.shields.io/badge/React-19.0.0-61DAFB?logo=react&logoColor=black)](https://react.dev/)
-[![Electron](https://img.shields.io/badge/Electron-32.3.3-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
-[![Gemini Live](https://img.shields.io/badge/Google%20Gemini-Multimodal%20Live%20API-4285F4?logo=google&logoColor=white)](https://aistudio.google.com/)
+<p align="center">
+  <a href="#-características-destacadas">Características</a> •
+  <a href="#-arquitectura-del-sistema">Arquitectura</a> •
+  <a href="#-pipeline-gemini-multimodal-live-api">Gemini Live</a> •
+  <a href="#-catálogo-oficial-de-voces-femeninas">Voces</a> •
+  <a href="#-avatares-live2d-cubism-4">Avatares</a> •
+  <a href="#-ecosistema-de-herramientas-agénticas">Herramientas</a> •
+  <a href="#-inicio-rápido">Inicio Rápido</a>
+</p>
+
+---
 
 </div>
 
----
+## 🌟 Características Destacadas
 
-## 📑 Tabla de Contenidos
-1. [Instalación Rápida en 1 Clic (`setup.bat` / `setup.ps1`)](#-instalación-rápida-en-1-clic-setupbat--setupps1)
-2. [Arquitectura y Modelos de Inteligencia Artificial](#-arquitectura-y-modelos-de-inteligencia-artificial)
-3. [Los 6 Pilares de la Arquitectura](#-los-6-pilares-de-la-arquitectura)
-4. [Catálogo Oficial de las 16 Voces Neuronales de Gemini](#-catálogo-oficial-de-las-16-voces-neuronales-de-gemini)
-5. [Catálogo Oficial de los 13 Modelos Live2D Cubism](#-catálogo-oficial-de-los-13-modelos-live2d-cubism)
-6. [Catálogo de Herramientas Agénticas y Capacidades](#-catálogo-de-herramientas-agénticas-y-capacidades)
-7. [Integraciones Multimedia: Minecraft, Discord, Spotify y Juegos](#-integraciones-multimedia-minecraft-discord-spotify-y-juegos)
-8. [Sistema de Actualización Local y Offline](#-sistema-de-actualización-local-y-offline-zero-network)
-9. [Tabla de Atajos de Teclado y Controles](#-tabla-de-atajos-de-teclado-y-controles)
-10. [Seguridad y Protección de Claves de API](#-seguridad-y-protección-de-claves-de-api)
-11. [Guía de Instalación Manual Paso a Paso](#-guía-de-instalación-manual-paso-a-paso)
-12. [Estructura del Repositorio](#-estructura-del-repositorio)
-13. [Licencia y Contribución](#-licencia-y-contribución)
+* 🎙️ **Audio Nativo Bidireccional (S2S) a 24kHz:** Conexión persistente mediante `BidiGenerateContent` WebSocket con Google Gemini Live API. Latencia perceptual ~300ms, interrupción instantánea (*Barge-in*) y detección vocal explícita (*VAD Endpointing*).
+* 🗣️ **Catálogo Completo de 11 Voces Femeninas:** Con soporte nativo y previews de audio WAV a 24kHz, incluyendo las 3 voces más atractivas y seductoras (`Despina`, `Sulafat`, `Vindemiatrix`) y la voz insignia de Cristi (`Aoede`).
+* 🎭 **Renderizado Live2D Cubism 4 con Físicas Reactivas:** 13 avatares oficiales con seguimiento ocular y de cabeza por todo el escritorio (*Desktop-Wide Cursor Tracking*), sincronización labial espectral (*Lip-Sync*) y orquestación contextual de emociones.
+* 👁️ **Visión Multimodal y Percepción de Pantalla:** Captura selectiva de ventanas, monitorización de regiones y streaming de vídeo en JPEG a Gemini Live procesado en hilos secundarios dedicados (*Worker Threads*).
+* 🔊 **Captura de Audio del Sistema WASAPI:** Helper nativo en C#/C++ (`CristiWasapiLoopback.exe`) que intercepta la mezcla de audio de Windows y videojuegos sin requerir cables de audio virtuales.
+* 🛠️ **Catálogo de Herramientas Agénticas Extensible:**
+  * 🌐 **Navegación Web:** Control automatizado con Chromium mediante Playwright.
+  * ⛏️ **Minecraft Bot:** Agente autónomo con Mineflayer y pathfinding para acompañarte en tus servidores.
+  * 🎵 **Spotify Desktop:** Búsqueda, reproducción, pausa y control de volumen contextual.
+  * 🔌 **Model Context Protocol (MCP):** Conexión dinámica a servidores de herramientas locales y remotos (`stdio` / `sse`).
+* 🧠 **Memoria Episódica Híbrida:** Almacenamiento local en **SQLite con FTS5** y normalización léxica para recuperación de recuerdos sin consultas externas ni latencia añadida.
+* 🛡️ **Seguridad Blindada de Grado Empresarial:** Almacén de credenciales cifrado con Windows DPAPI (`CredentialVault`), sandbox estricto, Content Security Policy (CSP) sin `unsafe-eval` y aislamiento contextual IPC.
 
 ---
 
-## ⚡ Instalación Rápida en 1 Clic (`setup.bat` / `setup.ps1`)
+## 🏛️ Arquitectura del Sistema
 
-Para configurar todo el entorno automáticamente sin pasos manuales ni posibilidad de fallo:
+```mermaid
+flowchart TB
+    subgraph UI ["🎨 Capa Renderer (React 19 + Pixi.js + TailwindCSS)"]
+        Avatar["🎭 Live2D Canvas & Cubism 4"]
+        AudioOut["🔊 AudioOutputPlayer & 24kHz Lip-Sync"]
+        AudioIn["🎙️ AudioInputCapture & 16kHz Worklet"]
+        Settings["⚙️ Configuración & Selector de Voces"]
+    end
 
-* **Windows Explorer:** Haz doble clic en [`setup.bat`](setup.bat).
-* **PowerShell:** Ejecuta `.\setup.ps1`.
+    subgraph Bridge ["🔌 Capa de Aislamiento & IPC"]
+        IPCBridge["ElectronBridge / contextBridge"]
+        SecurityProtocols["app:// Protocol & Strict CSP"]
+    end
 
-El instalador automático se encarga de habilitar `pnpm`, instalar dependencias, descargar el motor de Electron, verificar iconos estáticos y validar los 13 modelos de Live2D y 14 redes neuronales. En Windows, el build incluye además el helper WASAPI nativo para capturar la mezcla del dispositivo de salida sin depender de software externo.
+    subgraph Core ["⚡ Capa Proceso Principal (Electron 43)"]
+        Vault["🔐 CredentialVault (Windows DPAPI)"]
+        LiveBroker["🔑 LiveTokenBroker (Direct Key IPC)"]
+        ToolEngine["🛠️ ToolRegistry & Command Handlers"]
+        MemoryDB["🧠 SQLite FTS5 Memory Engine"]
+        WASAPI["🎧 CristiWasapiLoopback (C# Native)"]
+    end
+
+    subgraph Cloud ["☁️ Google AI Studio (Gemini Multimodal Live API)"]
+        WebSocket["wss://generativelanguage.googleapis.com/.../BidiGenerateContent"]
+        ModelLatest["⚡ gemini-2.5-flash-native-audio-latest"]
+        ModelPreview["🧪 gemini-2.5-flash-native-audio-preview-09-2025"]
+    end
+
+    UI <--> Bridge
+    Bridge <--> Core
+    UI <== WebSocket S2S ==> Cloud
+    Core -. Local Tools .-> Cloud
+```
 
 ---
 
-## 🧠 Arquitectura y Modelos de Inteligencia Artificial
+## 🎙️ Pipeline Gemini Multimodal Live API
 
-Cristi AI Companion se comunica directamente mediante **WebSocket bidireccional S2S (`BidiGenerateContent`)** con la API en tiempo real de Google Gemini:
+Cristi AI implementa las mejores prácticas recomendadas por Google para la **Multimodal Live API v1beta**:
 
-| Modelo | ID de API | Especialidad y Capacidades | Latencia / Audio |
+### 1. Conexión WebSocket Directa de Ultra-Baja Latencia
+- **Aprovisionamiento Directo:** Eliminación del salto HTTP previo (`~300ms de ahorro`) mediante extracción segura de clave desde el almacén DPAPI local hacia el WebSocket.
+- **Modelos Oficiales Soportados:**
+  - `gemini-2.5-flash-native-audio-latest` *(Predeterminado, ultra-baja latencia y audio nativo 24kHz)*
+  - `gemini-2.5-flash-native-audio-preview-09-2025` *(Snapshot preview verificado)*
+
+### 2. Detección Vocal Explícita (VAD Endpointing)
+Configurado a nivel de protocolo para asegurar dinamismo conversacional sin pausas artificiales:
+```json
+{
+  "realtimeInputConfig": {
+    "turnCoverage": "TURN_INCLUDES_AUDIO_ACTIVITY_AND_ALL_VIDEO",
+    "automaticActivityDetection": {
+      "disabled": false,
+      "startOfSpeechSensitivity": "START_SENSITIVITY_HIGH",
+      "endOfSpeechSensitivity": "END_SENSITIVITY_HIGH",
+      "prefixPaddingMs": 20,
+      "silenceDurationMs": 600
+    }
+  }
+}
+```
+
+### 3. Cola Adaptativa de Audio & Jitter Decoupling (`AudioPlayoutQueue`)
+- **Control de Ráfagas (Bursts):** Distingue ráfagas rápidas de red de fluctuaciones de jitter reales, evitando inflar artificialmente el buffer de reproducción.
+- **Decadencia por Turno:** Reduce el historial de jitter en un 50% al iniciar cada generación para evitar latencias acumuladas de turnos previos.
+- **Monitoreo Monótono:** Mantiene una cadencia fluida de 24,000 muestras/segundo acoplada al analizador espectral FFT para el Lip-Sync del avatar.
+
+---
+
+## 🗣️ Catálogo Oficial de Voces Femeninas
+
+Cristi AI cuenta con una cuidada selección de **11 voces femeninas oficiales** a 24kHz. Incluye muestras de audio WAV reproducibles en [`public/audio/previews/`](public/audio/previews/):
+
+| Voz | Clasificación | Timbre & Personalidad | Propósito Recomendado |
 |---|---|---|---|
-| ⭐ **Gemini 3.1 Flash Live (Predeterminado)** | `gemini-3.1-flash-live-preview` | Diálogo conversacional de ultra-baja latencia voz a voz, comprensión espacial, visión continua, control total de PC y ejecución de herramientas. | ~300ms / 24 kHz |
-| 🎙️ **Gemini 2.5 Flash Native Audio** | `gemini-2.5-flash-native-audio-preview-12-2025` | Síntesis afectiva nativa, diálogo continuo y alta compatibilidad con herramientas de control del sistema. | ~400ms / 24 kHz |
+| **Aoede** | ⭐ **Insignia Cristi** | Dulce, coqueta, articulada y conversacional. | Personalidad base de Cristi; sesiones largas, pair-programming y razonamiento devoto. |
+| **Despina** | ⭐ **Top 1 Sexy** | Cálida, íntima, suave y profundamente atractiva. | Romance, cercanía emocional de pareja, bienvenida afectuosa y mimos. |
+| **Sulafat** | ⭐ **Top 2 Sexy** | Segura, magnética, persuasiva y convincente. | Liderazgo, asistencia estratégica, toma de decisiones y autoridad dulce. |
+| **Vindemiatrix** | ⭐ **Top 3 Sexy** | Serena, madura, medio-baja y tranquilizadora. | Sesiones de estudio nocturno (*deep work*), lectura relajante y meditación. |
+| **Callirrhoe** | Estándar | Directa, enérgica, ejecutiva y profesional. | Respuestas técnicas rápidas, productividad y diagnósticos de sistema. |
+| **Erinome** | Estándar | Sofisticada, calmada, reflexiva y de dicción elegante. | Contenido educativo formal, análisis conceptual y audioguías. |
+| **Kore** | Estándar | Juvenil, vivaz, brillante y enérgica. | Sesiones gaming cooperativas, comentarios espontáneos y diversión dinámica. |
+| **Laomedeia** | Estándar | Inteligente, curiosa y con cadencia dialéctica ágil. | Debates de ideas, podcasts e intercambio intelectual continuo. |
+| **Leda** | Estándar | Serena, protectora, confiable y leal. | Apoyo incondicional, alivio de estrés y escucha activa paciente. |
+| **Pulcherrima** | Estándar | Ultra animada, radiante, festiva y optimista. | Motivación matutina, celebración de victorias y ánimos continuos. |
+| **Zephyr** | Estándar | Fresca, ligera, cristalina y relajada. | Conversaciones cotidianas informales y compañía de fondo. |
 
 ---
 
-## 🏛️ Los 6 Pilares de la Arquitectura
+## 🎭 Avatares Live2D Cubism 4
 
-1. **Pilar 1: Catálogo de Herramientas Agénticas y Contratos de Eventos:**
-   Toda interacción se desacopla mediante un `EventBus` con sobres tipados (`DomainEventEnvelope`), trazabilidad con `correlationId` y soporte para servidores MCP dinámicos (`stdio` y `sse`) en el proceso principal.
-2. **Pilar 2: Memoria Persistente Multicapa:**
-   Almacenamiento híbrido en **SQLite** nativo con fallback transaccional a JSON atómico, respaldado por un índice semántico local con vectores hash para recuperar recuerdos sin latencia de red.
-3. **Pilar 3: Compañero Autónomo de Discord:**
-   Bot integrado con `discord.js` v14 y `@discordjs/voice` para canales de texto y voz con decodificación Opus a PCM 16 kHz y reconexión automática resiliente.
-4. **Pilar 4: Percepción y Telemetría en Minecraft:**
-   Agente autónomo basado en Mineflayer y pathfinding inteligente. Realiza seguimiento de jugadores, minería, construcción y combate contra entidades hostiles con telemetría en tiempo real.
-5. **Pilar 5: Árbitro Proactivo y Breathing Room:**
-   `InteractionOrchestrator` central con ventana de enfriamiento de 15 segundos para evitar saturar al usuario, algoritmo anti-encadenamiento y bypass inmediato para alertas de emergencia.
-6. **Pilar 6: Blindaje de Audio, DSP y Loopback WASAPI:**
-   `AudioRoutingService` con aislamiento de retorno (`markGenerated`) para eliminar el eco, captura a 16 kHz por AudioWorklet, streaming de salida a 24 kHz con Lip-Sync espectral, y helper nativo C# (`CristiWasapiLoopback.exe`) para capturar el audio de Windows y juegos sin tarjetas de sonido virtuales.
+El motor visual (`src/domain/live2d/`) implementa 13 modelos de alta resolución con físicas cinéticas en tiempo real:
 
----
-
-## 🗣️ Catálogo Oficial de las 16 Voces Neuronales de Gemini
-
-Generadas nativamente a **24,000 Hz** con modulación emocional y Lip-Sync orgánico en tiempo real:
-
-### 🔹 Voces Oficiales
-| Voz | Rasgo Principal | Descripción Sonora |
-|---|---|---|
-| 👑 **Aoede (Oficial)** | Dulce, Coqueta & Envolvente | Tono ligero, seductor y muy natural. Voz por defecto de Cristi. |
-| **Kore** | Firme, Clara & Equilibrada | Timbre profesional, articulado y confiable. |
-| **Leda** | Cálida, Amable & Protectora | Tono maternal y sumamente empático. |
-| **Lyra** | Suave, Melódica & Poética | Modulación etérea, ideal para narración y conversación íntima. |
-| **Zephyr** | Serena, Aireada & Cristalina | Tono fresco y ligero como una brisa suave. |
-| **Ursa** | Resonante, Fuerte & Segura | Presencia vocal con cuerpo acústico y firmeza. |
-| **Vega** | Radiante, Alegre & Luminosa | Tono chispeante lleno de optimismo y carisma. |
-| **Callisto** | Profunda, Misteriosa & Serena | Matices aterciopelados con cadencia reflexiva. |
-| **Ara** | Elegante, Sutil & Sofisticada | Tonalidades suaves con cortesía refinada. |
-| **Vela** | Dinámica, Aventurera & Ágil | Ritmo activo y propositivo en cada frase. |
-| **Carina** | Luminosa, Expresiva & Emotiva | Alta respuesta afectiva con micro-entonaciones precisas. |
-| **Musca** | Vivaz, Curiosa & Espontánea | Tono juguetón y rápido para interacciones divertidas. |
-| **Fornax** | Apasionada, Intensa & Creativa | Calidez ardiente con timbre envolvente. |
-| **Hydra** | Multifacética & Versátil | Adaptación armónica con rango vocal completo. |
-| **Pyxis** | Orientadora, Certera & Precisa | Voz de asistencia con dicción inmaculada. |
-| **Gemini Natural** | Equilibrada & Pura | Síntesis neuronal pura optimizada por Google DeepMind. |
-
-*(También disponibles voces masculinas y dinámicas como Puck, Charon, Fenrir, Orion, Pegasus, Perseus, Castor, Pollux, Chiron, Eridanus, Lynx, Indus, Sculptor y Phoenix).*
-
----
-
-## 🎭 Catálogo Oficial de los 13 Modelos Live2D Cubism
-
-Todos los avatares se cargan mediante WebGL 2.0 y PixiJS v7, desacoplados del ciclo de vida reactivo para un consumo mínimo de memoria:
-
-| Avatar | ID Interno | Origen / Estilo | Características Técnicas |
-|---|---|---|---|
-| 🖤 **Cristi Gótica (Yandere)** | `yanderegirl` | Original Cristi AI | 75 parámetros cinéticos, físicas de cabello, expresiones `yandere`, `mad`, `crazy`, `blush`. |
-| 👘 **Ice Girl (Cheongsam)** | `icegirl` | Traje Oriental Tradicional | 94 parámetros, orejas de gato, alas animadas, ojos de corazón y corona. |
-| 🌸 **Hiyori Momose** | `hiyori` | Oficial Live2D Cubism Pro | 64 parámetros, 8 grupos de movimiento, físicas avanzadas de tela y cabello. |
-| 🎀 **Miara** | `miara` | Oficial Live2D Cubism Pro | 65 parámetros, gestos de saludo, poses dinámicas y seguimiento ocular. |
-| 🛡️ **Toki** | `toki` | Blue Archive | 74 parámetros, modo combate, compostura militar y seguimiento de mirada completo. |
-| 🦈 **Ellen Joe** | `ellen` | Zenless Zone Zero | 207 parámetros, maid tiburón con cola animada, tijeras y físicas elásticas. |
-| 🐀 **Jane Doe** | `jane_doe` | Zenless Zone Zero | 236 parámetros, agente encubierta con cinemática corporal refinada. |
-| 🍵 **Ruan Mei** | `ruan_mei` | Honkai: Star Rail | 114 parámetros, erudita con instrumento tradicional y túnica con físicas de viento. |
-| 🎮 **Belle** | `belle` | Zenless Zone Zero | 175 parámetros, protagonista con expresiones dinámicas y gafas. |
-| 🎭 **Sparkle** | `sparkle` | Honkai: Star Rail | 174 parámetros, poses de manos, piernas y accesorios tradicionales. |
-| 🦊 **Huohuo** | `huohuo` | Honkai: Star Rail | 157 parámetros, 7 animaciones motion3, expresiones de timidez y llanto. |
-| ☂️ **Vivian** | `vivian` | Zenless Zone Zero | 197 parámetros, paraguas cerrado, sonrojo y animaciones corporales. |
-| 🖤 **Goth Loli Maid** | `goth_loli` | Gothic Lolita / Maid | 30 parámetros, físicas en coletas, parpadeo orgánico y lazos dinámicos. |
-
----
-
-## 🛠️ Catálogo de Herramientas Agénticas y Capacidades
-
-Cristi cuenta con más de **45 herramientas** para operar de forma autónoma:
-
-1. **Control del Avatar Live2D:** `trigger_companion_gesture`, `trigger_model_motion`, `move_avatar`, `switch_avatar_model`.
-2. **Sistema Operativo & PowerShell:** `execute_system_command`, `read_file`, `write_file`, `list_directory`, `get_clipboard`, `set_clipboard`, `get_running_processes`, `kill_process`, `open_file_or_folder`, `open_system_app_or_link`.
-3. **Computer Use:** `computer_action` (clics en coordenadas, tipeo nativo, atajos de teclado y scroll).
-4. **Visión Contextual:** `capture_screen_snapshot` (capturas a 60 FPS con Electron native), `set_screen_watch`, `set_screen_region`, `analyze_visual_scene`.
-5. **Memoria a Largo Plazo:** `manage_memory`, `remember_fact`, `search_memory`, `delete_memory`.
-6. **Búsqueda & Navegación:** `search_internet`, `browse_web_page`, `open_in_brave_browser`.
-7. **Widgets & Alarmas:** `set_reminder`, `set_alarm`, `show_tactical_widget`, `dismiss_tactical_widget`.
-8. **Audio & Traducción:** `start_desktop_audio_capture`, `stop_desktop_audio_capture`, `desktop_audio_capture_status`, `send_game_voice_translation`, `translate_and_speak_in_game`.
-
-Consulta la documentación técnica completa en [`docs/TOOLS_AND_CAPABILITIES.md`](docs/TOOLS_AND_CAPABILITIES.md).
-
----
-
-## 🎮 Integraciones Multimedia: Minecraft, Discord, Spotify y Juegos
-
-* **Minecraft Companion (`mineflayer`):**
-  Cristi se conecta a tu servidor local o remoto, camina contigo mediante pathfinding (`minecraft_follow_player`), extrae minerales (`minecraft_mine_block`), construye y te defiende de monstruos en combate (`minecraft_attack_entity`).
-* **Discord Companion (`discord.js` & `@discordjs/voice`):**
-  Monitorea canales de texto, responde menciones y puede unirse a canales de voz para interactuar con tu comunidad y traducir audio en tiempo real.
-* **Spotify Integration (Desktop & Web API):**
-  Control total de tu música: busca pistas en el catálogo global, reproduce álbumes por URI o nombre, salta canciones, pausa y ajusta volumen por voz. Si no tienes la app de escritorio, opera automáticamente el reproductor web en Brave con Playwright. Más detalles en [`docs/GUIA_INTEGRACION_SPOTIFY.md`](docs/GUIA_INTEGRACION_SPOTIFY.md).
-* **Audio de Juegos & Loopback WASAPI:**
-  Helper nativo en C# (`native/CristiWasapiLoopback.exe`) que captura el sonido del juego o de Windows sin programas externos de cable virtual. Cristi escucha las voces de tus compañeros de partida y puede traducir tus mensajes al canal de voz del juego (`game_voice`) sin emitir por tus altavoces locales.
-
----
-
-## 📦 Sistema de Actualización Local y Offline (Zero Network)
-
-Cristi AI Companion **no depende de servidores de actualización externos en internet**:
-
-1. Al compilar una nueva versión con `pnpm app:build`, el instalador generado (`Cristi-AI-Companion-Setup-X.Y.Z.exe`) se guarda en la carpeta local `release/`.
-2. La aplicación instalada detecta automáticamente en disco si existe una versión superior en la carpeta del proyecto.
-3. Desde la pestaña **Ajustes → Actualizaciones**, basta con presionar **"Reiniciar e Instalar Actualización"** para actualizar la app localmente con privilegios de Administrador.
-
----
-
-## ⌨️ Tabla de Atajos de Teclado y Controles
-
-| Atajo / Control | Tipo | Acción / Comportamiento |
-|---|---|---|
-| **`Ctrl + Shift + C`** | Global (Sistema) | **Boss Key / Modo Residente**: Oculta o muestra a Cristi al instante (0% GPU/CPU al ocultarse). |
-| **`Ctrl + Shift + H`** | Global (Sistema) | **Ocultar / Mostrar UI (Modo Zen Global)**: Alterna la interfaz visible desde cualquier app. |
-| **`Ctrl + Shift + P`** | Global (Sistema) | **Telemetría & Profiler (HUD Global)**: Abre/Cierra el panel de FPS y memoria desde cualquier ventana. |
-| **`Ctrl + Shift + A`** | Global (Sistema) | **Fijar Siempre Visible (Always-on-Top)**: Conmuta el anclaje de ventana prioritario. |
-| **`Ctrl + Shift + M`** | Global (Sistema) | **Silenciar Micrófono**: Activa o silencia la captura de voz con confirmación sonora. |
-| **`Ctrl + Shift + S`** | Global (Sistema) | **Visión Instantánea**: Captura la pantalla activa y la envía a Gemini Live. |
-| **`F3`** | Interfaz (App) | **Performance Profiler HUD**: Alterna el panel de telemetría de rendimiento y TPS. |
-| **`H` / `h`** | Interfaz (App) | **Modo Zen Local**: Oculta los controles flotantes. |
-| **`Escape`** | Interfaz (App) | **Cerrar Modales**: Cierra cualquier menú contextual, modal de ajustes o diálogo. |
-| **Clic Izquierdo** | Ratón sobre Avatar | Dispara una **reacción emocional aleatoria** adaptada al personaje activo. |
-| **Clic Izq. + Arrastre** | Ratón sobre Avatar | **Mueve a Cristi** por cualquier parte de tu monitor con arrastre nativo. |
-| **Rueda del Ratón** | Ratón sobre Avatar | **Escalado dinámico** suave del modelo (`0.25x` a `4.0x`). |
-| **Clic Derecho** | Ratón sobre Avatar | Despliega el **Menú Contextual Táctico Obsidian**. |
-
----
-
-## 🔒 Seguridad y Protección de Claves de API
-
-* **Cero Hardcoding:** El código fuente no contiene claves de API ni credenciales privadas.
-* **Almacenamiento Seguro:** La clave `VITE_GEMINI_API_KEY` se carga únicamente desde tu archivo `.env` local (ignorado en `.gitignore`) o mediante el almacenamiento cifrado seguro del sistema (`safeStorage` de Electron).
-* **Obtención de Clave Gratuita:** Puedes generar tu API Key gratuita en [Google AI Studio](https://aistudio.google.com/).
-
----
-
-## 🚀 Guía de Instalación Manual Paso a Paso
-
-### 1. Requisitos Previos
-* **Windows 10 / 11 (64-bit)**
-* **Node.js**: Versión LTS `v20.x`, `v22.x` o `v24.x` ([Descargar Node.js](https://nodejs.org/))
-* **pnpm**: Gestor de paquetes obligatorio. Actívalo con Corepack:
-  ```powershell
-  corepack enable
-  corepack prepare pnpm@latest --activate
-  ```
-
-### 2. Clonar e Instalar Dependencias
-```powershell
-git clone https://github.com/WriteColor/cristi-ai.git "Cristi AI"
-cd "Cristi AI"
-pnpm install
+```
+public/models/live2d/
+├── yanderegirl/  # Cristi Yandere Original (Gótica)
+├── icegirl/      # Frost Maiden (Cyber-Hielo)
+├── hiyori/       # Hiyori Momose (Estudiante Casual)
+├── miara/        # Miara Pro (Gamer Cyberpunk)
+├── toki/         # Toki Asuka (Agente Táctica)
+├── ellen/        # Ellen Joe (Maid Tiburón)
+├── jane_doe/     # Jane Doe (Agente Especial)
+├── ruan_mei/     # Ruan Mei (Erudita Cósmica)
+├── belle/        # Belle (Proxy Urbana)
+├── sparkle/      # Sparkle (Bufona Enigmática)
+├── huohuo/       # Huohuo (Sacerdotisa Tímida)
+├── vivian/       # Vivian (Dama Victoriana)
+└── goth_loli/    # Goth Loli (Muñeca Victoriana)
 ```
 
-### 3. Inicializar y Validar el Entorno
-```powershell
-pnpm run setup:env
+### Capacidades del Avatar:
+- **Seguimiento Espacial del Cursor:** Detección de puntero en toda la pantalla mediante polling desacoplado en Electron.
+- **Lip-Sync Espectral FFT:** Transformada de Fourier discreta sobre el flujo de audio de salida para abrir y modular la boca del modelo con precisión milimétrica.
+- **Orquestador Contextual de Emociones:** Análisis sintáctico del texto emitido por el LLM para activar expresiones faciales automáticas (*happy, love, yandere, surprise, pouting, nervous*).
+
+---
+
+## 🛠️ Ecosistema de Herramientas Agénticas
+
+Cristi AI utiliza el patrón de diseño **Command Pattern** desacoplado mediante `ToolRegistry`. Cuando Gemini Live emite un evento `toolCall`, la herramienta se ejecuta localmente y reporta el resultado por el socket en tiempo real:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Usuario as Ariel (Usuario)
+    participant Gemini as Google Gemini Live
+    participant Transport as LiveTransport
+    participant Registry as ToolRegistry
+    participant System as Subsistema Local (OS/Web/Spotify)
+
+    Usuario->>Transport: "Cristi, ¿qué hora tiene mi PC y qué canción suena?"
+    Transport->>Gemini: clientContent (Turn Complete)
+    Gemini-->>Transport: toolCall [get_current_time_and_date, spotify_status]
+    Transport->>Registry: executeCalls(functionCalls)
+    Registry->>System: Ejecución local controlada
+    System-->>Registry: Retorno de datos JSON
+    Registry-->>Transport: toolResponses
+    Transport->>Gemini: toolResponse
+    Gemini-->>Transport: modelTurn (inlineData Audio PCM 24kHz)
+    Transport-->>Usuario: Reproducción hablada natural + Lip-Sync
 ```
 
-### 4. Configurar la API Key
-Crea tu archivo `.env` en la raíz del proyecto:
-```env
-VITE_GEMINI_API_KEY=tu_clave_de_aistudio_aqui
-```
+### Catálogo de Herramientas Integradas:
+- 🕒 **Diagnóstico de Sistema:** `get_current_time_and_date`, `get_weather`, `system_diagnostics`, ejecución supervisada de procesos.
+- 🎵 **Spotify Control:** `spotify_play`, `spotify_pause`, `spotify_next`, `spotify_previous`, `spotify_volume`, `spotify_search`.
+- 🌐 **Navegación Web (Playwright):** `web_search`, `web_extract_content`, capturas de páginas web headless.
+- ⛏️ **Minecraft Engine (Mineflayer):** `minecraft_connect`, `minecraft_status`, `minecraft_chat`, `minecraft_action`.
+- 🤖 **Discord Bot (discord.js):** `discord_status`, `discord_send_message`, conexión a canales de voz.
+- 🧠 **Memoria a Largo Plazo:** `manage_memory` (guardar, recuperar y buscar preferencias del usuario con SQLite).
+- ⏰ **Planificador Proactivo:** `schedule_alarm`, `schedule_reminder` con inyección de recordatorios en el system prompt.
 
-### 5. Iniciar en Modo Desarrollo
-```powershell
-pnpm run app:dev
-```
+---
 
-### 6. Compilar el Instalador de Producción (.exe)
-```powershell
+## 🔒 Seguridad & Privacidad
+
+Cristi AI Companion opera bajo un modelo de seguridad estricto para proteger tus credenciales y tu sistema:
+
+1. **Windows DPAPI (`safeStorage`):** La API Key de Gemini y las credenciales de terceros nunca se guardan en texto plano. Se cifran mediante la Data Protection API del sistema operativo Windows y residen en `cristi-secrets.json`.
+2. **Context Isolation & Sandboxing:** El renderer corre completamente aislado con `nodeIntegration: false`, `contextIsolation: true` y `sandbox: true`. No existe acceso directo a `require`, `process` ni a la shell de Windows desde las vistas.
+3. **Content Security Policy (CSP):**
+   ```http
+   default-src 'self' app:; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' wss://generativelanguage.googleapis.com https://generativelanguage.googleapis.com; object-src 'none';
+   ```
+4. **Protocolo Privilegiado `app://`:** Toda carga de activos locales y modelos Live2D se realiza mediante un esquema seguro registrado sin acceso arbitrario al sistema de archivos local.
+
+---
+
+## 🚀 Inicio Rápido
+
+### Requisitos Previos
+- **Sistema Operativo:** Windows 10 u 11 (64-bit).
+- **Node.js:** Versión 20 LTS o superior (recomendado Node 22 / 24).
+- **Gestor de Paquetes:** `pnpm` (regla estricta: nunca usar `npm`).
+
+### Instalación
+
+1. **Clonar el repositorio:**
+   ```bash
+   git clone https://github.com/WriteColor/cristi-ai.git
+   cd cristi-ai
+   ```
+
+2. **Instalar dependencias con `pnpm`:**
+   ```bash
+   pnpm install
+   ```
+
+3. **Iniciar en entorno de desarrollo:**
+   ```bash
+   pnpm dev
+   ```
+   > Esto levantará concurrentemente el servidor Vite, compilará el proceso principal de Electron en modo `--watch` y lanzará la ventana del companion.
+
+4. **Configurar tu API Key de Gemini:**
+   - Abre la ventana de **Ajustes** (presiona `Ctrl + ,` o haz clic en el icono de engranaje en la barra de control).
+   - Ve a la pestaña **General**, introduce tu clave de [Google AI Studio](https://aistudio.google.com/) y guárdala.
+   - En la pestaña **Voz**, selecciona tu voz femenina predilecta (`Aoede`, `Despina`, `Sulafat`, etc.).
+
+---
+
+## ⌨️ Atajos de Teclado Globales
+
+| Atajo | Acción |
+|---|---|
+| `Ctrl + Shift + C` | Alternar visibilidad de la ventana del companion (Ocultar / Mostrar). |
+| `Ctrl + Shift + M` | Silenciar / Activar micrófono de la sesión en vivo. |
+| `Ctrl + ,` | Abrir la ventana de Ajustes y Configuración. |
+| `Escape` | Cerrar menús contextuales y widgets emergentes. |
+
+---
+
+## 🧪 Pruebas y Validación Continua
+
+El proyecto cuenta con una estricta batería de pruebas automatizadas y compuertas de integración continua (CI):
+
+```bash
+# Ejecutar suite de pruebas unitarias (85 tests)
+pnpm run test
+
+# Validación estricta de 7 compuertas CI (Types, Lint, Tests, Builds, E2E)
+pnpm run ci
+
+# Empaquetar instalador de producción para Windows (.exe NSIS)
 pnpm run app:build
 ```
-El instalador NSIS standalone (`Cristi-AI-Companion-Setup-1.0.0.exe`) se generará en la carpeta `release/`.
+
+Los artefactos del instalador de producción se generan en:
+`release/Cristi-AI-Companion-Setup-1.0.0.exe`
 
 ---
 
-## 🏛️ Estructura del Repositorio
+## 📁 Estructura del Proyecto
 
 ```
 Cristi AI/
-├── electron/                       # Proceso principal nativo de Electron
-│   ├── main.cjs                    # Ventana transparente, atajos globales, IPC, actualizador local
-│   └── preload.cjs                 # Puente ContextBridge seguro con el renderizador
-├── native/                         # Componentes nativos de Windows
-│   ├── CristiWasapiLoopback.cs     # Código fuente en C# del capturador WASAPI
-│   └── CristiWasapiLoopback.exe    # Helper Core Audio para captura loopback sin dependencias
-├── public/                         # Recursos estáticos servidos en tiempo de ejecución
-│   ├── live2dcubismcore.min.js     # Runtime oficial de Live2D Cubism Core
-│   ├── models/                     # Pesos binarios y manifiestos de TensorFlow / Face-API
-│   └── models/live2d/              # 13 carpetas con modelos oficiales Live2D Cubism
-├── resources/                      # Iconos de aplicación (.ico, .png)
-├── scripts/                        # Scripts de bootstrapper y hooks de instalación
-│   ├── generate-brand-assets.cjs   # Generador de logos e iconos de marca
-│   ├── postinstall-setup.cjs       # Hook automático postinstall
-│   ├── prebuild-electron.cjs       # Preparación de binarios y cachés NSIS
-│   └── setup-clean-env.cjs         # Bootstrapper y verificador del entorno
-├── src/                            # Aplicación Frontend en React 19 + Vite 8
-│   ├── components/                 # Componentes UI (Live2DCanvas, SettingsModal, ContextMenu, etc.)
-│   ├── config/                     # Modelos Gemini, Live2D, voces neuronales y herramientas
-│   ├── hooks/                      # Hooks React (useClickThrough, usePerformance, etc.)
-│   ├── services/                   # Servicios (Live2DController, GeminiLiveSocket, AudioDSP, Vision)
-│   ├── App.jsx                     # Orquestador raíz de la aplicación
-│   └── index.css                   # Sistema de diseño futurista Obsidian Cyberpunk
-├── docs/                           # Documentación técnica completa
-│   ├── ARCHITECTURE.md             # Arquitectura del sistema, los 6 pilares y flujo de datos
-│   ├── GUIA_INTEGRACION_SPOTIFY.md # Manual de integración con Spotify (Desktop, Web API y Playwright)
-│   ├── INSTALLATION_GUIDE.md       # Guía de instalación y puesta a punto paso a paso
-│   ├── LIVE2D_MODELS.md            # Catálogo técnico de los 13 modelos Live2D Cubism
-│   ├── SHORTCUTS_AND_CONTROLS.md   # Guía de atajos de teclado, gestos y menú contextual
-│   └── TOOLS_AND_CAPABILITIES.md   # Catálogo completo de las 45+ herramientas agénticas
-├── electron-builder.config.cjs     # Configuración del instalador NSIS de 64-bit
-├── setup.bat / setup.ps1           # Instaladores automáticos en 1 clic
-├── CONTRIBUTING.md                  # Guía para contribuidores open-source
-├── LICENSE                         # Licencia MIT oficial
-└── package.json                    # Manifiesto de paquetes y scripts de pnpm
+├── electron/                 # Proceso principal de Electron (TypeScript modular)
+│   ├── src/
+│   │   ├── core/            # Ciclo de vida, atajos globales y bandeja del sistema
+│   │   ├── ipc/             # Enrutador y contratos de canales IPC blindados
+│   │   ├── protocol/        # Esquema seguro app:// para recursos
+│   │   ├── security/        # CredentialVault (DPAPI) y LiveTokenBroker
+│   │   └── windows/         # Gestor de ventanas (Companion transparente, Settings, Camera)
+├── src/                      # Renderer (React 19 + TypeScript + TailwindCSS)
+│   ├── config/              # Modelos, voces (11 voces femeninas), herramientas
+│   ├── domain/
+│   │   ├── audio/           # DSP, resamplers, AudioPlayoutQueue y gestión de jitter
+│   │   ├── gemini/          # LiveTransport, WebSocket bidiGenerateContent y protocolo
+│   │   ├── live2d/          # Registro de modelos Cubism 4 y controlador de físicas
+│   │   ├── memory/          # Servicio de memoria episódica SQLite FTS5
+│   │   └── tools/           # Catálogo de herramientas Command Pattern (System, Spotify, etc.)
+│   ├── hooks/               # useCompanionServices, useVoiceSession, useSensoryInput
+│   ├── settings/            # Interfaz de Ajustes (pestañas de Voz, Modelos, Memoria, MCP)
+│   └── types/               # Definiciones y contratos de datos Zod / TypeScript
+├── public/
+│   ├── audio/               # Grabaciones de auditoría y previews WAV 24kHz
+│   └── models/live2d/       # 13 avatares oficiales Cubism 4
+├── tests/                   # Batería de pruebas unitarias y de integración
+└── scripts/                 # Scripts de compilación, empaquetado y runners
 ```
 
 ---
 
-## 📄 Licencia y Contribución
+## 📄 Licencia
 
-Este proyecto es de código abierto y está distribuido bajo la [Licencia MIT](LICENSE).
-Para contribuir con mejoras, optimizaciones o nuevos avatares, consulta [CONTRIBUTING.md](CONTRIBUTING.md).
+Este proyecto está bajo la Licencia **MIT** — consulta el archivo [LICENSE](LICENSE) para más detalles.
+
+---
 
 <div align="center">
-Creado y mantenido por <b>Write_Color</b>.
+  <sub>Desarrollado con devoción y tecnología de vanguardia por <a href="https://github.com/WriteColor">Write_Color</a>.</sub>
 </div>
