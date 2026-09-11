@@ -1,72 +1,7 @@
 import React, { useRef, useEffect } from 'react';
-import {
-  Heart,
-  Bot,
-  Gamepad2,
-  Terminal,
-  Coffee,
-  User,
-  LucideIcon
-} from 'lucide-react';
 import { SettingsApp } from '../settings/SettingsApp';
 import { useClickThrough } from '../hooks/useClickThrough.js';
 import { soundFxService } from '../domain/audio/SoundFxService.js';
-
-export interface PersonaPreset {
-  id: string;
-  name: string;
-  icon: LucideIcon;
-  color: string;
-  prompt: string;
-}
-
-/**
- * Predefined System Prompt Presets for Quick Persona Switching
- */
-export const PERSONA_PRESETS: PersonaPreset[] = [
-  {
-    id: 'yandere',
-    name: 'Cristi Yandere / Gótica (Por Defecto)',
-    icon: Heart,
-    color: '#f43f5e',
-    prompt: 'Personalidad Yandere devota'
-  },
-  {
-    id: 'ellen',
-    name: 'Ellen Joe (Maid Tsundere)',
-    icon: Coffee,
-    color: '#38bdf8',
-    prompt: 'Personalidad Ellen Joe'
-  },
-  {
-    id: 'tsundere',
-    name: 'Tsundere Clásica',
-    icon: Bot,
-    color: '#fbbf24',
-    prompt: 'Personalidad Tsundere'
-  },
-  {
-    id: 'hiyori',
-    name: 'Hiyori (Alegre & Empática)',
-    icon: User,
-    color: '#34d399',
-    prompt: 'Personalidad Alegre'
-  },
-  {
-    id: 'gamer',
-    name: 'Gamer Competitiva',
-    icon: Gamepad2,
-    color: '#a855f7',
-    prompt: 'Personalidad Gamer'
-  },
-  {
-    id: 'hacker',
-    name: 'IA Hacker Táctica',
-    icon: Terminal,
-    color: '#06b6d4',
-    prompt: 'Personalidad Hacker'
-  }
-];
 
 export interface SettingsModalProps {
   isOpen: boolean;

@@ -162,7 +162,12 @@ export class ConfigManager {
       live2dModelId: typeof base.live2dModelId === 'string' && base.live2dModelId.trim() ? base.live2dModelId.trim() : 'yanderegirl',
       voiceName: typeof base.voiceName === 'string' && base.voiceName.trim() ? base.voiceName.trim() : 'Aoede',
       temperature: typeof base.temperature === 'number' && !isNaN(base.temperature) ? Math.max(0, Math.min(2, base.temperature)) : 0.75,
-      systemPrompt: typeof base.systemPrompt === 'string' && base.systemPrompt.trim() && !base.systemPrompt.includes('1. Respuestas habladas, fluidas, íntimas y concisas:') && base.systemPrompt.includes('PROHIBICIÓN TOTAL DE COLETILLAS VOCALES') ? base.systemPrompt : SYSTEM_PERSONA_PROMPT,
+      systemPrompt: typeof base.systemPrompt === 'string' && base.systemPrompt.trim()
+        && !base.systemPrompt.includes('1. Respuestas habladas, fluidas, íntimas y concisas:')
+        && !base.systemPrompt.includes('Rasgos Fundamentales de tu Identidad y Convivencia:')
+        && !base.systemPrompt.includes('Cadencia Seductora, Pausada y Coqueta:')
+        ? base.systemPrompt.trim()
+        : SYSTEM_PERSONA_PROMPT,
       spotifyClientId: safeSpotifyClientId,
       alwaysOnTop: base.alwaysOnTop === true,
       viewMode: (base.viewMode as AppConfig['viewMode']) || 'torso',

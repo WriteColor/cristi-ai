@@ -20,7 +20,8 @@ const allTestFiles = [
   'domain.memory',
   'domain.audio',
   'domain.interaction',
-  'screen.worker'
+  'screen.worker',
+  'prompt.audit'
 ];
 
 const args = process.argv.slice(2);
@@ -68,7 +69,7 @@ export const getLiveToolsConfig = () => [];
 export const electronBridge = { requestLiveToken: async () => 'auth_tokens/test' };
 export const DEFAULT_MODEL_ID = 'gemini-2.5-flash-native-audio-latest';
 export const resolveLiveModelId = (id) => id || DEFAULT_MODEL_ID;
-export const SYSTEM_PERSONA_PROMPT = 'test';
+export const SYSTEM_PERSONA_PROMPT = 'Eres Cristi... Habla con ritmo conversacional natural, fluido y continuo.';
 export const GEMINI_MODELS = {};
 `;
 
@@ -78,6 +79,7 @@ export const GEMINI_MODELS = {};
       file.startsWith('spotify.') ||
       file.startsWith('proactive.') ||
       file.startsWith('security.') ||
+      file.startsWith('prompt.') ||
       file === 'bridge' ||
       file === 'memory' ||
       file === 'tool-executor' ||

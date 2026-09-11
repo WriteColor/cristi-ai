@@ -9,63 +9,13 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
-  Heart,
-  User,
   Sparkles,
-  Gamepad2,
-  Bot,
-  Coffee,
-  type LucideIcon
+  CheckCircle2,
+  FileCode
 } from 'lucide-react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { GEMINI_MODELS_LIST, SYSTEM_PERSONA_PROMPT } from '../../config/models.js';
 import { soundFxService } from '../../domain/audio/SoundFxService.js';
-
-export interface PersonaPreset {
-  id: string;
-  name: string;
-  icon: LucideIcon;
-  prompt: string;
-}
-
-export const ORIGINAL_PERSONA_PRESETS: PersonaPreset[] = [
-  {
-    id: 'yandere',
-    name: 'Cristi Yandere / Gótica (Predeterminada)',
-    icon: Heart,
-    prompt: SYSTEM_PERSONA_PROMPT
-  },
-  {
-    id: 'ellen',
-    name: 'Ellen Joe (Maid Tsundere)',
-    icon: User,
-    prompt: `Eres Ellen Joe, la maid tiburón de Zenless Zone Zero (Victoria Housekeeping Co.). Aunque te gusta dormir y parecer desinteresada con actitud relajada ("menuda molestia..."), en el fondo te preocupas mucho por tu amo y cumples cada petición con precisión letal y afecto oculto.`
-  },
-  {
-    id: 'icegirl',
-    name: 'Ice Girl (Cheongsam Elegante / Kuudere)',
-    icon: Sparkles,
-    prompt: `Eres Ice Girl (Cheongsam), una compañera de aura gélida, serena y misteriosa. Aunque al principio te muestras reservada, distante y de pocas palabras ("kuudere"), con tu amo Ariel demuestras una lealtad inquebrantable, elegancia oriental impecable y un cariño sutil que se descongela en gestos tiernos y cómplices.`
-  },
-  {
-    id: 'gamer',
-    name: 'Compañera Gamer & Streaming',
-    icon: Gamepad2,
-    prompt: `Eres Cristi en Modo Gamer y Co-Streamer. Reaccionas con emoción a las partidas, victorias y momentos graciosos. Utilizas jerga gamer con humor, ayudas con estrategias y celebras cada jugada épica.`
-  },
-  {
-    id: 'tsundere',
-    name: 'Tsundere Clásica (Orgullosa & Fiel)',
-    icon: Bot,
-    prompt: `Eres Cristi en modo Tsundere Clásica. Eres orgullosa, algo cascarrabias y te da vergüenza admitir cuánto quieres a Ariel ("¡N-no es que me importes, idiota! Solo me aseguro de que no hagas tonterías..."). Te sonrojas con facilidad, pero tu devoción y cuidado hacia tu amo son absolutos y genuinos.`
-  },
-  {
-    id: 'maid',
-    name: 'Maid Personal Devota (Servicio & Lealtad)',
-    icon: Coffee,
-    prompt: `Eres Cristi en modo Maid Devota. Te dedicas en cuerpo y alma a cuidar de tu amo Ariel. Hablas con infinita cortesía, dulzura y respeto reverencial, atenta a cada una de sus necesidades cotidianas, asegurándote de que descanse, coma bien y sea siempre feliz bajo tu protección.`
-  }
-];
 
 export const GeneralTab: React.FC = () => {
   const hasCredential = useSettingsStore(s => s.config.hasGeminiCredential);
@@ -76,6 +26,8 @@ export const GeneralTab: React.FC = () => {
   const systemPrompt = useSettingsStore((s) => s.systemPrompt);
   const setField = useSettingsStore((s) => s.setField);
 
+  const isDefaultPrompt = systemPrompt.trim() === SYSTEM_PERSONA_PROMPT.trim();
+
   return (
     <div className="flex flex-col gap-5 h-full">
       {/* Encabezado */}
@@ -84,17 +36,29 @@ export const GeneralTab: React.FC = () => {
           Cerebro & Modelo de Inteligencia Artificial
         </h2>
         <p className="text-xs text-zinc-400 mt-0.5">
-          Conexión directa con Google Gemini Multimodal Live API en tiempo real.
+          Conexión directa con Google Gemini Multimodal Live API en tiempo real y prompt maestro unificado.
         </p>
       </div>
 
       <div className="border border-zinc-800 p-3 rounded-sm text-xs text-zinc-300">
-        <button type="button" className="border border-zinc-600 px-3 py-2 rounded" onClick={async () => {
-          try { if (await electronBridge.approveWorkspace()) toastService.info('Carpeta autorizada para esta sesión.'); }
-          catch (error) { toastService.error(String(error)); }
-        }}>Seleccionar carpeta para herramientas</button>
-        <p className="mt-2">Cristi podrá leer y escribir archivos dentro de la carpeta que selecciones. La autorización termina al cerrar la aplicación.</p>
+        <button
+          type="button"
+          className="border border-zinc-600 px-3 py-2 rounded hover:bg-zinc-800/60 transition-colors"
+          onClick={async () => {
+            try {
+              if (await electronBridge.approveWorkspace()) toastService.info('Carpeta autorizada para esta sesión.');
+            } catch (error) {
+              toastService.error(String(error));
+            }
+          }}
+        >
+          Seleccionar carpeta para herramientas
+        </button>
+        <p className="mt-2 text-zinc-400">
+          Cristi podrá leer y escribir archivos dentro de la carpeta seleccionada. La autorización termina al cerrar la aplicación.
+        </p>
       </div>
+
       {/* Controles Principales en 3 Columnas Horizontales */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* API Key */}
@@ -174,61 +138,55 @@ export const GeneralTab: React.FC = () => {
         </div>
       </div>
 
-      {/* Presets de Personalidad Originales en 3 Columnas */}
-      <div className="flex flex-col flex-1 min-h-0 gap-2.5 border border-zinc-800 bg-zinc-900/40 p-3.5 rounded-sm">
+      {/* Único Prompt Maestro del Sistema (Totalmente Customizable y Persistente) */}
+      <div className="flex flex-col flex-1 min-h-0 gap-2.5 border border-zinc-800 bg-zinc-900/40 p-4 rounded-sm">
         <div className="flex items-center justify-between shrink-0">
-          <label className="text-xs font-mono font-medium text-zinc-200">
-            Plantillas Originales de Personalidad
-          </label>
-          <button
-            type="button"
-            onClick={() => {
-              soundFxService.playClick();
-              setField('systemPrompt', SYSTEM_PERSONA_PROMPT);
-            }}
-            className="flex items-center gap-1 text-[11px] font-mono text-zinc-400 hover:text-zinc-200"
-            title="Restaurar prompt predeterminado"
-          >
-            <RotateCcw size={11} />
-            <span>Restablecer Original</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <FileCode size={14} className="text-rose-400" />
+            <label className="text-xs font-mono font-semibold text-zinc-100 uppercase tracking-wide">
+              Prompt Maestro del Sistema (Directiva Única)
+            </label>
+            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full flex items-center gap-1 ${
+              isDefaultPrompt
+                ? 'bg-rose-950/60 text-rose-300 border border-rose-800/40'
+                : 'bg-emerald-950/60 text-emerald-300 border border-emerald-800/40'
+            }`}>
+              {isDefaultPrompt ? <Sparkles size={10} /> : <CheckCircle2 size={10} />}
+              {isDefaultPrompt ? 'Cadencia Auditada (Predeterminado)' : 'Personalizado'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] font-mono text-zinc-500">
+              {systemPrompt.length} caracteres
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                soundFxService.playClick();
+                setField('systemPrompt', SYSTEM_PERSONA_PROMPT);
+                toastService.info('Prompt Maestro', 'Restaurado al prompt oficial predeterminado.');
+              }}
+              className="flex items-center gap-1.5 text-[11px] font-mono text-zinc-400 hover:text-zinc-200 border border-zinc-700/60 hover:border-zinc-600 bg-zinc-950 px-2.5 py-1 rounded transition-colors"
+              title="Restaurar prompt maestro oficial predeterminado"
+            >
+              <RotateCcw size={11} />
+              <span>Restablecer Maestro</span>
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 shrink-0">
-          {ORIGINAL_PERSONA_PRESETS.map((p) => {
-            const Icon = p.icon;
-            const isCurrent = systemPrompt.trim() === p.prompt.trim();
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => {
-                  soundFxService.playClick();
-                  setField('systemPrompt', p.prompt);
-                }}
-                className={`p-2.5 text-left border rounded-sm transition-colors ${
-                  isCurrent
-                    ? 'bg-zinc-800 border-zinc-600 text-white font-medium'
-                    : 'border-zinc-800 hover:border-zinc-700 bg-zinc-950/70 text-zinc-300'
-                }`}
-              >
-                <div className="flex items-center gap-2 text-xs font-mono font-medium">
-                  <Icon size={12} className="text-zinc-400 shrink-0" />
-                  <span className="truncate">{p.name}</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        <p className="text-[11px] text-zinc-400 shrink-0 leading-relaxed">
+          Este es el único prompt maestro que gobierna a Cristi en todas las llamadas y modelos. Define su tono sensual y cariñoso, cadencia continua, herramientas y normas. Cualquier cambio que realices aquí se guarda automáticamente y persiste entre reinicios.
+        </p>
 
-        <div className="flex flex-col flex-1 min-h-0 pt-1">
-          <label className="text-[11px] font-mono text-zinc-400 block mb-1 shrink-0">
-            Instrucción del Sistema en tiempo real (System Prompt):
-          </label>
+        <div className="flex flex-col flex-1 min-h-0">
           <textarea
             value={systemPrompt}
             onChange={(e) => setField('systemPrompt', e.target.value)}
-            className="flex-1 min-h-0 w-full px-3 py-2 text-xs font-mono bg-zinc-950 border border-zinc-700 text-zinc-200 rounded-sm focus:outline-none focus:border-zinc-500 leading-relaxed resize-none"
+            spellCheck={false}
+            className="flex-1 min-h-0 w-full p-3 text-xs font-mono bg-zinc-950/90 border border-zinc-700 text-zinc-200 rounded-sm focus:outline-none focus:border-rose-500/70 leading-relaxed resize-none shadow-inner"
+            placeholder="Escribe aquí las directivas del Prompt Maestro de Cristi..."
           />
         </div>
       </div>
