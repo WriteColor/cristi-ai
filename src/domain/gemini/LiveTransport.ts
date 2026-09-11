@@ -11,7 +11,7 @@ import { electronBridge } from '../../services/desktop/ElectronBridge';
  * and instantaneous Barge-in interruption handling.
  */
 
-import { SYSTEM_PERSONA_PROMPT, DEFAULT_MODEL_ID } from '../../config/models.js';
+import { SYSTEM_PERSONA_PROMPT, DEFAULT_MODEL_ID, resolveLiveModelId } from '../../config/models.js';
 import { getLiveToolsConfig } from '../../config/tools.js';
 import { sanitizeVoiceForModel } from '../../config/voices.js';
 import { logger } from '../../infrastructure/logging/logger.js';
@@ -191,9 +191,12 @@ export class GeminiLiveSocket implements LiveSessionPort {
 
     const epoch = ++this._connectEpoch;
     try {
-      const token = await this.tokenProvider(this.modelId);
+      const activeModelId = resolveLiveModelId(this.modelId);
+      const token = await this.tokenProvider(activeModelId);
       if (epoch !== this._connectEpoch || this.isExplicitDisconnect) return;
-      const wsUrl = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?access_token=' + encodeURIComponent(token);
+      const wsUrl = token.startsWith('auth_tokens/')
+        ? 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?access_token=' + encodeURIComponent(token)
+        : 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=' + encodeURIComponent(token);
       const ws = new WebSocket(wsUrl);
       this.websocket = ws;
       ws.binaryType = 'arraybuffer';
@@ -315,7 +318,7 @@ export class GeminiLiveSocket implements LiveSessionPort {
 
     const setupMessage = {
       setup: {
-        model: `models/${this.modelId}`,
+        model: `models/${resolveLiveModelId(this.modelId)}`,
         generationConfig: generationConfig,
         systemInstruction: {
           parts: [{ text: this.includeCompanionContext ? enrichedPrompt : this.systemPrompt }]

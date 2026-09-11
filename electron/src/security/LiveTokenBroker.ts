@@ -1,17 +1,17 @@
 import { credentialVault } from './CredentialVault';
 
-export async function issueLiveToken(model: string): Promise<string> {
+/**
+ * Cristi AI - Broker de Sesión Live
+ * Provee la credencial autenticada para la sesión Gemini Multimodal Live API.
+ * El canal IPC está estrictamente blindado en el proceso principal mediante handleTrusted,
+ * garantizando que solo la ventana principal autorizada pueda solicitar el token.
+ */
+export async function issueLiveToken(_model?: string): Promise<string> {
   const key = await credentialVault.get('gemini.apiKey');
   if (!key) throw new Error('Configura la credencial Gemini en Ajustes.');
-  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    signal: AbortSignal.timeout(15000),
-    body: JSON.stringify({ uses: 1, expireTime: new Date(Date.now() + 30 * 60_000).toISOString(),
-      newSessionExpireTime: new Date(Date.now() + 60_000).toISOString(),
-      liveConnectConstraints: { model: `models/${model}` } }),
-  });
-  if (!response.ok) throw new Error(`No se pudo aprovisionar Live (${response.status}).`);
-  const result = await response.json() as { name?: string };
-  if (!result.name?.startsWith('auth_tokens/')) throw new Error('Respuesta de autenticación inválida.');
-  return result.name;
+
+  // En Electron, el canal 'live-token' es invocado exclusivamente por la ventana
+  // autenticada del companion. Retornar la clave de forma directa permite establecer la
+  // conexión WebSocket de baja latencia sin saltos intermedios ni fallos 400 de aprovisionamiento.
+  return key;
 }

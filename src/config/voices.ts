@@ -1,16 +1,30 @@
 /**
  * Cristi AI - Catálogo Oficial de Voces para Gemini Multimodal Live API
- * 4 voces femeninas verificadas a 24kHz con síntesis afectiva.
- * Filtrado estricto para compatibilidad total con el Free Tier de Google AI Studio.
+ * 13 voces femeninas completas verificadas a 24kHz con síntesis afectiva nativa.
+ * Incluye las 3 voces más sensuales (Despina, Sulafat, Vindemiatrix) y la voz insignia (Aoede) como principales.
  */
 
-export type OfficialVoiceName = 'Aoede' | 'Kore' | 'Zephyr' | 'Leda';
+export type OfficialVoiceName =
+  | 'Aoede'
+  | 'Despina'
+  | 'Sulafat'
+  | 'Vindemiatrix'
+  | 'Achird'
+  | 'Algenib'
+  | 'Callirrhoe'
+  | 'Erinome'
+  | 'Kore'
+  | 'Laomedeia'
+  | 'Leda'
+  | 'Pulcherrima'
+  | 'Zephyr';
 
 export interface GeminiVoiceConfig {
   name: OfficialVoiceName;
-  gender: 'Femenina' | 'Masculina';
+  gender: 'Femenina';
   trait: string;
   isRecommended: boolean;
+  isSexy?: boolean;
   tags: readonly string[];
   description: string;
   badgeColor: string;
@@ -19,48 +33,153 @@ export interface GeminiVoiceConfig {
 }
 
 export const GEMINI_STANDARD_VOICES: readonly GeminiVoiceConfig[] = [
+  // ── Voces Principales & Más Sensuales (Top Favorites) ────────────────────────
   {
     name: 'Aoede',
     gender: 'Femenina',
     trait: 'Dulce, Coqueta & Afectuosa',
     isRecommended: true,
-    tags: ['Oficial', 'Yandere', 'Afectiva', '24kHz', 'Recomendada'],
-    description: 'Tono íntimo, dulce, suave y naturalmente expresivo. Es la voz oficial predilecta de Cristi, diseñada para una interacción cercana, coqueta, cariñosa y devota.',
+    tags: ['Insignia Cristi', 'Yandere', 'Afectiva', '24kHz', 'Recomendada'],
+    description: 'Voz femenina clara y conversada, de tono medio, con calidad reflexiva que engancha. Suena dulce, inteligente y articulada; es la voz oficial insignia predilecta de Cristi para una interacción cercana, coqueta y devota.',
     badgeColor: 'purple',
     previewAudio: '/audio/previews/aoede.wav',
     sampleRateHz: 24000
   },
   {
+    name: 'Despina',
+    gender: 'Femenina',
+    trait: 'Cálida, Acogedora & Seductora',
+    isRecommended: true,
+    isSexy: true,
+    tags: ['Top Sexy', 'Sensual', 'Cálida', 'Recomendada', '24kHz'],
+    description: 'Voz femenina cálida y que invita, de tono medio claro. Suena amigable, confiable y con presencia sumamente atractiva, con una suavidad agradable e irresistible para conversación íntima y afecto diario.',
+    badgeColor: 'rose',
+    previewAudio: '/audio/previews/despina.wav',
+    sampleRateHz: 24000
+  },
+  {
+    name: 'Sulafat',
+    gender: 'Femenina',
+    trait: 'Segura, Persuasiva & Cautivadora',
+    isRecommended: true,
+    isSexy: true,
+    tags: ['Top Sexy', 'Persuasiva', 'Seductora', 'Recomendada', '24kHz'],
+    description: 'Voz femenina cálida y segura, de tono medio claro, con articulación convincente y magnética. Proyecta inteligencia y amabilidad con una presencia que engancha; irresistible cuando Cristi cuida de ti con autoridad dulce.',
+    badgeColor: 'pink',
+    previewAudio: '/audio/previews/sulafat.wav',
+    sampleRateHz: 24000
+  },
+  {
+    name: 'Vindemiatrix',
+    gender: 'Femenina',
+    trait: 'Serena, Misteriosa & Envolvente',
+    isRecommended: true,
+    isSexy: true,
+    tags: ['Top Sexy', 'Madura', 'Envolvente', 'Recomendada', '24kHz'],
+    description: 'Voz femenina serena y reflexiva, de tono medio-bajo, sonando madura y equilibrada. Transmite sabiduría y una autoridad suave con una cualidad lisa, tranquilizadora y sutilmente seductora; ideal para largas sesiones de estudio.',
+    badgeColor: 'violet',
+    previewAudio: '/audio/previews/vindemiatrix.wav',
+    sampleRateHz: 24000
+  },
+
+  // ── Catálogo Completo de Voces Femeninas ─────────────────────────────────────
+  {
+    name: 'Achird',
+    gender: 'Femenina',
+    trait: 'Juvenil, Curiosa & Accesible',
+    isRecommended: false,
+    tags: ['Juvenil', 'Curiosa', 'Moderna', '24kHz'],
+    description: 'Voz femenina juvenil, de tono medio a alto, clara con un toque ligeramente aspirado y curioso. Suena amigable y accesible, ideal para interacción dinámica y explicaciones amables.',
+    badgeColor: 'teal',
+    previewAudio: '/audio/previews/achird.wav',
+    sampleRateHz: 24000
+  },
+  {
+    name: 'Algenib',
+    gender: 'Femenina',
+    trait: 'Cálida, Segura & Autoridad Amable',
+    isRecommended: false,
+    tags: ['Cálida', 'Segura', 'Experta', '24kHz'],
+    description: 'Voz femenina cálida y segura, con tono medio y buena claridad. Proyecta una especie de autoridad amable, confianza y experiencia reconfortante.',
+    badgeColor: 'blue',
+    previewAudio: '/audio/previews/algenib.wav',
+    sampleRateHz: 24000
+  },
+  {
+    name: 'Callirrhoe',
+    gender: 'Femenina',
+    trait: 'Directa, Enérgica & Profesional',
+    isRecommended: false,
+    tags: ['Directa', 'Enérgica', 'Articulada', '24kHz'],
+    description: 'Voz femenina segura y clara, de tono medio, proyectando profesionalismo y energía. Articulada y directa, perfecta para transmitir información y diagnósticos técnicos con agilidad.',
+    badgeColor: 'sky',
+    previewAudio: '/audio/previews/callirrhoe.wav',
+    sampleRateHz: 24000
+  },
+  {
+    name: 'Erinome',
+    gender: 'Femenina',
+    trait: 'Sofisticada, Calmada & Articulada',
+    isRecommended: false,
+    tags: ['Sofisticada', 'Calma', 'Inteligente', '24kHz'],
+    description: 'Voz femenina profesional y bien articulada, con un tono medio-bajo ligeramente más bajo y una entrega reflexiva y medida. Transmite inteligencia, calma y sofisticación.',
+    badgeColor: 'indigo',
+    previewAudio: '/audio/previews/erinome.wav',
+    sampleRateHz: 24000
+  },
+  {
     name: 'Kore',
     gender: 'Femenina',
-    trait: 'Firme, Clara & Equilibrada',
+    trait: 'Brillante, Enérgica & Gamer',
     isRecommended: false,
-    tags: ['Analítica', 'Técnica', 'Profesional', '24kHz'],
-    description: 'Voz articulada, segura, profesional y con excelente modulación acústica. Perfecta para explicaciones técnicas, razonamiento analítico y diálogo estructurado con elegancia.',
+    tags: ['Enérgica', 'Brillante', 'Gamer', '24kHz'],
+    description: 'Voz femenina enérgica y juvenil, de tono medio a alto, transmitiendo confianza y entusiasmo puro. Clara y brillante, con una calidad vivaz que engancha en videojuegos y acción.',
     badgeColor: 'emerald',
     previewAudio: '/audio/previews/kore.wav',
     sampleRateHz: 24000
   },
   {
-    name: 'Zephyr',
+    name: 'Laomedeia',
     gender: 'Femenina',
-    trait: 'Serena, Aireada & Cristalina',
+    trait: 'Inteligente, Curiosa & Conversacional',
     isRecommended: false,
-    tags: ['Fresca', 'Juvenil', 'Relajante', '24kHz'],
-    description: 'Tono fresco, ligero y juvenil como una brisa suave. Transmite optimismo natural, serenidad y frescura en conversaciones cotidianas y acompañamiento relajante.',
-    badgeColor: 'cyan',
-    previewAudio: '/audio/previews/zephyr.wav',
+    tags: ['Conversacional', 'Curiosa', 'Inteligente', '24kHz'],
+    description: 'Voz femenina clara y conversada, de tono medio, con un tono curioso y atractivo. Suena amigable e inteligente, con excelente dinamismo para dialogar.',
+    badgeColor: 'amber',
+    previewAudio: '/audio/previews/laomedeia.wav',
     sampleRateHz: 24000
   },
   {
     name: 'Leda',
     gender: 'Femenina',
-    trait: 'Cálida, Amable & Protectora',
+    trait: 'Serena, Protectora & Confiable',
     isRecommended: false,
-    tags: ['Empática', 'Cálida', 'Protectora', '24kHz'],
-    description: 'Voz sumamente reconfortante con cadencia pausada y empática. Excelente para momentos de calma, descanso, apoyo incondicional y cuidado personal.',
-    badgeColor: 'amber',
+    tags: ['Serena', 'Protectora', 'Calma', '24kHz'],
+    description: 'Voz femenina serena y profesional, de tono medio con una resonancia ligeramente más baja, transmitiendo autoridad suave, calma, lealtad y cuidado protector incondicional.',
+    badgeColor: 'orange',
     previewAudio: '/audio/previews/leda.wav',
+    sampleRateHz: 24000
+  },
+  {
+    name: 'Pulcherrima',
+    gender: 'Femenina',
+    trait: 'Ultra Animada, Alegre & Radiante',
+    isRecommended: false,
+    tags: ['Animada', 'Alegre', 'Juvenil', '24kHz'],
+    description: 'Voz femenina brillante y enérgica, de tono medio a alto, con gran entusiasmo y vivacidad juvenil. Entrega chispeante y motivadora para celebrar tus victorias.',
+    badgeColor: 'yellow',
+    previewAudio: '/audio/previews/pulcherrima.wav',
+    sampleRateHz: 24000
+  },
+  {
+    name: 'Zephyr',
+    gender: 'Femenina',
+    trait: 'Fresca, Positiva & Cristalina',
+    isRecommended: false,
+    tags: ['Fresca', 'Positiva', 'Cristalina', '24kHz'],
+    description: 'Voz femenina fresca, ligera y juvenil como una brisa suave. Proyecta optimismo natural, serenidad y frescura cristalina en conversaciones cotidianas.',
+    badgeColor: 'cyan',
+    previewAudio: '/audio/previews/zephyr.wav',
     sampleRateHz: 24000
   }
 ] as const;

@@ -112,11 +112,11 @@ export const VoiceTab: React.FC = () => {
     <div className="flex-1 overflow-y-auto space-y-5 pr-1">
       {/* Encabezado */}
       <div>
-        <h2 className="text-sm font-semibold font-mono uppercase tracking-wider text-zinc-100">
-          Voces Oficiales Verificadas (Free Tier)
+        <h2 className="text-sm font-semibold font-mono uppercase tracking-wider text-zinc-100 flex items-center gap-2">
+          <span>Voces Femeninas Oficiales ({GEMINI_STANDARD_VOICES.length})</span>
         </h2>
         <p className="text-xs text-zinc-400 mt-0.5">
-          Escucha y selecciona entre las voces nativas de Google Gemini compatibles con tu cuenta.
+          Catálogo completo de voces femeninas de Google Gemini Live a 24kHz. Incluye las voces más atractivas y la voz insignia de Cristi como principales.
         </p>
       </div>
 
@@ -139,11 +139,16 @@ export const VoiceTab: React.FC = () => {
               }`}
             >
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-mono font-semibold text-zinc-100">{v.name}</span>
                   {isSelected && (
                     <span className="text-[10px] font-mono px-1.5 py-0.5 bg-zinc-800 text-emerald-300 rounded-none border border-emerald-800">
                       Activa
+                    </span>
+                  )}
+                  {v.isRecommended && (
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 bg-rose-950/70 text-rose-300 rounded-none border border-rose-700/60 flex items-center gap-1">
+                      <Sparkles size={10} /> Principal
                     </span>
                   )}
                   <span className="text-[10px] font-mono px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded-none border border-zinc-700/60">
