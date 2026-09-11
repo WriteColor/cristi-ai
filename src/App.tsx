@@ -4,7 +4,6 @@ import { ShieldAlert, X } from 'lucide-react';
 import {
   BackgroundScene,
   AvatarStage,
-  SubtitleOverlay,
   FloatingHUD,
   ContextMenu,
   ScreenRegionOverlay,
@@ -32,7 +31,7 @@ export function App() {
   }, []);
 
   // Consume Zustand stores
-  const { currentGesture, viewMode, isSpeaking, isListening, activeToolName, activeDecision, isSolidBackdrop, isAlwaysOnTop, isClickThroughEnabled, isZenMode, isUiVisible, contextMenu, triggerRandomGesture, toggleViewMode, toggleBackdrop, toggleAlwaysOnTop, toggleClickThrough, toggleZenMode, closeContextMenu } = useCompanionStore(useShallow(s => ({ currentGesture: s.currentGesture, viewMode: s.viewMode, isSpeaking: s.isSpeaking, isListening: s.isListening, activeToolName: s.activeToolName, activeDecision: s.activeDecision, isSolidBackdrop: s.isSolidBackdrop, isAlwaysOnTop: s.isAlwaysOnTop, isClickThroughEnabled: s.isClickThroughEnabled, isZenMode: s.isZenMode, isUiVisible: s.isUiVisible, contextMenu: s.contextMenu, triggerRandomGesture: s.triggerRandomGesture, toggleViewMode: s.toggleViewMode, toggleBackdrop: s.toggleBackdrop, toggleAlwaysOnTop: s.toggleAlwaysOnTop, toggleClickThrough: s.toggleClickThrough, toggleZenMode: s.toggleZenMode, closeContextMenu: s.closeContextMenu })));
+  const { currentGesture, viewMode, isSpeaking, isListening, activeToolName, isSolidBackdrop, isAlwaysOnTop, isClickThroughEnabled, isZenMode, isUiVisible, contextMenu, triggerRandomGesture, toggleViewMode, toggleBackdrop, toggleAlwaysOnTop, toggleClickThrough, toggleZenMode, closeContextMenu } = useCompanionStore(useShallow(s => ({ currentGesture: s.currentGesture, viewMode: s.viewMode, isSpeaking: s.isSpeaking, isListening: s.isListening, activeToolName: s.activeToolName, isSolidBackdrop: s.isSolidBackdrop, isAlwaysOnTop: s.isAlwaysOnTop, isClickThroughEnabled: s.isClickThroughEnabled, isZenMode: s.isZenMode, isUiVisible: s.isUiVisible, contextMenu: s.contextMenu, triggerRandomGesture: s.triggerRandomGesture, toggleViewMode: s.toggleViewMode, toggleBackdrop: s.toggleBackdrop, toggleAlwaysOnTop: s.toggleAlwaysOnTop, toggleClickThrough: s.toggleClickThrough, toggleZenMode: s.toggleZenMode, closeContextMenu: s.closeContextMenu })));
 
   const { isConnected, isConnecting, errorMessage, setErrorMessage } = useSessionStore(useShallow(s => ({ isConnected: s.isConnected, isConnecting: s.isConnecting, errorMessage: s.errorMessage, setErrorMessage: s.setErrorMessage })));
   const { isMuted, toggleMute } = useAudioStore(useShallow(s => ({ isMuted: s.isMuted, toggleMute: s.toggleMute })));
@@ -74,13 +73,7 @@ export function App() {
         onModelContextMenu={handleModelContextMenu}
       />
 
-      {/* 3. SubtitleOverlay */}
-      <ConnectedSubtitles
-        activeDecision={activeDecision}
-        isVisible={isUiVisible && !isZenMode}
-      />
-
-      {/* 4. FloatingHUD */}
+      {/* 3. FloatingHUD */}
       <FloatingHUD
         isConnected={isConnected} isConnecting={isConnecting} isMuted={isMuted}
         isCameraActive={isCameraActive} isSolidBackdrop={isSolidBackdrop}
@@ -96,7 +89,7 @@ export function App() {
         onToggleZenMode={toggleZenMode} onWakeUi={resetInactivityTimer}
       />
 
-      {/* 5. ContextMenu */}
+      {/* 4. ContextMenu */}
       <ContextMenu
         position={contextMenu} isOpen={contextMenu.isOpen} onClose={closeContextMenu}
         onOpenSettings={handleOpenSettings} onToggleCamera={handleToggleCamera} isCameraActive={isCameraActive}
@@ -111,30 +104,22 @@ export function App() {
         activeVoiceName={config.voiceName} onSwitchVoice={switchVoice}
       />
 
-      {/* 6. ScreenRegionOverlay & ScreenRegionPicker */}
+      {/* 5. ScreenRegionOverlay & ScreenRegionPicker */}
       <ScreenRegionOverlay region={screenRegion} isWatchActive={isScreenWatchActive} />
       {isRegionPickerOpen && (
         <ScreenRegionPicker onRegionSelected={handleRegionSelected} onCancel={closeRegionPicker} />
       )}
 
-      {/* 7. PerformanceHUD */}
+      {/* 6. PerformanceHUD */}
       <PerformanceHUD isVisible={isPerformanceHudOpen} onClose={closePerformanceHud} />
 
-      {/* 8. DesktopWidgets */}
+      {/* 7. DesktopWidgets */}
       <DesktopWidgets isVisible={showWidgets && isUiVisible && !isZenMode} />
 
-      {/* 9. ToastContainer */}
+      {/* 8. ToastContainer */}
       <ToastContainer />
     </div>
   );
 }
 
 export default App;
-
-function ConnectedSubtitles(props: { activeDecision: unknown; isVisible: boolean }) {
-  const userTranscript = useSessionStore(s => s.userTranscript);
-  const modelTranscript = useSessionStore(s => s.modelTranscript);
-  const translationTranscript = useSessionStore(s => s.translationTranscript);
-  const provisional = useSessionStore(s => Boolean(s.inputInterim || s.outputInterim));
-  return <div data-transcript-provisional={provisional}><SubtitleOverlay {...props} userTranscript={userTranscript} modelTranscript={modelTranscript} translationTranscript={translationTranscript} /></div>;
-}

@@ -6,12 +6,8 @@ const MAX_LOGS = 100;
 
 export interface SessionState {
   dispatchConnection: (event: ConnectionEvent) => void;
-  inputInterim: string; inputFinal: string; outputInterim: string; outputFinal: string;
-  setTranscript: (direction: 'input' | 'output', text: string, final: boolean) => void;
   // --- Core Estado Requerido ---
   connectionState: GeminiLiveConnectionState;
-  userSubtitle: string;
-  assistantSubtitle: string;
   isInterrupted: boolean;
   activeToolName: string | null;
   recentLogs: SessionLog[];
@@ -19,41 +15,25 @@ export interface SessionState {
   // --- Extended / Convenience State ---
   isConnected: boolean;
   isConnecting: boolean;
-  userTranscript: string;
-  modelTranscript: string;
-  translationTranscript: string;
   errorMessage: string | null;
 
   // --- Core Acciones Requeridas ---
   setConnectionState: (connectionState: GeminiLiveConnectionState) => void;
-  setUserSubtitle: (userSubtitle: string) => void;
-  setAssistantSubtitle: (assistantSubtitle: string) => void;
   setInterrupted: (isInterrupted: boolean) => void;
   setActiveTool: (activeToolName: string | null) => void;
   addLog: (tagOrLog: string | Omit<SessionLog, 'id' | 'timestamp'> | SessionLog, maybeMessage?: string) => void;
-  clearSubtitles: () => void;
 
   // --- Extended Actions ---
   setIsConnected: (isConnected: boolean) => void;
   setIsConnecting: (isConnecting: boolean) => void;
-  setUserTranscript: (userTranscript: string) => void;
-  setModelTranscript: (modelTranscript: string) => void;
-  setTranslationTranscript: (translationTranscript: string) => void;
   setErrorMessage: (errorMessage: string | null) => void;
-  setSubtitleText: (text: string) => void;
   clearLogs: () => void;
 }
 
 export const useSessionStore = create<SessionState>()((set) => ({
   dispatchConnection: event => set(state => connectionView(connectionTransition(state.connectionState, event))),
-  inputInterim: '', inputFinal: '', outputInterim: '', outputFinal: '',
-  setTranscript: (direction, text, final) => set(direction === 'input'
-    ? { inputInterim: final ? '' : text, inputFinal: final ? text : '', userTranscript: text, userSubtitle: text }
-    : { outputInterim: final ? '' : text, outputFinal: final ? text : '', modelTranscript: text, assistantSubtitle: text }),
   // Core initial state
   connectionState: 'DISCONNECTED',
-  userSubtitle: '',
-  assistantSubtitle: '',
   isInterrupted: false,
   activeToolName: null,
   recentLogs: [],
@@ -61,16 +41,11 @@ export const useSessionStore = create<SessionState>()((set) => ({
   // Extended initial state
   isConnected: false,
   isConnecting: false,
-  userTranscript: '',
-  modelTranscript: '',
-  translationTranscript: '',
   errorMessage: null,
 
   // Core Actions
   setConnectionState: connectionState => set(connectionView(connectionState)),
 
-  setUserSubtitle: (userSubtitle) => set({ userSubtitle, userTranscript: userSubtitle }),
-  setAssistantSubtitle: (assistantSubtitle) => set({ assistantSubtitle, modelTranscript: assistantSubtitle }),
   setInterrupted: (isInterrupted) => set({ isInterrupted }),
   setActiveTool: (activeToolName) => set({ activeToolName }),
 
@@ -100,24 +75,11 @@ export const useSessionStore = create<SessionState>()((set) => ({
       return { recentLogs: nextLogs };
     }),
 
-  clearSubtitles: () =>
-    set({ inputInterim: '', inputFinal: '', outputInterim: '', outputFinal: '',
-      userSubtitle: '',
-      assistantSubtitle: '',
-      userTranscript: '',
-      modelTranscript: '',
-      translationTranscript: '',
-    }),
-
   // Extended Actions
   setIsConnected: isConnected => set(connectionView(isConnected ? 'READY' : 'DISCONNECTED')),
   setIsConnecting: isConnecting => set(state => connectionView(isConnecting ? 'CONNECTING' :
     state.connectionState === 'CONNECTING' || state.connectionState === 'RECONNECTING' ? 'DISCONNECTED' : state.connectionState)),
 
-  setUserTranscript: (userTranscript) => set({ userTranscript, userSubtitle: userTranscript, inputInterim: '', inputFinal: userTranscript }),
-  setModelTranscript: (modelTranscript) => set({ modelTranscript, assistantSubtitle: modelTranscript, outputInterim: '', outputFinal: modelTranscript }),
-  setTranslationTranscript: (translationTranscript) => set({ translationTranscript }),
   setErrorMessage: (errorMessage) => set({ errorMessage }),
-  setSubtitleText: (text) => set({ assistantSubtitle: text, modelTranscript: text }),
   clearLogs: () => set({ recentLogs: [] }),
 }));

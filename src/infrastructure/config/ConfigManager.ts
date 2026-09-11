@@ -183,7 +183,6 @@ export class ConfigManager {
       soundFxEnabled: base.soundFxEnabled !== false,
       soundFxVolume: typeof base.soundFxVolume === 'number' ? base.soundFxVolume : 0.7,
       voiceVolume: typeof base.voiceVolume === 'number' ? base.voiceVolume : 1.0,
-      silenceThreshold: typeof base.silenceThreshold === 'number' ? base.silenceThreshold : 0.02,
       discord: sanitizeDiscordConfig(base.discord),
       externalTranslationEnabled: base.externalTranslationEnabled === true,
       translationTargetLanguage: typeof base.translationTargetLanguage === 'string' && /^[a-z]{2,8}$/i.test(base.translationTargetLanguage.trim())

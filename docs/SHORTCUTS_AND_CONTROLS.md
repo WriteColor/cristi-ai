@@ -26,7 +26,7 @@ Estos atajos se activan al interactuar con la aplicación de Cristi AI:
 | Tecla / Atajo | Acción | Contexto y Funcionamiento |
 |---|---|---|
 | **`F3`** | **Enterprise Performance Profiler & Observability HUD** | Abre/Cierra el panel futurista de telemetría en tiempo real estilo Minecraft timings. Muestra **FPS, TPS (Ticks Per Second), tiempo de frame P99, memoria JS Heap vs RSS, atribución de costes por subsistema** (Live2D, Audio DSP, Visión, UI React) y el detector autónomo de anomalías. |
-| **`H` / `h`** | **Modo Zen / Ghost UI** | Oculta todos los botones, subtítulos, HUDs y widgets, dejando exclusivamente al personaje Live2D flotando sobre tu escritorio sin distracciones. *(Desactivado automáticamente mientras se escribe en campos de texto)*. |
+| **`H` / `h`** | **Modo Zen / Ghost UI** | Oculta todos los botones, HUDs y widgets, dejando exclusivamente al personaje Live2D flotando sobre tu escritorio sin distracciones. *(Desactivado automáticamente mientras se escribe en campos de texto)*. |
 | **`Escape`** | **Cerrar Todo / Descartar** | Cierra de forma inmediata cualquier ventana modal o menú abierto: Menú Contextual, Modal de Ajustes, Enrolamiento Vocal, Sandbox de Bloqueo, Selector de Región de Pantalla o Selector de Archivos. |
 
 ---

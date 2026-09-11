@@ -51,11 +51,8 @@ export interface GeminiLiveConfig {
   onClose?: (event: CloseEvent) => void;
   onError?: (err: any) => void;
   onAudioChunk?: (pcm16: Int16Array) => void;
-  onInputTranscription?: (text: string) => void;
-  onOutputTranscription?: (text: string) => void;
   onInterrupted?: () => void;
   onTurnComplete?: () => void;
-  onTextPart?: (text: string) => void;
   onToolCall?: (calls: GeminiLiveToolCall[]) => Promise<GeminiLiveToolResponse[]> | void;
   onConnectionStateChange?: (state: GeminiLiveConnectionState) => void;
 }

@@ -192,10 +192,6 @@ Cristi opera mediante **WebSocket bidireccional S2S** con la API en tiempo real 
 * **Despachador de Visión con Backpressure (`VisionFrameDispatcher`):**
   * Mantiene exclusivamente el fotograma más reciente en cola acotada.
   * Aplica pausa y degradación elegante mientras el modelo está emitiendo voz para no saturar el canal de subida.
-* **Subtítulos con Commit Atómico:**
-  * La transcripción de la voz del usuario se muestra de inmediato con el primer delta recibido.
-  * La respuesta textual de Cristi se acumula en un buffer y se vuelca completa a la interfaz al recibir el evento `turnComplete`, evitando que el texto visual se adelante a la cadencia natural de su voz hablada.
-
 ---
 
 ## 6. Automatización Web con Playwright (Brave Browser)

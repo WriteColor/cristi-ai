@@ -324,6 +324,7 @@ export class GeminiLiveSocket implements LiveSessionPort {
         // Avoids relying on high server defaults (~800-1000ms) to ensure responsive turn-taking.
         realtimeInputConfig: {
           turnCoverage: 'TURN_INCLUDES_AUDIO_ACTIVITY_AND_ALL_VIDEO',
+          activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
           automaticActivityDetection: {
             disabled: false,
             startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',

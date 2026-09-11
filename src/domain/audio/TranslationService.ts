@@ -7,7 +7,6 @@ export interface TranslationProvider {
   translateAndDetect?: (params: { text: string; targetLanguage: string; sourceId?: string; sessionId?: string | null }) => Promise<{ text?: string; sourceLanguage?: string | null; success?: boolean } | null | undefined>;
   translate?: (params: { text: string; sourceLanguage?: string | null; targetLanguage: string; sourceId?: string; sessionId?: string | null }) => Promise<{ text?: string; success?: boolean; error?: string } | null | undefined>;
   synthesize?: (params: { text: string; language: string; sourceId?: string; sessionId?: string | null }) => Promise<{ data?: string; frameId?: string; sampleRate?: number } | null | undefined>;
-  isVoiceActivity?: (data?: string, options?: unknown) => boolean;
   isRelevant?: (params: { text: string; sourceId?: string; speakerId?: string | null; sessionId?: string | null }) => Promise<boolean> | boolean;
   detectSpeaker?: (params: { transcript: string; data?: string; sourceId?: string; sessionId?: string | null }) => Promise<string | null>;
 }
@@ -122,7 +121,6 @@ export class TranslationService {
       translateAndDetect: provider.translateAndDetect || (async () => null),
       translate: provider.translate || unsupported,
       synthesize: provider.synthesize || (async () => null),
-      isVoiceActivity: provider.isVoiceActivity || (() => true),
       isRelevant: provider.isRelevant || (() => true),
       detectSpeaker: provider.detectSpeaker || (async () => null)
     };
@@ -131,7 +129,7 @@ export class TranslationService {
   configure(provider: TranslationProvider = {}): void {
     const methods: (keyof TranslationProvider)[] = [
       'transcribe', 'detectLanguage', 'translateAndDetect', 'translate',
-      'synthesize', 'isVoiceActivity', 'isRelevant', 'detectSpeaker'
+      'synthesize', 'isRelevant', 'detectSpeaker'
     ];
     const bound: Partial<TranslationProvider> = {};
     for (const method of methods) {
@@ -282,11 +280,6 @@ export class TranslationService {
     if (!frame?.data) return;
     const aggregateMs = Math.max(0, Number(options.aggregateMs) || 0);
     const aggregationKey = options.aggregationKey || frame.sourceId || 'external_audio';
-    if (!this._isVoiceActive(frame, options)) {
-      if (this.aggregators.has(aggregationKey)) this._flushAggregator(aggregationKey);
-      else this.metrics.dropped += 1;
-      return;
-    }
     if (!aggregateMs) {
       this.enqueueFrame({ ...frame, routed: true, ...options });
       return;
@@ -305,14 +298,6 @@ export class TranslationService {
     current.timer = setTimeout(() => this._flushAggregator(aggregationKey), aggregateMs);
     if (elapsed >= Math.max(aggregateMs, Number(options.maxUtteranceMs) || 1800) || current.bytes >= 128000) {
       this._flushAggregator(aggregationKey);
-    }
-  }
-
-  private _isVoiceActive(frame: TranslationFrameInput, options: unknown = {}): boolean {
-    try {
-      return this.provider.isVoiceActivity(frame?.data, { frame, ...(options && typeof options === 'object' ? options : {}) }) !== false;
-    } catch {
-      return true;
     }
   }
 
@@ -433,7 +418,7 @@ export class TranslationService {
     const frame = routed
       ? { frameId, sourceId, data, sampleRate, timestamp: Date.now() }
       : audioRoutingService.acceptFrame({ frameId: frameId || 'audio', sourceId, data: data || '', sampleRate });
-    if (!frame || !this._isVoiceActive({ frameId, sourceId, data, sampleRate })) {
+    if (!frame) {
       this.metrics.dropped += 1;
       return { success: false, dropped: true };
     }

@@ -18,7 +18,6 @@ import { toastService } from '../../infrastructure/notifications/toastService.js
 export const VoiceTab: React.FC = () => {
   const voiceName = useSettingsStore((s) => s.voiceName);
   const voiceVolume = useSettingsStore((s) => s.voiceVolume);
-  const silenceThreshold = useSettingsStore((s) => s.silenceThreshold);
   const ttsFallbackVoice = useSettingsStore((s) => s.ttsFallbackVoice);
   const ttsFallbackEnabled = useSettingsStore((s) => s.ttsFallbackEnabled);
   const setField = useSettingsStore((s) => s.setField);
@@ -233,30 +232,6 @@ export const VoiceTab: React.FC = () => {
             </span>
           </div>
 
-          {/* Umbral de Silencio (VAD) */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs font-mono">
-              <span className="text-zinc-200 flex items-center gap-1.5">
-                <Mic size={13} className="text-zinc-400" />
-                Sensibilidad de Silencio (VAD): {Math.round(silenceThreshold * 1000)} ms
-              </span>
-              <span className="text-zinc-400 text-[11px]">
-                {silenceThreshold <= 0.015 ? 'Alta Sensibilidad' : 'Filtro Moderado'}
-              </span>
-            </div>
-            <input
-              type="range"
-              min="0.005"
-              max="0.050"
-              step="0.005"
-              value={silenceThreshold}
-              onChange={(e) => setField('silenceThreshold', parseFloat(e.target.value))}
-              className="w-full accent-zinc-200 cursor-pointer"
-            />
-            <span className="text-[10px] font-mono text-zinc-500 block">
-              Umbral acústico para detectar cuando terminas de hablar y enviar el turno.
-            </span>
-          </div>
         </div>
 
         {/* Fallback TTS Voice */}

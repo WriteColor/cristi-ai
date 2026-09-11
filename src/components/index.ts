@@ -14,6 +14,5 @@ export * from './PerformanceHUD';
 export * from './ScreenRegionOverlay';
 export * from './ScreenRegionPicker';
 export * from './SettingsModal';
-export * from './SubtitleOverlay';
 export * from './TacticalDropdown';
 export * from './ToastContainer';

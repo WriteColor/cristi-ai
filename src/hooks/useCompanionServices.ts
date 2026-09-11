@@ -1,5 +1,4 @@
 import { useCompanionRuntime } from '../app/CompanionRuntimeProvider';
-import type { TranscriptSnapshot } from '../domain/transcription/TranscriptAssembler';
 import { useEffect, useRef, useCallback } from 'react';
 import {
   eventBus,
@@ -66,15 +65,7 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
   const systemTrayRef = useRef<SystemTrayService | null>(null);
   const visionDispatcherRef = useRef<VisionFrameDispatcher | null>(null);
   const translationProviderRef = useRef<GeminiTranslationProvider | null>(null);
-  const turnAudioReceivedRef = useRef(false);
-  const modelTextTurnRef = useRef('');
-  const externalResponseRef = useRef('');
   const autoHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Subtitle timers
-  const modelSubtitleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const userSubtitleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const translationSubtitleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Grab state from stores
   const config = useSettingsStore((s) => s.config);
@@ -149,10 +140,6 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
       sessionStore.dispatchConnection('DISCONNECT');
       companionStore.setIsSpeaking(false);
       companionStore.setIsListening(false);
-      sessionStore.setUserTranscript('');
-      sessionStore.setModelTranscript('');
-      modelTextTurnRef.current = '';
-      externalResponseRef.current = '';
       companionStore.setActiveDecision(null);
       companionStore.setActiveToolName(null);
       companionStore.setCurrentGesture('idle');
@@ -168,8 +155,6 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
 
     isCallActiveRef.current = true;
     const callGeneration = ++callGenerationRef.current;
-    sessionStore.setUserTranscript('');
-    sessionStore.setModelTranscript('');
     sessionStore.setErrorMessage(null);
     sessionStore.dispatchConnection('CONNECT');
 
@@ -232,8 +217,6 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
         onReconnecting: () => {
           audioInRef.current?.mute();
           audioOutRef.current?.stopImmediate();
-          externalResponseRef.current = '';
-          modelTextTurnRef.current = '';
           useSessionStore.getState().dispatchConnection('RECONNECT');
         },
         onClose: (event: any) => {
@@ -251,8 +234,6 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
           useSessionStore.getState().dispatchConnection('DISCONNECT');
           useCompanionStore.getState().setIsSpeaking(false);
           useCompanionStore.getState().setIsListening(false);
-          useSessionStore.getState().setUserTranscript('');
-          useSessionStore.getState().setModelTranscript('');
           useCompanionStore.getState().setActiveDecision(null);
           soundFxService.playDisconnect();
           if (event && !event.wasClean && event.code !== 1000) {
@@ -272,7 +253,6 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
         onGenerationStart: () => audioOutRef.current?.beginGeneration(),
         onGenerationComplete: () => audioOutRef.current?.signalGenerationComplete(),
         onAudioChunk: (base64PCM: string) => {
-          turnAudioReceivedRef.current = true;
           proactiveTriggerService.recordDialogueActivity();
           if (audioOutRef.current) {
             audioOutRef.current.playAudioChunk(base64PCM);
@@ -285,64 +265,9 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
           if (screenCaptureRef.current?.isCapturing && !useCompanionStore.getState().isSpeaking && !audioOutRef.current?.isPlaying) {
             screenCaptureRef.current.triggerImmediateCapture();
           }
-          const completedModelText = externalResponseRef.current || modelTextTurnRef.current || '';
-          if (completedModelText) {
-            useSessionStore.getState().setModelTranscript(completedModelText);
-            if (modelSubtitleTimeoutRef.current) clearTimeout(modelSubtitleTimeoutRef.current);
-            modelSubtitleTimeoutRef.current = setTimeout(() => {
-              useSessionStore.getState().setModelTranscript('');
-            }, 30000);
-          }
-          modelTextTurnRef.current = '';
-          externalResponseRef.current = '';
-          turnAudioReceivedRef.current = false;
-        },
-        onTextPart: (cleanText: string) => {
-          if (!cleanText) return;
-          const previous = modelTextTurnRef.current;
-          const next = previous && !previous.endsWith(cleanText) && !cleanText.startsWith(previous)
-            ? `${previous} ${cleanText}`.replace(/\s{2,}/g, ' ').trim()
-            : cleanText.startsWith(previous) ? cleanText : previous || cleanText;
-          modelTextTurnRef.current = next;
-          if (!externalResponseRef.current) useSessionStore.getState().setModelTranscript(next);
-        },
-        onOutputTranscription: (text: string, snapshot?: TranscriptSnapshot) => {
-          proactiveTriggerService.recordDialogueActivity();
-          const cleanText = text ? text.replace(/<thought>[\s\S]*?<\/thought>/gi, '')
-            .replace(/\[thought[\s\S]*?\]/gi, '')
-            .replace(/\*pensando[\s\S]*?\*/gi, '')
-            .replace(/\*pensamiento[\s\S]*?\*/gi, '')
-            .replace(/\[action:[\s\S]*?\]/gi, '')
-            .replace(/\[tool:[\s\S]*?\]/gi, '')
-            .replace(/\[decision:[\s\S]*?\]/gi, '')
-            .replace(/\[(?:emotion|gesto|emocion|pose|mood|expression|modelo|model|tag|etiqueta):\s*[a-zA-Z0-9_-]+\]/gi, '')
-            .replace(/\[(?:yandere|tsundere|dandere|deredere|kuudere|yanderegirl|icegirl|hiyori|ruan_mei|ellen|sparkle|huohuo|vivian|goth_loli)\]/gi, '')
-            .replace(/\((?:yandere|tsundere|dandere|deredere|kuudere|yanderegirl|icegirl|hiyori|ruan_mei|ellen|sparkle|huohuo|vivian|goth_loli)\)/gi, '')
-            .replace(/\b(?:yandere|tsundere|yanderegirl)\s*:\s*/gi, '')
-            .replace(/\s{2,}/g, ' ')
-            .trim() : '';
-
-          if (cleanText) {
-            externalResponseRef.current = cleanText;
-            useSessionStore.getState().setTranscript('output', cleanText, snapshot?.isFinal ?? false);
-          }
-        },
-        onInputTranscription: (text: string, snapshot?: TranscriptSnapshot) => {
-          proactiveTriggerService.recordDialogueActivity();
-          const cleanText = text ? text.trim() : '';
-          if (cleanText) {
-            useSessionStore.getState().setTranscript('input', cleanText, snapshot?.isFinal ?? false);
-            if (userSubtitleTimeoutRef.current) clearTimeout(userSubtitleTimeoutRef.current);
-            userSubtitleTimeoutRef.current = setTimeout(() => {
-              useSessionStore.getState().setUserTranscript('');
-            }, 30000);
-          }
         },
         onInterrupted: () => {
           ttsFallbackService.stop();
-          externalResponseRef.current = '';
-          modelTextTurnRef.current = '';
-          turnAudioReceivedRef.current = false;
           if (audioOutRef.current) {
             audioOutRef.current.stopImmediate();
           }
@@ -491,7 +416,6 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
       onAudioStart: () => useCompanionStore.getState().setIsSpeaking(true),
       onAudioEnd: () => useCompanionStore.getState().setIsSpeaking(false),
       onFirstPlayout: (timestamp: number) => {
-        socketRef.current?.recordPlayoutTimestamp?.(timestamp);
       }
     });
 
@@ -510,19 +434,6 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
       getGameAudioOutput: () => virtualAudioOutputService
     });
     coordinator.start();
-
-    const handleTranslationOutput = (envelope: any) => {
-      const result = envelope?.payload || envelope;
-      if (!result?.translation) return;
-      const speaker = result.speakerId ? ` (${result.speakerId})` : '';
-      useSessionStore.getState().setTranslationTranscript(`TRADUCCIÓN${speaker}: ${result.translation}`);
-      if (translationSubtitleTimeoutRef.current) clearTimeout(translationSubtitleTimeoutRef.current);
-      translationSubtitleTimeoutRef.current = setTimeout(() => {
-        useSessionStore.getState().setTranslationTranscript('');
-      }, 15000);
-    };
-    const unsubTrans = eventBus.on('translation.local_output', handleTranslationOutput);
-    const unsubGameVoice = eventBus.on('translation.game_voice_output', handleTranslationOutput);
 
     // 4. Emotion event bus subscription
     const unsubEmotion = eventBus.on(EVENTS.EMOTION_CHANGED, (emotion: string) => {
@@ -623,7 +534,6 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
         disconnect: () => isCallActiveRef.current && handleToggleConnection(),
         sendTextMessage: (t: string) => socketRef.current?.sendTextMessage(t),
         triggerGesture: (g: string) => useCompanionStore.getState().setCurrentGesture(g),
-        setSubtitle: (t: string) => useSessionStore.getState().setSubtitleText(t),
         openContextMenu: (x: number, y: number) => handleModelContextMenu({ clientX: x || 300, clientY: y || 200 }),
         closeContextMenu: () => useCompanionStore.getState().closeContextMenu(),
         openPerformanceHUD: () => useTelemetryStore.getState().openPerformanceHud(),
@@ -646,13 +556,12 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
         audioInRef
       };
       (window as any).__triggerGesture = (g: string) => useCompanionStore.getState().setCurrentGesture(g);
-      (window as any).__setSubtitle = (t: string) => useSessionStore.getState().setSubtitleText(t);
     }
 
     return () => {
       callGenerationRef.current++;
       isCallActiveRef.current = false;
-      for (const timer of [autoHideTimerRef, modelSubtitleTimeoutRef, userSubtitleTimeoutRef, translationSubtitleTimeoutRef]) {
+      for (const timer of [autoHideTimerRef]) {
         if (timer.current) {
           clearTimeout(timer.current);
           timer.current = null;
@@ -665,15 +574,12 @@ export function useCompanionServices({ live2dRef }: UseCompanionServicesProps) {
       externalReplyService.stop();
       proactiveTriggerService.stop();
       coordinator.destroy();
-      unsubTrans?.();
-      unsubGameVoice?.();
       unsubEmotion?.();
       unsubConnToggle?.();
       unsubSnap?.();
       screenCaptureRef.current?.stopAll();
       delete (window as any).__cristiApp;
       delete (window as any).__triggerGesture;
-      delete (window as any).__setSubtitle;
     };
   }, [handleToggleConnection, handleToggleCamera, handleModelContextMenu, sendRealtimeVisionFrame, live2dRef]);
 

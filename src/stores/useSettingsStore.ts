@@ -30,7 +30,6 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   soundFxEnabled: true,
   soundFxVolume: 0.7,
   voiceVolume: 100,
-  silenceThreshold: 0.02,
   ttsFallbackVoice: 'Microsoft Helena - Spanish (Spain)',
   ttsFallbackEnabled: true,
   spotifyClientId: '',
@@ -92,7 +91,6 @@ export interface SettingsState {
   systemPrompt: string;
   voiceName: string;
   voiceVolume: number;
-  silenceThreshold: number;
   ttsFallbackVoice: string;
   ttsFallbackEnabled: boolean;
   externalTranslationEnabled: boolean;
@@ -169,7 +167,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => {
             systemPrompt: merged.systemPrompt,
             voiceName: merged.voiceName,
             voiceVolume: merged.voiceVolume ?? 100,
-            silenceThreshold: merged.silenceThreshold ?? 0.02,
             ttsFallbackVoice: merged.ttsFallbackVoice ?? '',
             ttsFallbackEnabled: merged.ttsFallbackEnabled ?? true,
             externalTranslationEnabled: merged.externalTranslationEnabled ?? false,
@@ -198,7 +195,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => {
     systemPrompt: initialConfig.systemPrompt,
     voiceName: initialConfig.voiceName,
     voiceVolume: initialConfig.voiceVolume ?? 100,
-    silenceThreshold: initialConfig.silenceThreshold ?? 0.02,
     ttsFallbackVoice: initialConfig.ttsFallbackVoice ?? '',
     ttsFallbackEnabled: initialConfig.ttsFallbackEnabled ?? true,
     externalTranslationEnabled: initialConfig.externalTranslationEnabled ?? false,
@@ -293,7 +289,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => {
         systemPrompt: activeConfig.systemPrompt,
         voiceName: activeConfig.voiceName,
         voiceVolume: activeConfig.voiceVolume ?? 100,
-        silenceThreshold: activeConfig.silenceThreshold ?? 0.02,
         ttsFallbackVoice: activeConfig.ttsFallbackVoice ?? '',
         ttsFallbackEnabled: activeConfig.ttsFallbackEnabled ?? true,
         externalTranslationEnabled: activeConfig.externalTranslationEnabled ?? false,
@@ -322,7 +317,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => {
         systemPrompt: updated.systemPrompt,
         voiceName: updated.voiceName,
         voiceVolume: updated.voiceVolume ?? 100,
-        silenceThreshold: updated.silenceThreshold ?? 0.02,
         ttsFallbackVoice: updated.ttsFallbackVoice ?? '',
         ttsFallbackEnabled: updated.ttsFallbackEnabled ?? true,
         externalTranslationEnabled: updated.externalTranslationEnabled ?? false,
@@ -359,7 +353,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => {
         systemPrompt: freshConfig.systemPrompt,
         voiceName: freshConfig.voiceName,
         voiceVolume: freshConfig.voiceVolume ?? 100,
-        silenceThreshold: freshConfig.silenceThreshold ?? 0.02,
         ttsFallbackVoice: freshConfig.ttsFallbackVoice ?? '',
         ttsFallbackEnabled: freshConfig.ttsFallbackEnabled ?? true,
         externalTranslationEnabled: freshConfig.externalTranslationEnabled ?? false,

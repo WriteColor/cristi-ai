@@ -100,7 +100,6 @@ export interface AppConfig {
   soundFxEnabled: boolean;
   soundFxVolume: number;
   voiceVolume?: number;
-  silenceThreshold?: number;
   ttsFallbackVoice?: string;
   ttsFallbackEnabled?: boolean;
   spotifyClientId?: string;
